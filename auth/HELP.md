@@ -32,7 +32,7 @@ Use annotations like:
 or multiple roles:
 
 ```
-@PreAuthorize("hasRole('ADMIN') or hasRole('REPRESENTATIVE')")
+@PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
 ```
 
 ✅ Endpoints
