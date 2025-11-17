@@ -50,5 +50,4 @@ jobs:
             -f visibility=public \
             -H "Accept: application/vnd.github+json"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
