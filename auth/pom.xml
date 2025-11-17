@@ -12,7 +12,7 @@
 
 	<groupId>com.naqqa</groupId>
 	<artifactId>naqqa-auth</artifactId>
-	<version>0.0.5</version>
+	<version>0.0.6</version>
 	<name>Naqqa Auth</name>
 	<description>Reusable authentication library for Naqqa apps</description>
 	<packaging>jar</packaging>
