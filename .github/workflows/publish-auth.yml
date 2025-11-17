@@ -25,26 +25,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java with GitHub Packages auth
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: maven
-          server-id: github
+          server-id: github           # matches <id> in distributionManagement
           server-username: GITHUB_ACTOR
           server-password: ${{ secrets.GITHUB_TOKEN }}
           settings-path: ${{ github.workspace }}
 
-      - name: Build and deploy to GitHub Packages
-        run: mvn --batch-mode clean deploy -DskipTests
+      - name: Verify Maven settings
+        run: cat ${{ github.workspace }}/settings.xml
+
+      - name: Build & Deploy to GitHub Packages
+        run: mvn --batch-mode clean deploy -DskipTests -s ${{ github.workspace }}/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
 
       - name: Make naqqa-auth package public
         run: |
-          echo "Setting naqqa-auth visibility to public..."
+          echo "Setting package visibility to public..."
           gh api \
             -X PATCH \
             /orgs/Naqqa-Software/packages/maven/com.naqqa.naqqa-auth/visibility \
