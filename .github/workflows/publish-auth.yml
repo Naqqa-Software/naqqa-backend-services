@@ -25,22 +25,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java with GitHub Packages auth
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: maven
-          server-id: github           # matches <id> in distributionManagement
+          server-id: github
           server-username: GITHUB_ACTOR
-          server-password: ${{ secrets.GITHUB_TOKEN }}
-          settings-path: ${{ github.workspace }}
+          server-password: GITHUB_TOKEN
 
-      - name: Verify Maven settings
-        run: cat ${{ github.workspace }}/settings.xml
-
-      - name: Build & Deploy to GitHub Packages
-        run: mvn --batch-mode clean deploy -DskipTests -s ${{ github.workspace }}/settings.xml
+      - name: Build & Deploy
+        run: mvn --batch-mode clean deploy -DskipTests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
