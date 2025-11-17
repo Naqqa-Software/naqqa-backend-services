@@ -12,7 +12,6 @@ on:
 permissions:
   contents: read
   packages: write
-  id-token: write
 
 jobs:
   publish:
@@ -40,14 +39,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
-
-      - name: Make naqqa-auth package public
-        run: |
-          echo "Setting package visibility to public..."
-          gh api \
-            -X PATCH \
-            /orgs/Naqqa-Software/packages/maven/com.naqqa.naqqa-auth/visibility \
-            -f visibility=public \
-            -H "Accept: application/vnd.github+json"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
