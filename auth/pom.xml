@@ -12,9 +12,9 @@
 
 	<groupId>com.naqqa</groupId>
 	<artifactId>naqqa-auth</artifactId>
-	<version>0.0.2</version>
+	<version>0.0.3</version>
 	<name>Naqqa Auth</name>
-	<description>Reusable authentication library for Naqqa apps</description>
+	<description>Reusable authentication library for Naqqa backend apps</description>
 	<packaging>jar</packaging>
 
 	<distributionManagement>
@@ -30,24 +30,30 @@
 	</properties>
 
 	<dependencies>
+		<!-- Spring Boot core dependencies -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
+
+		<!-- Database -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- JWT -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
@@ -66,12 +72,14 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- Utilities -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
 
+		<!-- Testing -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
@@ -81,19 +89,13 @@
 
 	<build>
 		<plugins>
+			<!-- ✅ Keep this simple so Spring Boot includes META-INF resources -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
-				<executions>
-					<execution>
-						<goals>
-							<goal>repackage</goal>
-						</goals>
-						<phase>none</phase>
-					</execution>
-				</executions>
 			</plugin>
 
+			<!-- Deploy plugin -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-deploy-plugin</artifactId>
