@@ -7,7 +7,7 @@ on:
     paths:
       - 'auth/**'
       - '.github/workflows/publish-auth.yml'
-  workflow_dispatch:  # allow manual trigger from Actions tab
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -21,7 +21,7 @@ jobs:
         working-directory: ./auth
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Java
@@ -29,11 +29,12 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          server-id: github
-          settings-path: ${{ github.workspace }}
-          cache: maven
+          server-id: github               # must match <id> in distributionManagement
+          server-username: GITHUB_ACTOR   # built-in GitHub user
+          server-password: GITHUB_TOKEN   # built-in GitHub token
+          cache: 'maven'
 
-      - name: Build & Deploy to GitHub Packages
+      - name: Build & Deploy
         run: mvn --batch-mode clean deploy -DskipTests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
