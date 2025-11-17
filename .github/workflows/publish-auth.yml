@@ -1,41 +1,41 @@
-name: Publish Naqqa Auth to GitHub Packages
-
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'auth/**'
-      - '.github/workflows/publish-auth.yml'
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  packages: write
-
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./auth
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: maven
-          server-id: github
-          server-username: GITHUB_ACTOR
-          server-password: GITHUB_TOKEN
-
-      - name: Build & Deploy
-        run: mvn --batch-mode clean deploy -DskipTests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
+#name: Publish Naqqa Auth to GitHub Packages
+#
+#on:
+#  push:
+#    branches:
+#      - main
+#    paths:
+#      - 'auth/**'
+#      - '.github/workflows/publish-auth.yml'
+#  workflow_dispatch:
+#
+#permissions:
+#  contents: read
+#  packages: write
+#
+#jobs:
+#  publish:
+#    runs-on: ubuntu-latest
+#    defaults:
+#      run:
+#        working-directory: ./auth
+#
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v4
+#
+#      - name: Set up Java
+#        uses: actions/setup-java@v4
+#        with:
+#          distribution: 'temurin'
+#          java-version: '17'
+#          cache: maven
+#          server-id: github
+#          server-username: GITHUB_ACTOR
+#          server-password: GITHUB_TOKEN
+#
+#      - name: Build & Deploy
+#        run: mvn --batch-mode clean deploy -DskipTests
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#          GITHUB_ACTOR: ${{ github.actor }}
