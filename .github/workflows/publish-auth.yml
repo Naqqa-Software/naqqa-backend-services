@@ -7,11 +7,12 @@ on:
     paths:
       - 'auth/**'
       - '.github/workflows/publish-auth.yml'
-  workflow_dispatch:
+  workflow_dispatch:  # allow manual trigger
 
 permissions:
   contents: read
   packages: write
+  id-token: write  # needed for gh api auth
 
 jobs:
   publish:
@@ -21,7 +22,7 @@ jobs:
         working-directory: ./auth
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Java
@@ -29,12 +30,23 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          server-id: github               # must match <id> in distributionManagement
-          server-username: GITHUB_ACTOR   # built-in GitHub user
-          server-password: GITHUB_TOKEN   # built-in GitHub token
-          cache: 'maven'
+          server-id: github
+          settings-path: ${{ github.workspace }}
+          cache: maven
 
-      - name: Build & Deploy
+      - name: Build & Deploy to GitHub Packages
         run: mvn --batch-mode clean deploy -DskipTests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 👇 New step: automatically make the package public
+      - name: Make naqqa-auth package public
+        run: |
+          echo "Setting naqqa-auth visibility to public..."
+          gh api \
+            -X PATCH \
+            /orgs/Naqqa-Software/packages/maven/com.naqqa.naqqa-auth/visibility \
+            -f visibility=public \
+            -H "Accept: application/vnd.github+json"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
