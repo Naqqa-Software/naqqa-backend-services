@@ -10,12 +10,12 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.naqqa</groupId>
-    <artifactId>naqqa-auth</artifactId>
-    <version>0.0.9</version>
-    <name>Naqqa Auth</name>
-    <description>Reusable authentication library for Naqqa apps</description>
-    <packaging>jar</packaging>
+	<groupId>com.naqqa</groupId>
+	<artifactId>naqqa-auth</artifactId>
+	<version>0.0.16</version>
+	<name>Naqqa Auth</name>
+	<description>Reusable authentication library for Naqqa apps</description>
+	<packaging>jar</packaging>
 
     <distributionManagement>
         <repository>
@@ -102,26 +102,28 @@
         </dependency>
     </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>repackage</goal>
-                        </goals>
-                        <phase>none</phase>
-                    </execution>
-                </executions>
-            </plugin>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<skip>true</skip>
+				</configuration>
+			</plugin>
 
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-deploy-plugin</artifactId>
-                <version>3.1.1</version>
-            </plugin>
-        </plugins>
-    </build>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>3.3.0</version>
+				<configuration>
+					<archive>
+						<manifest>
+							<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+						</manifest>
+					</archive>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 </project>
