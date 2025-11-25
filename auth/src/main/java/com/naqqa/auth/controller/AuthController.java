@@ -1,36 +1,51 @@
 package com.naqqa.auth.controller;
 
-import com.naqqa.auth.dto.AuthResponse;
-import com.naqqa.auth.dto.ChangePasswordRequest;
-import com.naqqa.auth.dto.LoginRequest;
-import com.naqqa.auth.dto.RegisterRequest;
+import com.naqqa.auth.config.EmailMessages;
+import com.naqqa.auth.dto.*;
 import com.naqqa.auth.service.AuthService;
+import com.naqqa.auth.service.AuthEmailService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
-@RestController
-@RequestMapping("${auth.api.base-path:/api/auth}")
 @RequiredArgsConstructor
+@ConditionalOnMissingBean(AuthController.class)
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthEmailService authEmailService;
+    private final EmailMessages emailMessages;
 
-    @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest request) {
-        return ResponseEntity.ok(authService.register(request));
+    public ResponseEntity<RegisterResponse> register(RegisterRequest request) {
+        RegisterResponse uuid = authService.register(request);
+        return new ResponseEntity<>(uuid, HttpStatus.CREATED);
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<?> confirmEmail(EmailConfirmationRequest request) {
+        authService.confirmEmail(request);
+        return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/change-password")
-    public ResponseEntity<String> changePassword(@RequestBody ChangePasswordRequest request) {
-        return ResponseEntity.ok(authService.changePassword(request));
+    public ResponseEntity<?> login(boolean rememberMe, LoginRequest request) {
+        AuthResponse authResponse = authService.login(request, rememberMe);
+        return new ResponseEntity<>(authResponse, HttpStatus.CREATED);
+    }
+
+    public ResponseEntity<String> forgotPassword(ForgotPasswordRequest request) {
+        ResetPasswordInfo info = authService.forgotPassword(request);
+
+        authEmailService.sendEmail(
+                request.email(),
+                emailMessages.getResetPasswordSubject(),
+                emailMessages.getResetPasswordEmailMessage(info.email(), info.uuid())
+        );
+
+
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+
+    public void resetPassword(ResetPasswordRequest request) {
+        authService.resetPassword(request);
     }
 }

@@ -1,5 +1,6 @@
 package com.naqqa.auth.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -19,22 +20,24 @@ public class AuthSecurityConfig {
 
     @Bean
     @Order(1)
-    public SecurityFilterChain authSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .securityMatcher("/api/auth/**")
-                .csrf(csrf -> csrf.disable())
+    @ConditionalOnMissingBean(SecurityFilterChain.class)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll()
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .anyRequest().authenticated()
                 );
         return http.build();
     }
 
     @Bean
+    @ConditionalOnMissingBean(PasswordEncoder.class)
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
     @Bean
+    @ConditionalOnMissingBean(AuthenticationManager.class)
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
