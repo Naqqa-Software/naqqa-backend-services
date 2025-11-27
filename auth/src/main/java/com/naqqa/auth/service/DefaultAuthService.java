@@ -93,15 +93,20 @@ public class DefaultAuthService implements AuthService {
     @Transactional
     public AuthResponse login(LoginRequest request, boolean rememberMe) {
         UserEntity user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(WrongCredentialsException::new);
+                .orElse(null);
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (user == null) {
+            registerRecordRepository.findByEmail(request.getEmail())
+                    .ifPresent(reg -> {
+                        String uuid = resendVerificationCode(request.getEmail());
+                        throw new EmailNotVerifiedException(uuid);
+                    });
+
             throw new WrongCredentialsException();
         }
 
-        if (!user.isEnabled()) {
-            String uuid = resendVerificationCode(user.getEmail());
-            throw new EmailNotVerifiedException(uuid);
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new WrongCredentialsException();
         }
 
         String jwtToken = rememberMe
