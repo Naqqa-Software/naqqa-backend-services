@@ -19,15 +19,11 @@ import org.springframework.security.web.SecurityFilterChain;
 @AllArgsConstructor
 @EnableMethodSecurity(prePostEnabled = true)
 public class AuthSecurityConfig {
-    private final CorsConfig corsConfig;
-
-
     @Bean
     @Order(1)
     @ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
-//                .cors(cors -> cors.configurationSource(corsConfig.corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .anyRequest().authenticated()
