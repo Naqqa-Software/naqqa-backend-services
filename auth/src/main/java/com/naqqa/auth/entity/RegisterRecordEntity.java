@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
+import org.springframework.data.redis.core.index.Indexed;
 
 @Data
 @NoArgsConstructor
@@ -14,7 +15,10 @@ public class RegisterRecordEntity {
     private String uuid;
 
     private String fullName;
+
+    @Indexed
     private String email;
+
     private String password;
     private String code;
 }

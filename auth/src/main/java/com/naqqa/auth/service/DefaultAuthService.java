@@ -11,11 +11,11 @@ import com.naqqa.auth.repository.redis.PasswordResetRepository;
 import com.naqqa.auth.repository.redis.RegisterRecordRepository;
 import com.naqqa.auth.security.JwtService;
 import com.naqqa.auth.roles.RoleProvider;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -92,15 +92,16 @@ public class DefaultAuthService implements AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request, boolean rememberMe) {
-        UserEntity user = userRepository.findByEmail(request.getEmail())
-                .orElse(null);
+        UserEntity user = userRepository.findByEmail(request.getEmail()).orElse(null);
 
         if (user == null) {
-            registerRecordRepository.findByEmail(request.getEmail())
-                    .ifPresent(reg -> {
-                        String uuid = resendVerificationCode(request.getEmail());
-                        throw new EmailNotVerifiedException(uuid);
-                    });
+            RegisterRecordEntity reg = registerRecordRepository.findByEmail(request.getEmail())
+                    .orElse(null);
+
+            if (reg != null) {
+                String uuid = resendVerificationCode(request.getEmail());
+                throw new EmailNotVerifiedException(uuid);
+            }
 
             throw new WrongCredentialsException();
         }

@@ -78,7 +78,7 @@ Add dependency to your consuming project’s pom.xml:
 <dependency>
   <groupId>com.naqqa</groupId>
   <artifactId>naqqa-auth</artifactId>
-  <version>0.0.19</version>
+  <version>0.0.22</version>
 </dependency>
 ```
 

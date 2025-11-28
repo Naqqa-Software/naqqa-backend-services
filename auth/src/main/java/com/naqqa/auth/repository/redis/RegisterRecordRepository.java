@@ -6,5 +6,5 @@ import org.springframework.data.repository.CrudRepository;
 import java.util.Optional;
 
 public interface RegisterRecordRepository extends CrudRepository<RegisterRecordEntity, String> {
-    Optional<Object> findByEmail(String email);
+    Optional<RegisterRecordEntity> findByEmail(String email);
 }
