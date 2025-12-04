@@ -1,9 +1,9 @@
 package com.naqqa.auth.controller;
 
-import com.naqqa.auth.config.EmailMessages;
-import com.naqqa.auth.dto.*;
-import com.naqqa.auth.service.AuthService;
-import com.naqqa.auth.service.AuthEmailService;
+import com.naqqa.auth.config.auth.EmailMessages;
+import com.naqqa.auth.dto.auth.*;
+import com.naqqa.auth.service.auth.AuthService;
+import com.naqqa.auth.service.auth.AuthEmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.http.HttpStatus;
