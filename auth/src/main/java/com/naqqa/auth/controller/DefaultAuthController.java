@@ -1,6 +1,6 @@
 package com.naqqa.auth.controller;
 
-import com.naqqa.auth.dto.*;
+import com.naqqa.auth.dto.auth.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.web.bind.annotation.*;

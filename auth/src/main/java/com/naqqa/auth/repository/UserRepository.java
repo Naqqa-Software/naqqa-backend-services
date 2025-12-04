@@ -1,6 +1,6 @@
 package com.naqqa.auth.repository;
 
-import com.naqqa.auth.entity.UserEntity;
+import com.naqqa.auth.entity.auth.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

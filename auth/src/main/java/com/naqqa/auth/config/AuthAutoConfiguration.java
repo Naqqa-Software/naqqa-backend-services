@@ -1,12 +1,16 @@
 package com.naqqa.auth.config;
 
+import com.naqqa.auth.config.auth.EmailMessages;
 import com.naqqa.auth.controller.AuthController;
+import com.naqqa.auth.repository.RoleRepository;
 import com.naqqa.auth.repository.UserRepository;
 import com.naqqa.auth.repository.redis.PasswordResetRepository;
 import com.naqqa.auth.repository.redis.RegisterRecordRepository;
 import com.naqqa.auth.roles.RoleProvider;
-import com.naqqa.auth.service.*;
 import com.naqqa.auth.security.JwtService;
+import com.naqqa.auth.service.auth.*;
+import com.naqqa.auth.service.security.CodeGenService;
+import com.naqqa.auth.service.security.TokenService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +37,7 @@ public class AuthAutoConfiguration {
     @ConditionalOnMissingBean(AuthService.class)
     public AuthService defaultAuthService(
             UserRepository userRepository,
+            RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
             RegisterRecordRepository registerRecordRepository,
             PasswordResetRepository passwordResetRepository,
@@ -45,6 +50,7 @@ public class AuthAutoConfiguration {
     ) {
         return new DefaultAuthService(
                 userRepository,
+                roleRepository,
                 passwordEncoder,
                 registerRecordRepository,
                 passwordResetRepository,

@@ -1,7 +1,6 @@
 package com.naqqa.auth.exceptionhandlers;
 
-import com.naqqa.auth.dto.AuthErrorResponse;
-import com.naqqa.auth.exceptions.*;
+import com.naqqa.auth.dto.auth.AuthErrorResponse;
 import com.naqqa.auth.exceptions.auth.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
