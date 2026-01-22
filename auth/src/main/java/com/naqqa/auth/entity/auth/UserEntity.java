@@ -1,6 +1,7 @@
 package com.naqqa.auth.entity.auth;
 
 import com.naqqa.auth.entity.authorities.RoleEntity;
+import com.naqqa.auth.entity.authorities.SubRoleEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -37,9 +38,19 @@ public class UserEntity {
     @Builder.Default
     private Set<RoleEntity> roles = new HashSet<>();
 
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "user_sub_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "sub_role_id")
+    )
+    @Builder.Default
+    private Set<SubRoleEntity> subRoles = new HashSet<>();
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "last_role_id")
     private RoleEntity lastRole;
 
+    @Builder.Default
     private boolean enabled = true;
 }

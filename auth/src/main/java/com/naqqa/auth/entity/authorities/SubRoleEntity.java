@@ -1,19 +1,18 @@
 package com.naqqa.auth.entity.authorities;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Data
+@Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "roles")
-public class RoleEntity {
+@Table(name = "sub_roles")
+public class SubRoleEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,8 +23,8 @@ public class RoleEntity {
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
-            name = "role_authorities",
-            joinColumns = @JoinColumn(name = "role_id"),
+            name = "sub_role_authorities",
+            joinColumns = @JoinColumn(name = "sub_role_id"),
             inverseJoinColumns = @JoinColumn(name = "authority_id")
     )
     private Set<AuthorityEntity> authorities = new HashSet<>();

@@ -2,9 +2,12 @@ package com.naqqa.auth.service.admin;
 
 import com.naqqa.auth.dto.admin.AdminUserResponse;
 import com.naqqa.auth.dto.admin.UserRoleUpdateRequest;
+import com.naqqa.auth.dto.admin.UserSubRoleUpdateRequest;
 import com.naqqa.auth.entity.auth.UserEntity;
 import com.naqqa.auth.entity.authorities.RoleEntity;
+import com.naqqa.auth.entity.authorities.SubRoleEntity;
 import com.naqqa.auth.repository.RoleRepository;
+import com.naqqa.auth.repository.SubRoleRepository;
 import com.naqqa.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,7 @@ public class DefaultAdminUserService implements AdminUserService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final SubRoleRepository subRoleRepository;
 
     @Override
     public List<AdminUserResponse> getAllUsers() {
@@ -65,6 +69,42 @@ public class DefaultAdminUserService implements AdminUserService {
     }
 
     @Override
+    public AdminUserResponse addSubRole(Long userId, String subRoleName) {
+        UserEntity user = findUser(userId);
+        SubRoleEntity subRole = findSubRole(subRoleName);
+
+        user.getSubRoles().add(subRole);
+        userRepository.save(user);
+
+        return mapToResponse(user);
+    }
+
+    @Override
+    public AdminUserResponse removeSubRole(Long userId, String subRoleName) {
+        UserEntity user = findUser(userId);
+        SubRoleEntity subRole = findSubRole(subRoleName);
+
+        user.getSubRoles().remove(subRole);
+        userRepository.save(user);
+
+        return mapToResponse(user);
+    }
+
+    @Override
+    public AdminUserResponse replaceSubRoles(Long userId, UserSubRoleUpdateRequest request) {
+        UserEntity user = findUser(userId);
+
+        Set<SubRoleEntity> newSubRoles = request.getSubRoleNames().stream()
+                .map(this::findSubRole)
+                .collect(Collectors.toSet());
+
+        user.setSubRoles(newSubRoles);
+        userRepository.save(user);
+
+        return mapToResponse(user);
+    }
+
+    @Override
     public AdminUserResponse disableUser(Long userId) {
         UserEntity user = findUser(userId);
         user.setEnabled(false);
@@ -79,6 +119,7 @@ public class DefaultAdminUserService implements AdminUserService {
         userRepository.save(user);
         return mapToResponse(user);
     }
+
 
     @Override
     public void deleteUser(Long userId) {
@@ -106,6 +147,16 @@ public class DefaultAdminUserService implements AdminUserService {
                                 .map(RoleEntity::getName)
                                 .collect(Collectors.toSet())
                 )
+                .subRoles(
+                        user.getSubRoles().stream()
+                                .map(SubRoleEntity::getName)
+                                .collect(Collectors.toSet())
+                )
                 .build();
+    }
+
+    private SubRoleEntity findSubRole(String name) {
+        return subRoleRepository.findByName(name)
+                .orElseThrow(() -> new RuntimeException("SubRole not found: " + name));
     }
 }

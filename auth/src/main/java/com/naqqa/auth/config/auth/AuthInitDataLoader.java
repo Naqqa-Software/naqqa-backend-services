@@ -1,6 +1,8 @@
 package com.naqqa.auth.config.auth;
 
 import com.naqqa.auth.config.authorities.AuthorityRegistry;
+import com.naqqa.auth.config.authorities.AuthoritySeeder;
+import com.naqqa.auth.config.authorities.RoleSeeder;
 import com.naqqa.auth.entity.authorities.AuthorityEntity;
 import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.repository.AuthorityRepository;
@@ -21,14 +23,36 @@ public class AuthInitDataLoader {
     private static final String ADMIN_ROLE_NAME = "ADMIN";
 
     @Bean
+    @Order(0)
+    public CommandLineRunner initCustomAuthorities(
+            List<AuthoritySeeder> authoritySeeders,
+            AuthorityRepository authorityRepository
+    ) {
+        return args -> {
+            if (authoritySeeders == null || authoritySeeders.isEmpty()) {
+                return;
+            }
+
+            for (AuthoritySeeder seeder : authoritySeeders) {
+                seeder.seedAuthorities(authorityRepository);
+            }
+        };
+    }
+
+
+    @Bean
     @Order(1)
     public CommandLineRunner initAuthoritiesAndAdminRole(
             AuthorityRegistry authorityRegistry,
             AuthorityRepository authorityRepository,
-            RoleRepository roleRepository) {
-
+            RoleRepository roleRepository
+    ) {
         return args -> {
+            /* =========================
+             * 1. Seed authorities
+             * ========================= */
             Set<String> allAuthorityNames = authorityRegistry.getAllAvailableAuthorities();
+
             Set<String> existingAuthorityNames = authorityRepository.findAll().stream()
                     .map(AuthorityEntity::getName)
                     .collect(Collectors.toSet());
@@ -44,33 +68,57 @@ public class AuthInitDataLoader {
                             entity.setName(name);
                             return entity;
                         })
-                        .collect(Collectors.toList());
+                        .toList();
+
                 authorityRepository.saveAll(newAuthorities);
                 System.out.println("Seeded " + newAuthorities.size() + " new authorities.");
             }
 
-            // --- CORRECTED ROLE CREATION LOGIC ---
+            /* =========================
+             * 2. Ensure ADMIN role exists
+             * ========================= */
             RoleEntity adminRole = roleRepository.findByName(ADMIN_ROLE_NAME)
                     .orElseGet(() -> {
-                        RoleEntity newRole = new RoleEntity();
-                        newRole.setName(ADMIN_ROLE_NAME);
-                        newRole.setAuthorities(new HashSet<>());
-
-                        return roleRepository.save(newRole);
+                        RoleEntity role = new RoleEntity();
+                        role.setName(ADMIN_ROLE_NAME);
+                        role.setAuthorities(new HashSet<>());
+                        return roleRepository.save(role);
                     });
-            // --- END CORRECTED LOGIC ---
 
+            /* =========================
+             * 3. Merge ALL authorities into ADMIN
+             * ========================= */
+            Set<AuthorityEntity> allAuthorities =
+                    new HashSet<>(authorityRepository.findAll());
 
-            List<AuthorityEntity> allAuthorities = authorityRepository.findAll();
+            Set<AuthorityEntity> adminAuthorities =
+                    new HashSet<>(adminRole.getAuthorities());
 
-            if (adminRole.getAuthorities().size() != allAuthorities.size()) {
+            boolean changed = adminAuthorities.addAll(allAuthorities);
 
-                adminRole.setAuthorities(new HashSet<>(allAuthorities));
+            if (changed) {
+                adminRole.setAuthorities(adminAuthorities);
                 roleRepository.save(adminRole);
 
-                System.out.println("ADMIN role successfully granted ALL (" + allAuthorities.size() + ") authorities.");
+                System.out.println(
+                        "ADMIN role updated. Total authorities: " + adminAuthorities.size()
+                );
             } else {
                 System.out.println("ADMIN role already has full access.");
+            }
+        };
+    }
+
+    @Bean
+    @Order(2)
+    public CommandLineRunner initRoles(
+            List<RoleSeeder> roleSeeders,
+            RoleRepository roleRepository,
+            AuthorityRepository authorityRepository
+    ) {
+        return args -> {
+            for (RoleSeeder seeder : roleSeeders) {
+                seeder.seedRoles(roleRepository, authorityRepository);
             }
         };
     }

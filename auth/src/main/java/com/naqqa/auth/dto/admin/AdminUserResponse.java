@@ -13,4 +13,5 @@ public class AdminUserResponse {
     private String fullName;
     private boolean enabled;
     private Set<String> roles;
+    private Set<String> subRoles;
 }

@@ -22,7 +22,6 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity(prePostEnabled = true)
 public class AuthSecurityConfig {
 
-
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
@@ -32,12 +31,12 @@ public class AuthSecurityConfig {
 
     @Bean
     @Order(1)
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain authSecurityFilterChain(HttpSecurity http) throws Exception {
         http
+                .securityMatcher("/api/auth/**", "/api/custom-auth/**")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .anyRequest().authenticated()
+                        .anyRequest().permitAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
@@ -45,7 +44,6 @@ public class AuthSecurityConfig {
                         ));
         return http.build();
     }
-
 
     @Bean
     @ConditionalOnMissingBean(PasswordEncoder.class)
