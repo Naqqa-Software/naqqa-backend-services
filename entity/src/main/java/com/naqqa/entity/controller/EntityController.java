@@ -1,29 +1,51 @@
 package com.naqqa.entity.controller;
 
+import com.naqqa.entity.entity.Entity;
+import com.naqqa.entity.service.entity.EntityService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 
-@Slf4j
+import java.util.List;
+
 @RequiredArgsConstructor
-@RequestMapping("/api/admin")
 @RestController
-public class AdminController {
+@RequestMapping("/api/entities")
+public class EntityController {
 
-//    private final LogService logService;
-//
-//    @GetMapping("/logs")
-//    public Page<LogDto> getLogs(
-//            @PageableDefault(size = 20) Pageable pageable,
-//            @RequestParam(required = false) RoleEnum role,
-//            @RequestParam(required = false) ActionType actionType,
-//            @RequestParam(required = false) LogType logType,
-//            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-//            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-//            @RequestParam(required = false, defaultValue = "createdAt") String sortBy,
-//            @RequestParam(required = false, defaultValue = "DESC") SortDirection sortDir
-//    ) {
-//        return logService.findAllFiltered(pageable, role, actionType, logType, startDate, endDate, sortBy, sortDir);
-//    }
+    private final EntityService entityService;
+
+    @PostMapping
+    @PreAuthorize("hasAuthority('entity:create')")
+    public ResponseEntity<Entity> create(@RequestBody Entity entity) {
+        return ResponseEntity.ok(entityService.save(entity));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAuthority('entity:read')")
+    public ResponseEntity<List<Entity>> getAll() {
+        return ResponseEntity.ok(entityService.findAll());
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('entity:read')")
+    public ResponseEntity<Entity> getById(@PathVariable String id) {
+        Entity entity = entityService.findById(id);
+        return entity == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(entity);
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('entity:update')")
+    public ResponseEntity<Entity> update(@PathVariable String id, @RequestBody Entity entity) {
+        entity.setId(id);
+        return ResponseEntity.ok(entityService.save(entity));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('entity:delete')")
+    public ResponseEntity<Void> delete(@PathVariable String id) {
+        entityService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
 }

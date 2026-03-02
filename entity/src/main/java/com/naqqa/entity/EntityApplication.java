@@ -7,20 +7,17 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication(
         scanBasePackages = {
-                "com.naqqa.deedakt",
-                "com.naqqa.auth",
-                "com.naqqa.filestorage"  // include the library
+                "com.naqqa.entity",
+                "com.naqqa.auth"
         }
 )
 @EntityScan({
-        "com.naqqa.deedakt.entities",
-        "com.naqqa.auth.entity",
-        "com.naqqa.filestorage.entities" // include library entities
+        "com.naqqa.entity.entity",
+        "com.naqqa.auth.entity"
 })
 @EnableJpaRepositories({
-        "com.naqqa.deedakt.repository",
-        "com.naqqa.auth.repository",
-        "com.naqqa.filestorage.repository" // include library repos
+        "com.naqqa.entity.repository",
+        "com.naqqa.auth.repository"
 })
 public class EntityApplication {
     public static void main(String[] args) {

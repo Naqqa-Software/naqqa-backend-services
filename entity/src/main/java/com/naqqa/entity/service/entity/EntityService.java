@@ -1,27 +1,35 @@
-package com.naqqa.entity.service.auth;
+package com.naqqa.entity.service.entity;
 
-import com.naqqa.auth.entity.auth.UserEntity;
-import com.naqqa.auth.repository.UserRepository;
-import com.naqqa.deedakt.entities.OrganizerEntity;
-import com.naqqa.deedakt.repository.OrganizerRepository;
+import com.naqqa.entity.entity.Entity;
+import com.naqqa.entity.repository.mongo.EntityRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-@Slf4j
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
-public class OrganizerAuthService {
+public class EntityService {
 
-    private final UserRepository userRepository;
-    private final OrganizerRepository organizerRepository;
+    private final EntityRepository entityRepository;
 
-    public OrganizerEntity registerOrganizer(Long userId) {
-        UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    public Entity save(Entity entity) {
+        return entityRepository.save(entity);
+    }
 
-        OrganizerEntity organizer = new OrganizerEntity();
-        organizer.setUser(user);
-        return organizerRepository.save(organizer);
+    public Entity findById(String id) {
+        return entityRepository.findById(id).orElse(null);
+    }
+
+    public List<Entity> findAll() {
+        return entityRepository.findAll();
+    }
+
+    public void delete(String id) {
+        entityRepository.deleteById(id);
+    }
+
+    public List<Entity> saveAll(List<Entity> entities) {
+        return entityRepository.saveAll(entities);
     }
 }

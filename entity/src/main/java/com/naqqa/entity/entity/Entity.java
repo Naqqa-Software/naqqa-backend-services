@@ -1,14 +1,21 @@
-package com.naqqa.entity.model.entity;
+package com.naqqa.entity.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.naqqa.entity.model.entity.EntityApiConfig;
+import com.naqqa.entity.model.entity.FieldProps;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
 
 @Data
 @Document(collection = "entity")
+@CompoundIndexes({
+        @CompoundIndex(name = "main_details_key_unique", def = "{'mainDetails.key': 1}", unique = true)
+})
 public class Entity {
 
     @Id
