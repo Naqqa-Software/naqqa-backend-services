@@ -1,10 +1,12 @@
 package com.naqqa.auth.entity.auth;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.entity.authorities.SubRoleEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -50,6 +52,10 @@ public class UserEntity {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "last_role_id")
     private RoleEntity lastRole;
+
+    @JsonFormat(pattern = "dd-MM-yyyy")
+    @JoinColumn(name = "birth_date")
+    private LocalDate birthDate;
 
     @Builder.Default
     private boolean enabled = true;
