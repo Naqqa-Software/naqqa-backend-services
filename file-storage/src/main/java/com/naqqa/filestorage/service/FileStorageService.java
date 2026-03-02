@@ -11,9 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 public class FileStorageService {
@@ -26,27 +24,22 @@ public class FileStorageService {
 
     // ------------------ UPLOAD METHODS ------------------
 
-    public FileEntity uploadFile(MultipartFile file, String directory, FileAccessEnum access) {
+    public FileEntity uploadFile(MultipartFile file, String directory) {
         if (file.isEmpty()) throw new IllegalArgumentException("File is empty");
 
         try {
-            String fileName = directory + "/" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
-            BlobId blobId = BlobId.of(bucketName, fileName);
-
+            String objectKey = directory + "/" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
+            BlobId blobId = BlobId.of(bucketName, objectKey);
             BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
                     .setContentType(file.getContentType())
                     .build();
 
-            Storage.PredefinedAcl storageAccess = (access == FileAccessEnum.PRIVATE)
-                    ? Storage.PredefinedAcl.PRIVATE
-                    : Storage.PredefinedAcl.PUBLIC_READ;
-
-            Blob blob = storage.create(blobInfo, file.getBytes(), Storage.BlobTargetOption.predefinedAcl(storageAccess));
+            // Create object without ACLs (UBLA-compatible)
+            storage.create(blobInfo, file.getBytes());
 
             FileEntity fileEntity = new FileEntity();
-            fileEntity.setFileName(blob.getName());
+            fileEntity.setFileName(objectKey);
             fileEntity.setOriginalFileName(file.getOriginalFilename());
-            fileEntity.setFileUrl(blob.getMediaLink());
             fileEntity.setContentType(file.getContentType());
             fileEntity.setSize(file.getSize());
 
@@ -54,51 +47,41 @@ public class FileStorageService {
 
         } catch (Exception e) {
             LOGGER.error("Error uploading file to GCS", e);
-            throw new GCPFileException("Failed to upload file to GCS");
+            throw new GCPFileException("Failed to upload file to GCS: " + e.getMessage(), e);
         }
     }
 
-    public FileEntity uploadFileInputStream(InputStream inputStream, String fileName, String directory, FileAccessEnum access) {
+    public FileEntity uploadFileInputStream(InputStream inputStream, String fileName, String contentType, String directory) {
         if (inputStream == null) throw new IllegalArgumentException("InputStream is null");
 
+        String mimeType = (contentType == null || contentType.isBlank()) ? "application/octet-stream" : contentType;
+
         try {
-            String fullPath = directory + "/" + fileName;
-            BlobId blobId = BlobId.of(bucketName, fullPath);
+            String objectKey = directory + "/" + System.currentTimeMillis() + "_" + fileName;
+            BlobId blobId = BlobId.of(bucketName, objectKey);
+            BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType(mimeType).build();
 
-            BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
-                    .setContentType("application/octet-stream")
-                    .build();
-
-            Storage.PredefinedAcl storageAccess = (access == FileAccessEnum.PRIVATE)
-                    ? Storage.PredefinedAcl.PRIVATE
-                    : Storage.PredefinedAcl.PUBLIC_READ;
-
-            Blob blob = storage.createFrom(blobInfo, inputStream, Storage.BlobWriteOption.predefinedAcl(storageAccess));
+            storage.createFrom(blobInfo, inputStream);
 
             FileEntity fileEntity = new FileEntity();
-            fileEntity.setFileName(blob.getName());
+            fileEntity.setFileName(objectKey);
             fileEntity.setOriginalFileName(fileName);
-            fileEntity.setFileUrl(blob.getMediaLink());
-            fileEntity.setContentType("application/octet-stream");
+            fileEntity.setContentType(mimeType);
 
             return fileRepository.save(fileEntity);
-
         } catch (Exception e) {
             LOGGER.error("Error uploading InputStream to GCS", e);
-            throw new GCPFileException("Failed to upload file to GCS");
+            throw new GCPFileException("Failed to upload stream to GCS: " + e.getMessage(), e);
         }
     }
 
     // ------------------ DELETE ------------------
-
     public void deleteFile(Long fileId) {
         FileEntity fileEntity = fileRepository.findById(fileId)
                 .orElseThrow(() -> new GCPFileException("File not found with ID: " + fileId));
 
         BlobId blobId = BlobId.of(bucketName, fileEntity.getFileName());
-        boolean deleted = storage.delete(blobId);
-
-        if (deleted) {
+        if (storage.delete(blobId)) {
             fileRepository.deleteById(fileId);
             LOGGER.info("File deleted from GCS and DB: {}", fileEntity.getFileName());
         } else {
@@ -106,16 +89,14 @@ public class FileStorageService {
         }
     }
 
-    // ------------------ FETCH ------------------
-
-    public FileEntity getFile(Long fileId) {
-        return fileRepository.findById(fileId)
-                .orElseThrow(() -> new GCPFileException("File not found with ID: " + fileId));
+    public String getFileUrl(FileEntity file, FileAccessEnum access) {
+        int expiryMinutes = (access == FileAccessEnum.PRIVATE) ? 60 : 60 * 24 * 7;
+        return generateSignedUrl(file.getFileName(), expiryMinutes);
     }
 
-    public String generateSignedUrl(String fileName, long durationMinutes) {
+    private String generateSignedUrl(String objectKey, int durationMinutes) {
         try {
-            BlobId blobId = BlobId.of(bucketName, fileName);
+            BlobId blobId = BlobId.of(bucketName, objectKey);
             return storage.signUrl(
                     BlobInfo.newBuilder(blobId).build(),
                     durationMinutes,
@@ -123,19 +104,8 @@ public class FileStorageService {
                     Storage.SignUrlOption.withV4Signature()
             ).toString();
         } catch (Exception e) {
-            LOGGER.error("Failed to generate signed URL for {}", fileName, e);
-            throw new GCPFileException("Failed to generate signed URL for file: " + fileName);
+            LOGGER.error("Failed to generate signed URL for {}", objectKey, e);
+            throw new GCPFileException("Failed to generate signed URL for file: " + objectKey);
         }
-    }
-
-    public List<FileEntity> getFilesWithAccess(List<Long> fileIds, FileAccessEnum access) {
-        List<FileEntity> files = fileRepository.findAllById(fileIds);
-        return files.stream().map(file -> {
-            String url = (access == FileAccessEnum.PRIVATE)
-                    ? generateSignedUrl(file.getFileName(), 60)
-                    : file.getFileUrl();
-            file.setFileUrl(url);
-            return file;
-        }).collect(Collectors.toList());
     }
 }

@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.naqqa</groupId>
     <artifactId>naqqa-file-storage</artifactId>
-    <version>0.0.10</version>
+    <version>0.0.17</version>
     <name>Naqqa File Storage</name>
     <description>FileStorage for spring boot apps</description>
     <url/>
@@ -103,6 +103,19 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-core</artifactId>
+            <version>1.60.0</version> <!-- pick a compatible version -->
+        </dependency>
+
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty-shaded</artifactId>
+            <version>1.60.0</version>
+        </dependency>
+
     </dependencies>
 
     <build>
