@@ -1,5 +1,6 @@
 package com.naqqa.entity.controller;
 
+import com.naqqa.entity.dto.PagedResponse;
 import com.naqqa.entity.entity.Entity;
 import com.naqqa.entity.service.entity.EntityService;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RequiredArgsConstructor
 @RestController
@@ -24,8 +26,8 @@ public class EntityController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('entity:read')")
-    public ResponseEntity<List<Entity>> getAll() {
-        return ResponseEntity.ok(entityService.findAll());
+    public ResponseEntity<PagedResponse<Entity>> getAll(@RequestParam Map<String, String> params) {
+        return ResponseEntity.ok(entityService.findAll(params));
     }
 
     @GetMapping("/{id}")
@@ -38,8 +40,7 @@ public class EntityController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('entity:update')")
     public ResponseEntity<Entity> update(@PathVariable String id, @RequestBody Entity entity) {
-        entity.setId(id);
-        return ResponseEntity.ok(entityService.save(entity));
+        return ResponseEntity.ok(entityService.update(id, entity));
     }
 
     @DeleteMapping("/{id}")

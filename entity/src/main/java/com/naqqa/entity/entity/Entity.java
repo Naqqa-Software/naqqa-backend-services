@@ -4,22 +4,36 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.naqqa.entity.model.entity.EntityApiConfig;
 import com.naqqa.entity.model.entity.FieldProps;
 import lombok.Data;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.Instant;
 import java.util.List;
 
 @Data
 @Document(collection = "entity")
 @CompoundIndexes({
-        @CompoundIndex(name = "main_details_key_unique", def = "{'mainDetails.key': 1}", unique = true)
+        @CompoundIndex(name = "main_details_key_unique", def = "{'mainDetails.key': 1}", unique = true),
+        @CompoundIndex(name = "main_details_slug_unique", def = "{'mainDetails.slug': 1}", unique = true)
 })
 public class Entity {
 
     @Id
     private String id;
+
+    @CreatedDate
+    private Instant createdAt;
+
+    @LastModifiedDate
+    private Instant updatedAt;
+
+    @CreatedBy
+    private String createdBy;
 
     private MainDetails mainDetails;
     private EntityApiConfig api;
