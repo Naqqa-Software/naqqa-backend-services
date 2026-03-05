@@ -1,10 +1,12 @@
 package com.naqqa.entity.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
 import java.util.List;
 
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class FieldProps {
     private String type;
     private String label;
@@ -34,6 +36,7 @@ public class FieldProps {
     private String wheel;
 
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Option {
         private String label;
         private Object value;

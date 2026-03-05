@@ -75,7 +75,6 @@ public class Entity {
         private Expressions expressions;
         private ModelOptions modelOptions;
         private Hooks hooks;
-        private Relation relation;
     }
 
     @Data
@@ -123,15 +122,6 @@ public class Entity {
         private String afterContentInit;
         private String afterViewInit;
         private String onDestroy;
-    }
-
-    @Data
-    public static class Relation {
-        private String targetEntityKey;
-        private String kind;
-        private String storeAs;
-        private String displayFieldPath;
-        private Boolean allowMultiple;
     }
 
     @Data

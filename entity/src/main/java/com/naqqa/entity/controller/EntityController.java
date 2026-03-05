@@ -1,5 +1,6 @@
 package com.naqqa.entity.controller;
 
+import com.naqqa.entity.dto.EntitySchemaResponse;
 import com.naqqa.entity.dto.PagedResponse;
 import com.naqqa.entity.entity.Entity;
 import com.naqqa.entity.service.entity.EntityService;
@@ -35,6 +36,16 @@ public class EntityController {
     public ResponseEntity<Entity> getById(@PathVariable String id) {
         Entity entity = entityService.findById(id);
         return entity == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(entity);
+    }
+
+    @GetMapping("/key/{key}")
+    @PreAuthorize("@entityService.canReadByKey(#key, authentication)")
+    public ResponseEntity<EntitySchemaResponse> getByKey(@PathVariable String key) {
+        Entity entity = entityService.findByKey(key);
+        if (entity == null || entity.getMainDetails() == null || !Boolean.TRUE.equals(entity.getMainDetails().getIsActive())) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(new EntitySchemaResponse(entity.getFields(), entity.getUi()));
     }
 
     @PutMapping("/{id}")

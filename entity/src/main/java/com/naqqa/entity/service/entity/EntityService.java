@@ -4,11 +4,14 @@ import com.naqqa.entity.dto.PagedResponse;
 import com.naqqa.entity.entity.Entity;
 import com.naqqa.entity.enums.TableQQFilterOperator;
 import com.naqqa.entity.repository.mongo.EntityRepository;
+import com.naqqa.entity.service.authorities.EntityAuthorityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -24,13 +27,24 @@ public class EntityService {
 
     private final EntityRepository entityRepository;
     private final MongoTemplate mongoTemplate;
+    private final EntityRecordService recordService;
+    private final EntityAuthorityService authorityService;
 
     public Entity save(Entity entity) {
-        return entityRepository.save(entity);
+        Entity saved = entityRepository.save(entity);
+        if (saved.getMainDetails() != null && saved.getMainDetails().getKey() != null) {
+            recordService.ensureCollection(saved.getMainDetails().getKey());
+            authorityService.ensureAuthoritiesForEntityKey(saved.getMainDetails().getKey());
+        }
+        return saved;
     }
 
     public Entity findById(String id) {
         return entityRepository.findById(id).orElse(null);
+    }
+
+    public Entity findByKey(String key) {
+        return entityRepository.findByMainDetailsKey(key).orElse(null);
     }
 
     public PagedResponse<Entity> findAll(Map<String, String> params) {
@@ -64,6 +78,12 @@ public class EntityService {
     }
 
     public void delete(String id) {
+        Entity existing = entityRepository.findById(id).orElse(null);
+        if (existing != null && existing.getMainDetails() != null) {
+            String entityKey = existing.getMainDetails().getKey();
+            recordService.deleteCollection(entityKey);
+            authorityService.removeAuthoritiesForEntityKey(entityKey);
+        }
         entityRepository.deleteById(id);
     }
 
@@ -80,7 +100,9 @@ public class EntityService {
         String existingKey = existing.getMainDetails() != null ? existing.getMainDetails().getKey() : null;
         if (entity.getMainDetails() == null) {
             entity.setMainDetails(existing.getMainDetails());
-            return entityRepository.save(entity);
+            Entity saved = entityRepository.save(entity);
+            recordService.syncRecordsWithSchema(saved);
+            return saved;
         }
 
         String incomingKey = entity.getMainDetails().getKey();
@@ -91,7 +113,85 @@ public class EntityService {
             entity.getMainDetails().setKey(existingKey);
         }
 
-        return entityRepository.save(entity);
+        Entity saved = entityRepository.save(entity);
+        recordService.syncRecordsWithSchema(saved);
+        return saved;
+    }
+
+    public boolean canReadByKey(String key, Authentication authentication) {
+        Entity entity = findByKey(key);
+        if (entity == null) {
+            return false;
+        }
+        if (entity.getApi() != null && Boolean.TRUE.equals(entity.getApi().getIsPublicGet())) {
+            return true;
+        }
+        if (authentication == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if ("entity:read".equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean canCreateByKey(String key, Authentication authentication) {
+        Entity entity = findByKey(key);
+        if (entity == null || entity.getMainDetails() == null || !Boolean.TRUE.equals(entity.getMainDetails().getIsActive())) {
+            return false;
+        }
+        if (entity.getApi() != null && Boolean.TRUE.equals(entity.getApi().getIsPublicPost())) {
+            return true;
+        }
+        if (authentication == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if ((key + ":create").equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean canUpdateByKey(String key, Authentication authentication) {
+        Entity entity = findByKey(key);
+        if (entity == null || entity.getMainDetails() == null || !Boolean.TRUE.equals(entity.getMainDetails().getIsActive())) {
+            return false;
+        }
+        if (entity.getApi() != null && Boolean.TRUE.equals(entity.getApi().getIsPublicPost())) {
+            return true;
+        }
+        if (authentication == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if ((key + ":update").equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean canReadRecordsByKey(String key, Authentication authentication) {
+        Entity entity = findByKey(key);
+        if (entity == null || entity.getMainDetails() == null || !Boolean.TRUE.equals(entity.getMainDetails().getIsActive())) {
+            return false;
+        }
+        if (entity.getApi() != null && Boolean.TRUE.equals(entity.getApi().getIsPublicGet())) {
+            return true;
+        }
+        if (authentication == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if ((key + ":read").equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Sort buildSort(Map<String, String> params) {
