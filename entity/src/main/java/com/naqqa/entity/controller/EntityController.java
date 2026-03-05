@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +46,23 @@ public class EntityController {
         if (entity == null || entity.getMainDetails() == null || !Boolean.TRUE.equals(entity.getMainDetails().getIsActive())) {
             return ResponseEntity.notFound().build();
         }
+        if (entity.getApi() != null && Boolean.TRUE.equals(entity.getApi().getIsPublicGet())) {
+            return ResponseEntity.ok(new EntitySchemaResponse(filterPublicFields(entity.getFields()), entity.getUi()));
+        }
         return ResponseEntity.ok(new EntitySchemaResponse(entity.getFields(), entity.getUi()));
+    }
+
+    private List<Entity.EntityField> filterPublicFields(List<Entity.EntityField> fields) {
+        if (fields == null) {
+            return List.of();
+        }
+        List<Entity.EntityField> results = new ArrayList<>();
+        for (Entity.EntityField field : fields) {
+            if (field != null && field.getProps() != null && Boolean.TRUE.equals(field.getProps().getGetPublicApi())) {
+                results.add(field);
+            }
+        }
+        return results;
     }
 
     @PutMapping("/{id}")

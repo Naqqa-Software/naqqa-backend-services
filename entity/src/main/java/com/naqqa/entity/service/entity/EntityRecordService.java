@@ -364,5 +364,93 @@ public class EntityRecordService {
         private Object start;
         private Object end;
     }
-}
 
+    public Map<String, Object> filterDataForPublic(String entityKey, Map<String, Object> data) {
+        Entity definition = getDefinition(entityKey);
+        if (definition.getApi() == null || !Boolean.TRUE.equals(definition.getApi().getIsPublicGet())) {
+            return data;
+        }
+        if (definition.getFields() == null) {
+            return Map.of();
+        }
+        Set<String> allowedPaths = new LinkedHashSet<>();
+        for (Entity.EntityField field : definition.getFields()) {
+            if (field == null || field.getKey() == null || field.getKey().isBlank()) {
+                continue;
+            }
+            if (field.getProps() == null || !Boolean.TRUE.equals(field.getProps().getGetPublicApi())) {
+                continue;
+            }
+            String path;
+            if (field.getGroupName() != null && !field.getGroupName().isBlank()) {
+                path = field.getGroupName() + "." + field.getKey();
+            } else if (field.getArrayGroupName() != null && !field.getArrayGroupName().isBlank()) {
+                path = field.getArrayGroupName() + "." + field.getKey();
+            } else {
+                path = field.getKey();
+            }
+            allowedPaths.add(path);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (String path : allowedPaths) {
+            Object value = extractByPath(data, path);
+            if (value != null) {
+                putByPath(result, path, value);
+            }
+        }
+        return result;
+    }
+
+    private Object extractByPath(Map<String, Object> source, String path) {
+        if (source == null || path == null || path.isBlank()) {
+            return null;
+        }
+        String[] parts = path.split("\\.");
+        return extractByParts(source, parts, 0);
+    }
+
+    private Object extractByParts(Object current, String[] parts, int index) {
+        if (current == null) {
+            return null;
+        }
+        if (index >= parts.length) {
+            return current;
+        }
+        String part = parts[index];
+        if (current instanceof Map<?, ?> map) {
+            Object next = map.get(part);
+            return extractByParts(next, parts, index + 1);
+        }
+        if (current instanceof List<?> list) {
+            List<Object> projected = new ArrayList<>();
+            for (Object item : list) {
+                Object extracted = extractByParts(item, parts, index);
+                if (extracted != null) {
+                    projected.add(extracted);
+                }
+            }
+            return projected.isEmpty() ? null : projected;
+        }
+        return null;
+    }
+
+    private void putByPath(Map<String, Object> target, String path, Object value) {
+        String[] parts = path.split("\\.");
+        Map<String, Object> current = target;
+        for (int i = 0; i < parts.length - 1; i++) {
+            String part = parts[i];
+            Object next = current.get(part);
+            if (!(next instanceof Map<?, ?>)) {
+                Map<String, Object> created = new LinkedHashMap<>();
+                current.put(part, created);
+                current = created;
+            } else {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> existing = (Map<String, Object>) next;
+                current = existing;
+            }
+        }
+        current.put(parts[parts.length - 1], value);
+    }
+}

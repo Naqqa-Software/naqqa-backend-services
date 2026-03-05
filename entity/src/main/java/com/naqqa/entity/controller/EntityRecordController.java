@@ -1,5 +1,6 @@
 package com.naqqa.entity.controller;
 
+import com.naqqa.entity.dto.EntityRecordResponse;
 import com.naqqa.entity.dto.PagedResponse;
 import com.naqqa.entity.entity.EntityRecord;
 import com.naqqa.entity.service.entity.EntityRecordService;
@@ -9,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RequiredArgsConstructor
@@ -21,40 +23,46 @@ public class EntityRecordController {
 
     @PostMapping
     @PreAuthorize("@entityService.canCreateByKey(#entityKey, authentication)")
-    public ResponseEntity<EntityRecord> create(
+    public ResponseEntity<EntityRecordResponse> create(
             @PathVariable String entityKey,
             @RequestBody Map<String, Object> payload
     ) {
-        return ResponseEntity.ok(recordService.create(entityKey, payload));
+        EntityRecord record = recordService.create(entityKey, payload);
+        return ResponseEntity.ok(toResponse(entityKey, record));
     }
 
     @GetMapping
     @PreAuthorize("@entityService.canReadRecordsByKey(#entityKey, authentication)")
-    public ResponseEntity<PagedResponse<EntityRecord>> getAll(
+    public ResponseEntity<PagedResponse<EntityRecordResponse>> getAll(
             @PathVariable String entityKey,
             @RequestParam Map<String, String> params
     ) {
-        return ResponseEntity.ok(recordService.findAll(entityKey, params));
+        PagedResponse<EntityRecord> page = recordService.findAll(entityKey, params);
+        List<EntityRecordResponse> items = page.items().stream()
+                .map(record -> toResponse(entityKey, record))
+                .toList();
+        return ResponseEntity.ok(new PagedResponse<>(items, page.total()));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("@entityService.canReadRecordsByKey(#entityKey, authentication)")
-    public ResponseEntity<EntityRecord> getById(
+    public ResponseEntity<EntityRecordResponse> getById(
             @PathVariable String entityKey,
             @PathVariable String id
     ) {
         EntityRecord record = recordService.getById(entityKey, id);
-        return record == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(record);
+        return record == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(toResponse(entityKey, record));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("@entityService.canUpdateByKey(#entityKey, authentication)")
-    public ResponseEntity<EntityRecord> update(
+    public ResponseEntity<EntityRecordResponse> update(
             @PathVariable String entityKey,
             @PathVariable String id,
             @RequestBody Map<String, Object> payload
     ) {
-        return ResponseEntity.ok(recordService.update(entityKey, id, payload));
+        EntityRecord record = recordService.update(entityKey, id, payload);
+        return ResponseEntity.ok(toResponse(entityKey, record));
     }
 
     @DeleteMapping("/{id}")
@@ -65,5 +73,10 @@ public class EntityRecordController {
     ) {
         recordService.delete(entityKey, id);
         return ResponseEntity.noContent().build();
+    }
+
+    private EntityRecordResponse toResponse(String entityKey, EntityRecord record) {
+        Map<String, Object> data = recordService.filterDataForPublic(entityKey, record.getData());
+        return new EntityRecordResponse(record.getId(), record.getEntityKey(), data, record.getCreatedAt());
     }
 }
