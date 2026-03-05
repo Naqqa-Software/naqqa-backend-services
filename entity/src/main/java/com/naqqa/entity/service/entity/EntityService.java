@@ -29,12 +29,14 @@ public class EntityService {
     private final MongoTemplate mongoTemplate;
     private final EntityRecordService recordService;
     private final EntityAuthorityService authorityService;
+    private final EntityIndexService indexService;
 
     public Entity save(Entity entity) {
         Entity saved = entityRepository.save(entity);
         if (saved.getMainDetails() != null && saved.getMainDetails().getKey() != null) {
             recordService.ensureCollection(saved.getMainDetails().getKey());
             authorityService.ensureAuthoritiesForEntityKey(saved.getMainDetails().getKey());
+            indexService.syncIndexes(saved);
         }
         return saved;
     }
@@ -115,6 +117,7 @@ public class EntityService {
 
         Entity saved = entityRepository.save(entity);
         recordService.syncRecordsWithSchema(saved);
+        indexService.syncIndexes(saved);
         return saved;
     }
 
