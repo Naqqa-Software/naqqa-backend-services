@@ -44,7 +44,7 @@ public class EntityController {
         if (entity == null || entity.getMainDetails() == null || !Boolean.TRUE.equals(entity.getMainDetails().getIsActive())) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(new EntitySchemaResponse(entity.getFields(), entity.getUi()));
+        return ResponseEntity.ok(new EntitySchemaResponse(entity.getFields(), entity.getUi(), entity.getApi()));
     }
 
     @PutMapping("/{id}")

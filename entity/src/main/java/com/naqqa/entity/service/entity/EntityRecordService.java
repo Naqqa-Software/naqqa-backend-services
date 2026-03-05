@@ -30,7 +30,13 @@ public class EntityRecordService {
 
     public PagedResponse<EntityRecord> findAll(String entityKey, Map<String, String> params) {
         Entity definition = getDefinition(entityKey);
-        FilterResult filterResult = buildFilters(params, definition);
+        boolean allowFilters = definition.getApi() != null && Boolean.TRUE.equals(definition.getApi().getAllowFilters());
+        boolean allowSort = definition.getApi() != null && Boolean.TRUE.equals(definition.getApi().getAllowSort());
+        boolean allowSearch = definition.getApi() != null && Boolean.TRUE.equals(definition.getApi().getAllowSearch());
+
+        FilterResult filterResult = allowFilters
+                ? buildFilters(params, definition, allowSearch)
+                : new FilterResult(List.of(), Map.of());
 
         Query query = new Query();
         if (!filterResult.criteria.isEmpty()) {
@@ -38,9 +44,11 @@ public class EntityRecordService {
         }
         applyRanges(query, filterResult);
 
-        Sort sort = buildSort(definition, params);
-        if (sort != null) {
-            query.with(sort);
+        if (allowSort) {
+            Sort sort = buildSort(definition, params);
+            if (sort != null) {
+                query.with(sort);
+            }
         }
 
         Pagination pagination = buildPagination(params);
@@ -180,7 +188,7 @@ public class EntityRecordService {
         return new Pagination(p * size, size);
     }
 
-    private FilterResult buildFilters(Map<String, String> params, Entity definition) {
+    private FilterResult buildFilters(Map<String, String> params, Entity definition, boolean allowSearch) {
         List<Criteria> criteria = new ArrayList<>();
         Map<String, RangeBounds> ranges = new HashMap<>();
 
@@ -192,6 +200,11 @@ public class EntityRecordService {
 
             TableQQFilterOperator op = TableQQFilterOperator.fromParam(key);
             if (op == null) {
+                continue;
+            }
+            if (!allowSearch && (op == TableQQFilterOperator.CONTAINS
+                    || op == TableQQFilterOperator.STARTS_WITH
+                    || op == TableQQFilterOperator.ENDS_WITH)) {
                 continue;
             }
 
