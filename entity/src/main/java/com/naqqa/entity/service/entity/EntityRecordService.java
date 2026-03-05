@@ -38,7 +38,7 @@ public class EntityRecordService {
         }
         applyRanges(query, filterResult);
 
-        Sort sort = buildSort(params);
+        Sort sort = buildSort(definition, params);
         if (sort != null) {
             query.with(sort);
         }
@@ -129,10 +129,19 @@ public class EntityRecordService {
         return merged;
     }
 
-    private Sort buildSort(Map<String, String> params) {
+    private Sort buildSort(Entity definition, Map<String, String> params) {
         String sortKey = params.get("sort.key");
         String sortDir = params.get("sort.dir");
         if (sortKey == null || sortKey.isBlank()) {
+            if (definition != null && definition.getUi() != null && definition.getUi().getDefaultSort() != null) {
+                String defaultPath = definition.getUi().getDefaultSort().getPath();
+                String defaultDir = definition.getUi().getDefaultSort().getDirection();
+                if (defaultPath != null && !defaultPath.isBlank()) {
+                    String key = mapDataPath(defaultPath);
+                    Sort.Direction direction = "desc".equalsIgnoreCase(defaultDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
+                    return Sort.by(direction, key);
+                }
+            }
             return Sort.by(Sort.Direction.DESC, "createdAt");
         }
         String key = mapDataPath(sortKey);

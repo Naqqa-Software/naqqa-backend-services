@@ -77,10 +77,22 @@ public class EntityRecordController {
 
     private EntityRecordResponse toResponse(String entityKey, EntityRecord record) {
         Map<String, Object> data = recordService.filterDataForPublic(entityKey, record.getData());
-        return new EntityRecordResponse(record.getId(), record.getEntityKey(), data, record.getCreatedAt());
+        return new EntityRecordResponse(
+                record.getId(),
+                record.getEntityKey(),
+                data,
+                record.getCreatedAt(),
+                record.getUpdatedAt()
+        );
     }
 
     private EntityRecordResponse toResponseFull(EntityRecord record) {
-        return new EntityRecordResponse(record.getId(), record.getEntityKey(), record.getData(), record.getCreatedAt());
+        return new EntityRecordResponse(
+                record.getId(),
+                record.getEntityKey(),
+                record.getData(),
+                record.getCreatedAt(),
+                record.getUpdatedAt()
+        );
     }
 }

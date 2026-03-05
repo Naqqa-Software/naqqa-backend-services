@@ -49,8 +49,8 @@ public class PublicEntityRecordController {
                 record.getId(),
                 record.getEntityKey(),
                 recordService.filterDataForPublic(entityKey, record.getData()),
-                record.getCreatedAt()
+                record.getCreatedAt(),
+                record.getUpdatedAt()
         );
     }
 }
-
