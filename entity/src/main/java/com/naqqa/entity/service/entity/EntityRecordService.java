@@ -3,6 +3,8 @@ package com.naqqa.entity.service.entity;
 import com.naqqa.entity.dto.PagedResponse;
 import com.naqqa.entity.entity.Entity;
 import com.naqqa.entity.entity.EntityRecord;
+import com.naqqa.entity.entity.Entity.UniqueConstraint;
+import com.naqqa.entity.entity.Entity.PathRef;
 import com.naqqa.entity.enums.TableQQFilterOperator;
 import com.naqqa.entity.repository.mongo.EntityRepository;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +68,7 @@ public class EntityRecordService {
         record.setEntity(definition);
         record.setEntityKey(entityKey);
         record.setData(normalizePayload(definition, payload, null));
+        validateUniqueConstraints(definition, record.getData(), null);
         return mongoTemplate.insert(record, collectionName(entityKey));
     }
 
@@ -76,6 +79,7 @@ public class EntityRecordService {
             throw new IllegalArgumentException("Record not found");
         }
         existing.setData(normalizePayload(definition, payload, existing.getData()));
+        validateUniqueConstraints(definition, existing.getData(), id);
         return mongoTemplate.save(existing, collectionName(entityKey));
     }
 
@@ -114,102 +118,15 @@ public class EntityRecordService {
     }
 
     private Map<String, Object> normalizePayload(Entity definition, Map<String, Object> payload, Map<String, Object> existing) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        Map<String, Object> source = payload == null ? Map.of() : payload;
-        Map<String, Object> fallback = existing == null ? Map.of() : existing;
-
-        for (Entity.EntityField field : definition.getFields()) {
-            String key = field.getKey();
-            Object value = source.containsKey(key) ? source.get(key) : fallback.get(key);
-
-            if (value == null && field.getDefaultValue() != null) {
-                value = field.getDefaultValue();
-            }
-
-            result.put(key, normalizeValue(field.getType(), value));
+        if (payload == null) {
+            return existing == null ? new LinkedHashMap<>() : new LinkedHashMap<>(existing);
         }
-        return result;
-    }
-
-    private Object normalizeValue(String type, Object value) {
-        if (value == null || type == null) {
-            return value;
+        if (existing == null) {
+            return new LinkedHashMap<>(payload);
         }
-        String typeLower = type.toLowerCase(Locale.ROOT);
-        if ("object".equals(typeLower)) {
-            if (value instanceof Map<?, ?> map) {
-                return map;
-            }
-            if (value instanceof String str) {
-                return parseObject(str);
-            }
-        }
-        if ("array".equals(typeLower)) {
-            if (value instanceof Collection<?> col) {
-                return new ArrayList<>(col);
-            }
-            if (value instanceof String str) {
-                return parseArray(str);
-            }
-        }
-        if ("number".equals(typeLower)) {
-            return parseNumber(value);
-        }
-        if ("boolean".equals(typeLower)) {
-            return parseBoolean(value);
-        }
-        return value;
-    }
-
-    private Map<String, Object> parseObject(String value) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        if (value == null || value.isBlank()) {
-            return result;
-        }
-        String[] pairs = value.split(",");
-        for (String pair : pairs) {
-            String[] parts = pair.split(":", 2);
-            String key = parts[0].trim();
-            String val = parts.length > 1 ? parts[1].trim() : "";
-            result.put(key, parseValue(val));
-        }
-        return result;
-    }
-
-    private List<Object> parseArray(String value) {
-        if (value == null || value.isBlank()) {
-            return List.of();
-        }
-        String[] parts = value.split(",");
-        List<Object> results = new ArrayList<>(parts.length);
-        for (String part : parts) {
-            results.add(parseValue(part.trim()));
-        }
-        return results;
-    }
-
-    private Object parseNumber(Object value) {
-        if (value instanceof Number n) {
-            return n;
-        }
-        if (value instanceof String s && !s.isBlank()) {
-            try {
-                return s.contains(".") ? Double.parseDouble(s) : Long.parseLong(s);
-            } catch (NumberFormatException ignored) {
-                return value;
-            }
-        }
-        return value;
-    }
-
-    private Object parseBoolean(Object value) {
-        if (value instanceof Boolean b) {
-            return b;
-        }
-        if (value instanceof String s && !s.isBlank()) {
-            return Boolean.parseBoolean(s);
-        }
-        return value;
+        Map<String, Object> merged = new LinkedHashMap<>(existing);
+        merged.putAll(payload);
+        return merged;
     }
 
     private Sort buildSort(Map<String, String> params) {
@@ -339,6 +256,102 @@ public class EntityRecordService {
 
     private String collectionName(String entityKey) {
         return entityKey;
+    }
+
+    private void validateUniqueConstraints(Entity definition, Map<String, Object> data, String recordId) {
+        if (definition.getUniqueConstraints() == null || definition.getUniqueConstraints().isEmpty()) {
+            return;
+        }
+        for (UniqueConstraint constraint : definition.getUniqueConstraints()) {
+            List<PathRef> fields = constraint.getFields();
+            if (fields == null || fields.isEmpty()) {
+                continue;
+            }
+            Criteria criteria = new Criteria();
+            List<Criteria> clauses = new ArrayList<>();
+
+            for (PathRef ref : fields) {
+                if (ref == null || ref.getPath() == null || ref.getPath().isBlank()) {
+                    continue;
+                }
+                Object value = getValueByPath(data, ref.getPath());
+                if (value == null) {
+                    clauses.clear();
+                    break;
+                }
+                clauses.add(buildValueCriteria("data." + ref.getPath(), value, Boolean.TRUE.equals(constraint.getCaseInsensitive())));
+            }
+
+            if (clauses.isEmpty()) {
+                continue;
+            }
+
+            List<PathRef> scopeFields = constraint.getScopeFields();
+            if (scopeFields != null) {
+                for (PathRef ref : scopeFields) {
+                    if (ref == null || ref.getPath() == null || ref.getPath().isBlank()) {
+                        continue;
+                    }
+                    Object value = getValueByPath(data, ref.getPath());
+                    clauses.add(buildValueCriteria("data." + ref.getPath(), value, Boolean.TRUE.equals(constraint.getCaseInsensitive())));
+                }
+            }
+
+            criteria.andOperator(clauses.toArray(new Criteria[0]));
+            Query query = new Query(criteria);
+            if (recordId != null) {
+                query.addCriteria(Criteria.where("_id").ne(recordId));
+            }
+
+            long count = mongoTemplate.count(query, EntityRecord.class, collectionName(definition.getMainDetails().getKey()));
+            if (count > 0) {
+                throw new IllegalArgumentException("Entity.Errors.UniqueConstraint");
+            }
+        }
+    }
+
+    private Criteria buildValueCriteria(String path, Object value, boolean caseInsensitive) {
+        if (value instanceof Collection<?> collection) {
+            List<Object> values = new ArrayList<>();
+            for (Object item : collection) {
+                if (item != null) {
+                    values.add(item);
+                }
+            }
+            if (values.isEmpty()) {
+                return Criteria.where(path).is(null);
+            }
+            if (caseInsensitive && values.stream().allMatch(v -> v instanceof String)) {
+                List<Criteria> ors = new ArrayList<>();
+                for (Object item : values) {
+                    ors.add(Criteria.where(path).regex("^" + Pattern.quote(item.toString()) + "$", "i"));
+                }
+                return new Criteria().orOperator(ors.toArray(new Criteria[0]));
+            }
+            return Criteria.where(path).in(values);
+        }
+        if (caseInsensitive && value instanceof String str) {
+            return Criteria.where(path).regex("^" + Pattern.quote(str) + "$", "i");
+        }
+        return Criteria.where(path).is(value);
+    }
+
+    private Object getValueByPath(Map<String, Object> data, String path) {
+        if (data == null || path == null || path.isBlank()) {
+            return null;
+        }
+        String[] parts = path.split("\\.");
+        Object current = data;
+        for (String part : parts) {
+            if (!(current instanceof Map<?, ?> map)) {
+                return null;
+            }
+            current = map.get(part);
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
     }
 
     private record Pagination(int offset, int limit) {
