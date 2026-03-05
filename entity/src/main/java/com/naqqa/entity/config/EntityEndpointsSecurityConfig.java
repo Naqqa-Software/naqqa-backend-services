@@ -13,14 +13,24 @@ public class EntityEndpointsSecurityConfig {
 
     @Bean
     @Order(0)
+    public SecurityFilterChain publicEntitySecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/public/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                        .anyRequest().denyAll()
+                );
+        return http.build();
+    }
+
+    @Bean
+    @Order(1)
     public SecurityFilterChain entitySecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .securityMatcher("/api/entities/**")
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/api/entities/**").permitAll()
-                        .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt());
         return http.build();
     }

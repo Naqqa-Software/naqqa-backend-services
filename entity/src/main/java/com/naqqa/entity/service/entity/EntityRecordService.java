@@ -135,9 +135,22 @@ public class EntityRecordService {
         if (sortKey == null || sortKey.isBlank()) {
             return Sort.by(Sort.Direction.DESC, "createdAt");
         }
-        String key = isSystemField(sortKey) ? sortKey : "data." + sortKey;
+        String key = mapDataPath(sortKey);
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
         return Sort.by(direction, key);
+    }
+
+    private String mapDataPath(String key) {
+        if (key == null || key.isBlank()) {
+            return key;
+        }
+        if (key.startsWith("data.")) {
+            return key;
+        }
+        if (isSystemField(key)) {
+            return key;
+        }
+        return "data." + key;
     }
 
     private boolean isSystemField(String key) {
@@ -174,7 +187,7 @@ public class EntityRecordService {
             }
 
             String field = key.substring(0, key.length() - op.getSuffix().length());
-            String fieldPath = "data." + field;
+            String fieldPath = mapDataPath(field);
             String value = entry.getValue();
 
             switch (op) {

@@ -197,6 +197,30 @@ public class EntityService {
         return false;
     }
 
+    public boolean canReadPrivateRecordsByKey(String key, Authentication authentication) {
+        Entity entity = findByKey(key);
+        if (entity == null || entity.getMainDetails() == null || !Boolean.TRUE.equals(entity.getMainDetails().getIsActive())) {
+            return false;
+        }
+        if (authentication == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if ((key + ":read").equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isPublicGetActive(String key) {
+        Entity entity = findByKey(key);
+        if (entity == null || entity.getMainDetails() == null || !Boolean.TRUE.equals(entity.getMainDetails().getIsActive())) {
+            return false;
+        }
+        return entity.getApi() != null && Boolean.TRUE.equals(entity.getApi().getIsPublicGet());
+    }
+
     private Sort buildSort(Map<String, String> params) {
         String sortKey = params.get("sort.key");
         String sortDir = params.get("sort.dir");
