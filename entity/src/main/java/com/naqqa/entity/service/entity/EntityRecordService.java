@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 public class EntityRecordService {
 
     private static final Set<String> RESERVED_PARAMS = Set.of(
-            "sort.key", "sort.dir", "page", "pageSize", "offset", "take"
+            "sort.key", "sort.dir", "page", "pageSize", "offset", "take", "language"
     );
 
     private final MongoTemplate mongoTemplate;
@@ -33,19 +33,21 @@ public class EntityRecordService {
         boolean allowFilters = definition.getApi() != null && Boolean.TRUE.equals(definition.getApi().getAllowFilters());
         boolean allowSort = definition.getApi() != null && Boolean.TRUE.equals(definition.getApi().getAllowSort());
         boolean allowSearch = definition.getApi() != null && Boolean.TRUE.equals(definition.getApi().getAllowSearch());
+        String language = params.get("language");
+        Map<String, Boolean> avoidTranslateMap = buildAvoidTranslateMap(definition);
 
         FilterResult filterResult = allowFilters
-                ? buildFilters(params, definition, allowSearch)
+                ? buildFilters(params, allowSearch, language, avoidTranslateMap)
                 : new FilterResult(List.of(), Map.of());
 
         Query query = new Query();
         if (!filterResult.criteria.isEmpty()) {
             query.addCriteria(new Criteria().andOperator(filterResult.criteria.toArray(new Criteria[0])));
         }
-        applyRanges(query, filterResult);
+        applyRanges(query, filterResult, language, avoidTranslateMap);
 
         if (allowSort) {
-            Sort sort = buildSort(definition, params);
+            Sort sort = buildSort(definition, params, language, avoidTranslateMap);
             if (sort != null) {
                 query.with(sort);
             }
@@ -58,7 +60,7 @@ public class EntityRecordService {
         if (!filterResult.criteria.isEmpty()) {
             countQuery.addCriteria(new Criteria().andOperator(filterResult.criteria.toArray(new Criteria[0])));
         }
-        applyRanges(countQuery, filterResult);
+        applyRanges(countQuery, filterResult, language, avoidTranslateMap);
 
         long total = mongoTemplate.count(countQuery, EntityRecord.class, collectionName(entityKey));
         List<EntityRecord> items = mongoTemplate.find(query, EntityRecord.class, collectionName(entityKey));
@@ -137,7 +139,102 @@ public class EntityRecordService {
         return merged;
     }
 
-    private Sort buildSort(Entity definition, Map<String, String> params) {
+    private FilterResult buildFilters(Map<String, String> params, boolean allowSearch, String language, Map<String, Boolean> avoidTranslateMap) {
+        List<Criteria> criteria = new ArrayList<>();
+        Map<String, RangeBounds> ranges = new HashMap<>();
+
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            String key = entry.getKey();
+            if (RESERVED_PARAMS.contains(key)) {
+                continue;
+            }
+
+            TableQQFilterOperator op = TableQQFilterOperator.fromParam(key);
+            if (op == null) {
+                continue;
+            }
+            if (!allowSearch && (op == TableQQFilterOperator.CONTAINS
+                    || op == TableQQFilterOperator.STARTS_WITH
+                    || op == TableQQFilterOperator.ENDS_WITH)) {
+                continue;
+            }
+
+            String field = key.substring(0, key.length() - op.getSuffix().length());
+            String value = entry.getValue();
+
+            if (op == TableQQFilterOperator.BETWEEN_START || op == TableQQFilterOperator.BETWEEN_END) {
+                RangeBounds bounds = ranges.computeIfAbsent(field, k -> new RangeBounds());
+                if (op == TableQQFilterOperator.BETWEEN_START) {
+                    bounds.start = parseValue(value);
+                } else {
+                    bounds.end = parseValue(value);
+                }
+                continue;
+            }
+
+            List<String> paths = resolveFilterPaths(field, language, avoidTranslateMap);
+            Criteria built = buildCriteriaForPaths(op, paths, value);
+            if (built != null) {
+                criteria.add(built);
+            }
+        }
+
+        return new FilterResult(criteria, ranges);
+    }
+
+    private List<String> resolveFilterPaths(String rawPath, String language, Map<String, Boolean> avoidTranslateMap) {
+        String normalized = mapDataPath(rawPath);
+        if (language == null || language.isBlank() || isSystemField(normalized)) {
+            return List.of(normalized);
+        }
+        String lookup = normalized.startsWith("data.") ? normalized.substring(5) : normalized;
+        Boolean avoid = avoidTranslateMap.get(lookup);
+        if (Boolean.TRUE.equals(avoid)) {
+            return List.of(normalized);
+        }
+        return List.of(normalized + "." + language, normalized);
+    }
+
+    private Criteria buildCriteriaForPaths(TableQQFilterOperator op, List<String> paths, String value) {
+        if (paths == null || paths.isEmpty()) {
+            return null;
+        }
+        List<Criteria> ors = new ArrayList<>();
+        for (String path : paths) {
+            Criteria c;
+            switch (op) {
+                case EQUALS -> c = Criteria.where(path).is(parseValue(value));
+                case NOT_EQUALS -> c = Criteria.where(path).ne(parseValue(value));
+                case CONTAINS -> c = Criteria.where(path)
+                        .regex(Pattern.quote(value == null ? "" : value), "i");
+                case STARTS_WITH -> c = Criteria.where(path)
+                        .regex("^" + Pattern.quote(value == null ? "" : value), "i");
+                case ENDS_WITH -> c = Criteria.where(path)
+                        .regex(Pattern.quote(value == null ? "" : value) + "$", "i");
+                case GREATER_THAN -> c = Criteria.where(path).gt(parseValue(value));
+                case GREATER_THAN_OR_EQUAL -> c = Criteria.where(path).gte(parseValue(value));
+                case LESS_THAN -> c = Criteria.where(path).lt(parseValue(value));
+                case LESS_THAN_OR_EQUAL -> c = Criteria.where(path).lte(parseValue(value));
+                case IN -> c = Criteria.where(path).in(parseList(value));
+                case NOT_IN -> c = Criteria.where(path).nin(parseList(value));
+                case IS_NULL -> c = Criteria.where(path).is(null);
+                case IS_NOT_NULL -> c = Criteria.where(path).ne(null);
+                default -> c = null;
+            }
+            if (c != null) {
+                ors.add(c);
+            }
+        }
+        if (ors.isEmpty()) {
+            return null;
+        }
+        if (ors.size() == 1) {
+            return ors.get(0);
+        }
+        return new Criteria().orOperator(ors.toArray(new Criteria[0]));
+    }
+
+    private Sort buildSort(Entity definition, Map<String, String> params, String language, Map<String, Boolean> avoidTranslateMap) {
         String sortKey = params.get("sort.key");
         String sortDir = params.get("sort.dir");
         if (sortKey == null || sortKey.isBlank()) {
@@ -145,16 +242,74 @@ public class EntityRecordService {
                 String defaultPath = definition.getUi().getDefaultSort().getPath();
                 String defaultDir = definition.getUi().getDefaultSort().getDirection();
                 if (defaultPath != null && !defaultPath.isBlank()) {
-                    String key = mapDataPath(defaultPath);
-                    Sort.Direction direction = "desc".equalsIgnoreCase(defaultDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
-                    return Sort.by(direction, key);
+                    return buildSortForPath(defaultPath, defaultDir, language, avoidTranslateMap);
                 }
             }
             return Sort.by(Sort.Direction.DESC, "createdAt");
         }
-        String key = mapDataPath(sortKey);
+        return buildSortForPath(sortKey, sortDir, language, avoidTranslateMap);
+    }
+
+    private Sort buildSortForPath(String sortKey, String sortDir, String language, Map<String, Boolean> avoidTranslateMap) {
+        List<String> paths = resolveFilterPaths(sortKey, language, avoidTranslateMap);
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        return Sort.by(direction, key);
+        if (paths.size() == 1) {
+            return Sort.by(direction, paths.get(0));
+        }
+        return Sort.by(direction, paths.get(0)).and(Sort.by(direction, paths.get(1)));
+    }
+
+    private void applyRanges(Query query, FilterResult filterResult, String language, Map<String, Boolean> avoidTranslateMap) {
+        for (Map.Entry<String, RangeBounds> entry : filterResult.ranges.entrySet()) {
+            String rawField = entry.getKey();
+            RangeBounds bounds = entry.getValue();
+            if (bounds == null || (bounds.start == null && bounds.end == null)) {
+                continue;
+            }
+            List<String> paths = resolveFilterPaths(rawField, language, avoidTranslateMap);
+            List<Criteria> ors = new ArrayList<>();
+            for (String path : paths) {
+                ors.add(buildRangeCriteria(path, bounds));
+            }
+            if (ors.size() == 1) {
+                query.addCriteria(ors.get(0));
+            } else {
+                query.addCriteria(new Criteria().orOperator(ors.toArray(new Criteria[0])));
+            }
+        }
+    }
+
+    private Criteria buildRangeCriteria(String field, RangeBounds bounds) {
+        if (bounds.start != null && bounds.end != null) {
+            return Criteria.where(field).gte(bounds.start).lte(bounds.end);
+        }
+        if (bounds.start != null) {
+            return Criteria.where(field).gte(bounds.start);
+        }
+        return Criteria.where(field).lte(bounds.end);
+    }
+
+    private Map<String, Boolean> buildAvoidTranslateMap(Entity definition) {
+        Map<String, Boolean> result = new HashMap<>();
+        if (definition == null || definition.getFields() == null) {
+            return result;
+        }
+        for (Entity.EntityField field : definition.getFields()) {
+            if (field == null || field.getKey() == null || field.getKey().isBlank()) {
+                continue;
+            }
+            String path;
+            if (field.getGroupName() != null && !field.getGroupName().isBlank()) {
+                path = field.getGroupName() + "." + field.getKey();
+            } else if (field.getArrayGroupName() != null && !field.getArrayGroupName().isBlank()) {
+                path = field.getArrayGroupName() + "." + field.getKey();
+            } else {
+                path = field.getKey();
+            }
+            boolean avoid = field.getProps() != null && Boolean.TRUE.equals(field.getProps().getAvoidTranslate());
+            result.put(path, avoid);
+        }
+        return result;
     }
 
     private String mapDataPath(String key) {
@@ -188,68 +343,6 @@ public class EntityRecordService {
         return new Pagination(p * size, size);
     }
 
-    private FilterResult buildFilters(Map<String, String> params, Entity definition, boolean allowSearch) {
-        List<Criteria> criteria = new ArrayList<>();
-        Map<String, RangeBounds> ranges = new HashMap<>();
-
-        for (Map.Entry<String, String> entry : params.entrySet()) {
-            String key = entry.getKey();
-            if (RESERVED_PARAMS.contains(key)) {
-                continue;
-            }
-
-            TableQQFilterOperator op = TableQQFilterOperator.fromParam(key);
-            if (op == null) {
-                continue;
-            }
-            if (!allowSearch && (op == TableQQFilterOperator.CONTAINS
-                    || op == TableQQFilterOperator.STARTS_WITH
-                    || op == TableQQFilterOperator.ENDS_WITH)) {
-                continue;
-            }
-
-            String field = key.substring(0, key.length() - op.getSuffix().length());
-            String fieldPath = mapDataPath(field);
-            String value = entry.getValue();
-
-            switch (op) {
-                case EQUALS -> criteria.add(Criteria.where(fieldPath).is(parseValue(value)));
-                case NOT_EQUALS -> criteria.add(Criteria.where(fieldPath).ne(parseValue(value)));
-                case CONTAINS -> criteria.add(Criteria.where(fieldPath)
-                        .regex(Pattern.quote(value == null ? "" : value), "i"));
-                case STARTS_WITH -> criteria.add(Criteria.where(fieldPath)
-                        .regex("^" + Pattern.quote(value == null ? "" : value), "i"));
-                case ENDS_WITH -> criteria.add(Criteria.where(fieldPath)
-                        .regex(Pattern.quote(value == null ? "" : value) + "$", "i"));
-                case GREATER_THAN -> criteria.add(Criteria.where(fieldPath).gt(parseValue(value)));
-                case GREATER_THAN_OR_EQUAL -> criteria.add(Criteria.where(fieldPath).gte(parseValue(value)));
-                case LESS_THAN -> criteria.add(Criteria.where(fieldPath).lt(parseValue(value)));
-                case LESS_THAN_OR_EQUAL -> criteria.add(Criteria.where(fieldPath).lte(parseValue(value)));
-                case IN -> criteria.add(Criteria.where(fieldPath).in(parseList(value)));
-                case NOT_IN -> criteria.add(Criteria.where(fieldPath).nin(parseList(value)));
-                case BETWEEN_START -> ranges.computeIfAbsent(fieldPath, k -> new RangeBounds()).start = parseValue(value);
-                case BETWEEN_END -> ranges.computeIfAbsent(fieldPath, k -> new RangeBounds()).end = parseValue(value);
-                case IS_NULL -> criteria.add(Criteria.where(fieldPath).is(null));
-                case IS_NOT_NULL -> criteria.add(Criteria.where(fieldPath).ne(null));
-            }
-        }
-
-        return new FilterResult(criteria, ranges);
-    }
-
-    private void applyRanges(Query query, FilterResult filterResult) {
-        for (Map.Entry<String, RangeBounds> entry : filterResult.ranges.entrySet()) {
-            String field = entry.getKey();
-            RangeBounds bounds = entry.getValue();
-            if (bounds.start != null && bounds.end != null) {
-                query.addCriteria(Criteria.where(field).gte(bounds.start).lte(bounds.end));
-            } else if (bounds.start != null) {
-                query.addCriteria(Criteria.where(field).gte(bounds.start));
-            } else if (bounds.end != null) {
-                query.addCriteria(Criteria.where(field).lte(bounds.end));
-            }
-        }
-    }
 
     private List<Object> parseList(String value) {
         if (value == null || value.isBlank()) {
