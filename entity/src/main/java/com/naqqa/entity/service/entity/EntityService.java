@@ -24,6 +24,7 @@ public class EntityService {
     private static final Set<String> RESERVED_PARAMS = Set.of(
             "sort.key", "sort.dir", "page", "pageSize", "offset", "take"
     );
+    private static final int MAX_PAGE_SIZE = 200;
 
     private final EntityRepository entityRepository;
     private final MongoTemplate mongoTemplate;
@@ -164,7 +165,7 @@ public class EntityService {
         if (entity == null || entity.getMainDetails() == null || !Boolean.TRUE.equals(entity.getMainDetails().getIsActive())) {
             return false;
         }
-        if (entity.getApi() != null && Boolean.TRUE.equals(entity.getApi().getIsPublicPost())) {
+        if (entity.getApi() != null && Boolean.TRUE.equals(entity.getApi().getIsPublicPut())) {
             return true;
         }
         if (authentication == null) {
@@ -235,14 +236,23 @@ public class EntityService {
         Integer offset = parseInt(params.get("offset"));
         Integer take = parseInt(params.get("take"));
         if (offset != null || take != null) {
-            return new Pagination(offset == null ? 0 : offset, take == null ? 10 : take);
+            int safeOffset = Math.max(0, offset == null ? 0 : offset);
+            int safeTake = clampPageSize(take == null ? 10 : take);
+            return new Pagination(safeOffset, safeTake);
         }
 
         Integer page = parseInt(params.get("page"));
         Integer pageSize = parseInt(params.get("pageSize"));
-        int p = page == null ? 0 : page;
-        int size = pageSize == null ? 10 : pageSize;
+        int p = Math.max(0, page == null ? 0 : page);
+        int size = clampPageSize(pageSize == null ? 10 : pageSize);
         return new Pagination(p * size, size);
+    }
+
+    private int clampPageSize(int size) {
+        if (size <= 0) {
+            return 10;
+        }
+        return Math.min(size, MAX_PAGE_SIZE);
     }
 
     private FilterResult buildFilters(Map<String, String> params) {
