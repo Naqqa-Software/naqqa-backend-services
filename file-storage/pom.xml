@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.naqqa</groupId>
     <artifactId>naqqa-file-storage</artifactId>
-    <version>0.0.17</version>
+    <version>0.0.18</version>
     <name>Naqqa File Storage</name>
     <description>FileStorage for spring boot apps</description>
     <url/>
@@ -42,6 +42,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
         <dependency>

@@ -4,28 +4,25 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-@Getter
-@Setter
-@Entity
-@Table(name = "file_entity")
-public class FileEntity {
+import java.time.LocalDateTime;
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+@Getter @Setter @Entity @Table(name = "file_entity")
+public class FileEntity {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "file_name", nullable = false)
-    private String fileName; // Object key in GCS (e.g., public/categories/123.svg)
+    @Column(nullable = false, unique = true)
+    private String fileName; // GCS Object Key
 
-    @Column(name = "original_file_name", nullable = false)
-    private String originalFileName; // Original uploaded file name
-
-    @Column(name = "content_type")
-    private String contentType; // MIME type
-
-    @Column(name = "size_bytes")
-    private Long size; // File size in bytes
-
-    @Column(name = "owner_id")
+    private String originalFileName;
+    private String contentType;
+    private Long size;
     private Long ownerId;
+    private String status;
+
+    @Column(nullable = false)
+    private boolean isLinked = false;
+
+    @Column(nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

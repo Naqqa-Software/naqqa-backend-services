@@ -38,6 +38,6 @@ public class FileStorageAutoConfiguration {
             Storage storage,
             FileStorageProperties props
     ) {
-        return new FileStorageService(fileRepository, storage, props.getBucketName());
+        return new FileStorageService(fileRepository, storage, props);
     }
 }
