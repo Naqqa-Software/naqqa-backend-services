@@ -1,12 +1,12 @@
 package com.naqqa.filestorage.controller;
 
-
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.naqqa.filestorage.entities.FileEntity;
 import com.naqqa.filestorage.enums.FileAccessEnum;
 import com.naqqa.filestorage.model.FinalizeUploadRequest;
 import com.naqqa.filestorage.model.InitiateUploadResponse;
 import com.naqqa.filestorage.service.FileStorageService;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +24,40 @@ import java.util.stream.Collectors;
 public class FilesController {
 
     private final FileStorageService fileStorageService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private boolean isAdmin(Authentication authentication) {
+        if (authentication == null) return false;
+
+        // 1. Check standard authorities just in case
+        boolean hasAuthority = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ADMIN".equals(a.getAuthority()));
+        if (hasAuthority) return true;
+
+        // 2. Check the principal structure for { "role": { "name": "ADMIN" } }
+        try {
+            JsonNode principalNode = objectMapper.valueToTree(authentication.getPrincipal());
+            if (principalNode != null && principalNode.has("role")) {
+                JsonNode roleNode = principalNode.get("role");
+                if (roleNode.has("name") && "ADMIN".equalsIgnoreCase(roleNode.get("name").asText())) {
+                    return true;
+                }
+            }
+
+            // Fallback: Check details just in case it's stored there
+            JsonNode detailsNode = objectMapper.valueToTree(authentication.getDetails());
+            if (detailsNode != null && detailsNode.has("role")) {
+                JsonNode roleNode = detailsNode.get("role");
+                if (roleNode.has("name") && "ADMIN".equalsIgnoreCase(roleNode.get("name").asText())) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            // Ignore mapping exceptions and default to false
+        }
+
+        return false;
+    }
 
     // ------------------ STANDARD UPLOADS (Small Assets) ------------------
 
@@ -75,9 +109,9 @@ public class FilesController {
     @PostMapping("/sessions/complete")
     public ResponseEntity<FileEntity> completeSession(
             @RequestBody FinalizeUploadRequest request,
-            @RequestHeader(value = "X-Is-Admin", defaultValue = "false") boolean isAdmin,
             Authentication authentication) {
-        
+        boolean isAdmin = isAdmin(authentication);
+
         Long requesterId = Long.valueOf(authentication.getName());
         FileEntity entity = fileStorageService.finalizeUpload(request.getFileId(), request.getSize(), requesterId, isAdmin);
         return ResponseEntity.ok(entity);
@@ -89,8 +123,9 @@ public class FilesController {
     public ResponseEntity<String> getFileUrl(
             @PathVariable Long id,
             @RequestParam(value = "access", defaultValue = "PRIVATE") FileAccessEnum access,
-            @RequestHeader(value = "X-Is-Admin", defaultValue = "false") boolean isAdmin,
             Authentication authentication) {
+
+        boolean isAdmin = isAdmin(authentication);
 
         Long requesterId = Long.valueOf(authentication.getName());
         FileEntity fileEntity = fileStorageService.getFileById(id);
@@ -107,9 +142,10 @@ public class FilesController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteFile(
             @PathVariable Long id,
-            @RequestHeader(value = "X-Is-Admin", defaultValue = "false") boolean isAdmin,
             Authentication authentication) {
         Long ownerId = Long.valueOf(authentication.getName());
+
+        boolean isAdmin = isAdmin(authentication);
 
         fileStorageService.deleteFile(id, ownerId, isAdmin);
         return ResponseEntity.noContent().build();

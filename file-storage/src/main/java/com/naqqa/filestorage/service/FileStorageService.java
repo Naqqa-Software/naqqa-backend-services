@@ -67,6 +67,10 @@ public class FileStorageService {
     /**
      * Step 2: Finalizes the record in the database once the frontend confirms GCS upload is done.
      */
+    public FileEntity finalizeUpload(Long fileId, Long size, Long requesterId) {
+        return finalizeUpload(fileId, size, requesterId, false);
+    }
+
     public FileEntity finalizeUpload(Long fileId, Long size, Long requesterId, boolean isAdmin) {
         FileEntity entity = getFileById(fileId);
         
@@ -142,10 +146,10 @@ public class FileStorageService {
                 .orElseThrow(() -> new GCPFileException("File not found with ID: " + fileId));
     }
 
-    public void deleteFile(Long fileId, Long requestUserId) {
+    public void deleteFile(Long fileId, Long requestUserId, boolean isAdmin) {
         FileEntity fileEntity = getFileById(fileId);
 
-        if (!fileEntity.getOwnerId().equals(requestUserId)) {
+        if (!isAdmin && !fileEntity.getOwnerId().equals(requestUserId)) {
             LOGGER.error("Unauthorized delete attempt! User {} tried to delete file {} owned by {}",
                     requestUserId, fileId, fileEntity.getOwnerId());
             throw new AccessDeniedException("You do not have permission to delete this file.");
