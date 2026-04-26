@@ -1,12 +1,15 @@
 package com.naqqa.auth.service.admin;
 
 import com.naqqa.auth.dto.admin.AdminUserResponse;
+import com.naqqa.auth.dto.admin.CreateUserRequest;
 import com.naqqa.auth.dto.admin.UserRoleUpdateRequest;
 import com.naqqa.auth.dto.admin.UserSubRoleUpdateRequest;
 
 import java.util.List;
 
 public interface AdminUserService {
+
+    AdminUserResponse createUser(CreateUserRequest request);
 
     List<AdminUserResponse> getAllUsers();
 

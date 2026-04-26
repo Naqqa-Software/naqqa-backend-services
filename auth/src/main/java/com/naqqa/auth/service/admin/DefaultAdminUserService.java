@@ -1,17 +1,22 @@
 package com.naqqa.auth.service.admin;
 
 import com.naqqa.auth.dto.admin.AdminUserResponse;
+import com.naqqa.auth.dto.admin.CreateUserRequest;
 import com.naqqa.auth.dto.admin.UserRoleUpdateRequest;
 import com.naqqa.auth.dto.admin.UserSubRoleUpdateRequest;
 import com.naqqa.auth.entity.auth.UserEntity;
 import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.entity.authorities.SubRoleEntity;
+import com.naqqa.auth.exceptions.auth.EmailInUseException;
 import com.naqqa.auth.repository.RoleRepository;
 import com.naqqa.auth.repository.SubRoleRepository;
 import com.naqqa.auth.repository.UserRepository;
+import com.naqqa.auth.roles.RoleProvider;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -23,6 +28,36 @@ public class DefaultAdminUserService implements AdminUserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final SubRoleRepository subRoleRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final RoleProvider roleProvider;
+
+    @Override
+    public AdminUserResponse createUser(CreateUserRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new EmailInUseException();
+        }
+
+        RoleEntity role;
+        if (request.getRoleName() != null && !request.getRoleName().isEmpty()) {
+            role = findRole(request.getRoleName());
+        } else {
+            role = roleRepository.findByName(roleProvider.getDefaultRole())
+                    .orElseThrow(() -> new IllegalStateException("Default role 'USER' not found in database."));
+        }
+
+        UserEntity user = UserEntity.builder()
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName())
+                .enabled(true)
+                .roles(Collections.singleton(role))
+                .lastRole(role)
+                .build();
+
+        userRepository.save(user);
+
+        return mapToResponse(user);
+    }
 
     @Override
     public List<AdminUserResponse> getAllUsers() {

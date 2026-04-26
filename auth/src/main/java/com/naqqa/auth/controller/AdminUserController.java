@@ -1,9 +1,9 @@
 package com.naqqa.auth.controller;
 
+import com.naqqa.auth.dto.admin.CreateUserRequest;
 import com.naqqa.auth.dto.admin.UserRoleUpdateRequest;
 import com.naqqa.auth.dto.admin.AdminUserResponse;
 import com.naqqa.auth.service.admin.AdminUserService;
-import com.naqqa.auth.service.admin.DefaultAdminUserService;
 import lombok.AllArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +16,12 @@ import java.util.List;
 public class AdminUserController {
 
    private final AdminUserService adminUserService;
+
+    @PostMapping
+    @PreAuthorize("hasAuthority('users:create')")
+    public AdminUserResponse createUser(@RequestBody CreateUserRequest request) {
+        return adminUserService.createUser(request);
+    }
 
     @GetMapping
     @PreAuthorize("hasAuthority('users:read')")
