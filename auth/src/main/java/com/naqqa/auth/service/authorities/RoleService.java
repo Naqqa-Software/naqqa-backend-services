@@ -134,7 +134,7 @@ public class RoleService {
         user.setLastRole(selectedRole);
         userRepository.save(user);
 
-        return tokenService.generateToken(user);
+        return tokenService.generateAccessToken(user);
     }
 
 

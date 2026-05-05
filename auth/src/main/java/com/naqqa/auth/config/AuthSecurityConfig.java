@@ -1,6 +1,7 @@
 package com.naqqa.auth.config;
 
 import com.naqqa.auth.config.authorities.JwtToAuthorities;
+import com.naqqa.auth.security.CookieUtils;
 import lombok.AllArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +15,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -30,6 +32,17 @@ public class AuthSecurityConfig {
     }
 
     @Bean
+    public BearerTokenResolver bearerTokenResolver() {
+        return request -> {
+            String header = request.getHeader("Authorization");
+            if (header != null && header.startsWith("Bearer ")) {
+                return header.substring(7);
+            }
+            return CookieUtils.getCookieValue(request, CookieUtils.ACCESS_TOKEN_COOKIE);
+        };
+    }
+
+    @Bean
     @Order(1)
     public SecurityFilterChain authSecurityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -39,6 +52,7 @@ public class AuthSecurityConfig {
                         .anyRequest().permitAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(bearerTokenResolver())
                         .jwt(jwt -> jwt
                                 .jwtAuthenticationConverter(jwtAuthenticationConverter())
                         ));

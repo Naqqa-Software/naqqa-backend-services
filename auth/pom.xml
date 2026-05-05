@@ -12,7 +12,7 @@
 
 	<groupId>com.naqqa</groupId>
 	<artifactId>naqqa-auth</artifactId>
-	<version>0.0.35</version>
+	<version>0.0.38</version>
 	<name>Naqqa Auth</name>
 	<description>Reusable authentication library for Naqqa apps</description>
 	<packaging>jar</packaging>
@@ -104,6 +104,20 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>${lombok.version}</version>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

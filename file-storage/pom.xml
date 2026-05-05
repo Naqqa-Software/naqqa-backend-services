@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.naqqa</groupId>
     <artifactId>naqqa-file-storage</artifactId>
-    <version>0.0.19</version>
+    <version>0.0.18</version>
     <name>Naqqa File Storage</name>
     <description>FileStorage for spring boot apps</description>
     <url/>
@@ -109,6 +109,19 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

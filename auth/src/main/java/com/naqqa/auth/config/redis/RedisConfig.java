@@ -11,6 +11,7 @@ import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.jedis.JedisClientConfiguration;
 import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
@@ -37,6 +38,9 @@ public class RedisConfig {
     @Value("${spring.data.redis.port}")
     private int redisPort;
 
+    @Value("${spring.data.redis.username}")
+    private String redisUsername;
+
     @Value("${spring.data.redis.password}")
     private String redisPassword;
 
@@ -61,10 +65,22 @@ public class RedisConfig {
     @Bean
     public JedisConnectionFactory jedisConnectionFactory() {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(redisHost, redisPort);
+
+        if (redisUsername != null && !redisUsername.isEmpty()) {
+            config.setUsername(redisUsername);
+        }
+
         if (redisPassword != null && !redisPassword.isEmpty()) {
             config.setPassword(redisPassword);
         }
-        return new JedisConnectionFactory(config);
+
+        // Overrides the default 2000ms timeout to prevent connection drops to remote droplets
+        JedisClientConfiguration clientConfig = JedisClientConfiguration.builder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .readTimeout(Duration.ofSeconds(10))
+                .build();
+
+        return new JedisConnectionFactory(config, clientConfig);
     }
 
     /**
@@ -120,8 +136,9 @@ public class RedisConfig {
     @Bean
     public UnifiedJedis unifiedJedis() {
         JedisClientConfig clientConfig = DefaultJedisClientConfig.builder()
-                .user("default")  // Redis Cloud default user
+                .user(redisUsername)  // Uses the injected property
                 .password(redisPassword)
+                .timeoutMillis(10000) // 10-second timeout
                 .build();
 
         return new UnifiedJedis(new HostAndPort(redisHost, redisPort), clientConfig);

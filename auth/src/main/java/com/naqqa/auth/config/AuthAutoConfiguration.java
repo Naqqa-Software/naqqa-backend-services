@@ -2,6 +2,7 @@ package com.naqqa.auth.config;
 
 import com.naqqa.auth.config.auth.EmailMessages;
 import com.naqqa.auth.controller.AuthController;
+import com.naqqa.auth.repository.RefreshTokenRepository;
 import com.naqqa.auth.repository.RoleRepository;
 import com.naqqa.auth.repository.UserRepository;
 import com.naqqa.auth.repository.redis.PasswordResetRepository;
@@ -41,6 +42,7 @@ public class AuthAutoConfiguration {
             PasswordEncoder passwordEncoder,
             RegisterRecordRepository registerRecordRepository,
             PasswordResetRepository passwordResetRepository,
+            RefreshTokenRepository refreshTokenRepository,
             JwtService jwtService,
             RoleProvider roleProvider,
             TokenService tokenService,
@@ -54,6 +56,7 @@ public class AuthAutoConfiguration {
                 passwordEncoder,
                 registerRecordRepository,
                 passwordResetRepository,
+                refreshTokenRepository,
                 jwtService,
                 roleProvider,
                 tokenService,

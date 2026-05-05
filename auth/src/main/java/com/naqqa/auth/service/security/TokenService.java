@@ -1,8 +1,10 @@
 package com.naqqa.auth.service.security;
 
 import com.naqqa.auth.entity.authorities.AuthorityEntity;
+import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.entity.authorities.SubRoleEntity;
 import com.naqqa.auth.entity.auth.UserEntity;
+import com.naqqa.auth.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -29,6 +31,7 @@ public class TokenService {
     private Integer jwtExpirationRemember;
 
     private final JwtEncoder jwtEncoder;
+    private final JwtService jwtService;
 
     /**
      * Builds claims for the token.
@@ -64,25 +67,29 @@ public class TokenService {
                 "name", user.getLastRole().getName()
         );
 
+        Set<String> allRoleNames = user.getRoles().stream()
+                .map(RoleEntity::getName)
+                .collect(Collectors.toSet());
+
         return JwtClaimsSet.builder()
                 .issuer("naqqa-auth")
                 .issuedAt(now)
                 .expiresAt(now.plus(expirationMinutes, ChronoUnit.MINUTES))
                 .subject(String.valueOf(user.getId()))
+                .claim("id", user.getId())
+                .claim("email", user.getEmail())
+                .claim("fullName", user.getFullName())
+                .claim("roles", allRoleNames)
                 .claim("authorities", flattenedAuthorities) // This is what @PreAuthorize uses
                 .claim("role", roleClaim)
                 .build();
     }
 
-    public String generateToken(UserEntity user) {
-        return generateShortLivedToken(user);
-    }
-
-    public String generateShortLivedToken(UserEntity user) {
+    public String generateAccessToken(UserEntity user) {
         return jwtEncoder.encode(JwtEncoderParameters.from(buildClaims(user, jwtExpiration))).getTokenValue();
     }
 
-    public String generateLongLivedToken(UserEntity user) {
-        return jwtEncoder.encode(JwtEncoderParameters.from(buildClaims(user, jwtExpirationRemember))).getTokenValue();
+    public String generateRefreshToken(UserEntity user) {
+        return jwtService.generateRefreshToken(String.valueOf(user.getId()));
     }
 }

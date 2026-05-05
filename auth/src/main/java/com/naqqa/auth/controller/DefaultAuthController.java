@@ -27,9 +27,26 @@ public class DefaultAuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(
             @RequestParam(defaultValue = "false") boolean rememberMe,
-            @RequestBody LoginRequest request
+            @RequestBody LoginRequest request,
+            jakarta.servlet.http.HttpServletResponse response
     ) {
-        return authController.login(rememberMe, request);
+        return authController.login(rememberMe, request, response);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(
+            jakarta.servlet.http.HttpServletRequest request,
+            jakarta.servlet.http.HttpServletResponse response
+    ) {
+        return authController.refresh(request, response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(
+            jakarta.servlet.http.HttpServletRequest request,
+            jakarta.servlet.http.HttpServletResponse response
+    ) {
+        return authController.logout(request, response);
     }
 
     @PostMapping("/forgot-password")
