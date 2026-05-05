@@ -3,38 +3,55 @@ package com.naqqa.auth.security;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
 import java.util.Arrays;
 
+@Component
 public class CookieUtils {
 
     public static final String ACCESS_TOKEN_COOKIE = "access_token";
     public static final String REFRESH_TOKEN_COOKIE = "refresh_token";
 
+    private static boolean isSecure;
+
+    // Spring uses this non-static setter to inject the value into the static field.
+    // It defaults to 'true' if the property is missing from application.properties.
+    @Value("${app.cookie.secure:true}")
+    public void setIsSecure(boolean secureValue) {
+        CookieUtils.isSecure = secureValue;
+    }
+
     public static void setCookie(HttpServletResponse response, String name, String value, int maxAgeSeconds) {
         Cookie cookie = new Cookie(name, value);
         cookie.setHttpOnly(true);
-        cookie.setSecure(true); // Ensure HTTPS in production
+        cookie.setSecure(isSecure);
         cookie.setPath("/");
         cookie.setMaxAge(maxAgeSeconds);
-        
-        // For Spring Boot 3+, use ResponseCookie for better SameSite support if needed,
-        // but adding the header manually is also robust.
-        response.addCookie(cookie);
+
+        // Note: Calling BOTH addCookie and addHeader creates duplicate Set-Cookie headers.
+        // It's safer to just use addHeader if you need SameSite support.
         String sameSite = "Lax";
-        String headerValue = String.format("%s=%s; Max-Age=%d; HttpOnly; Secure; SameSite=%s; Path=/", 
-                name, value, maxAgeSeconds, sameSite);
+        String secureFlag = isSecure ? "; Secure" : "";
+
+        String headerValue = String.format("%s=%s; Max-Age=%d; HttpOnly%s; SameSite=%s; Path=/",
+                name, value, maxAgeSeconds, secureFlag, sameSite);
+
         response.addHeader("Set-Cookie", headerValue);
     }
 
     public static void clearCookie(HttpServletResponse response, String name) {
         Cookie cookie = new Cookie(name, null);
         cookie.setHttpOnly(true);
-        cookie.setSecure(true);
+        cookie.setSecure(isSecure);
         cookie.setPath("/");
         cookie.setMaxAge(0);
-        response.addCookie(cookie);
-        
-        String headerValue = String.format("%s=; Max-Age=0; HttpOnly; Secure; SameSite=Lax; Path=/", name);
+
+        String secureFlag = isSecure ? "; Secure" : "";
+        String headerValue = String.format("%s=; Max-Age=0; HttpOnly%s; SameSite=Lax; Path=/",
+                name, secureFlag);
+
         response.addHeader("Set-Cookie", headerValue);
     }
 
