@@ -23,10 +23,29 @@ public class EmailMessages {
         this.primaryColor = primaryColor;
     }
 
-    public String getEmailAddressConfirmationMessage(String code) {
-        return "<h1 style='color: " + primaryColor + ";'>Welcome to " + platformName + "!</h1>" +
-                "<p>Hello,</p>" +
-                "<p>This is the code needed to confirm your email address: <strong>" + code + "</strong></p>";
+    public String getEmailAddressConfirmationMessage(String uuid, String code) {
+        String confirmUrl = appUrl + "/auth/confirm-email?uuid=" + uuid + "&code=" + code;
+
+        return """
+                <h1 style='color: %s;'>Welcome to %s!</h1>
+                <p>Hello,</p>
+                <p>Please confirm your email address by clicking the button below:</p>
+                <div style="margin: 30px 0;">
+                    <a href='%s'
+                       style="background-color: %s;
+                              color: white;
+                              padding: 14px 28px;
+                              text-decoration: none;
+                              border-radius: 6px;
+                              font-weight: bold;
+                              display: inline-block;">
+                        Confirm Email
+                    </a>
+                </div>
+                <p>Or use this confirmation code: <strong>%s</strong></p>
+                <p>If you didn't create an account, you can safely ignore this email.</p>
+                <p>Thank you,<br>The %s Team</p>
+                """.formatted(primaryColor, platformName, confirmUrl, primaryColor, code, platformName);
     }
 
     public String getResetPasswordEmailMessage(String email, String uuid) {

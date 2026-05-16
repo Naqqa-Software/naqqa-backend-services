@@ -41,6 +41,13 @@ public class AuthExceptionHandler {
                 .body(new AuthErrorResponse(ex.getMessage(), null));
     }
 
+    @ExceptionHandler(AccountBlockedException.class)
+    public ResponseEntity<AuthErrorResponse> handleAccountBlocked(AccountBlockedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(new AuthErrorResponse(ex.getMessage(), null));
+    }
+
     @ExceptionHandler(SamePasswordException.class)
     public ResponseEntity<AuthErrorResponse> samePassword(SamePasswordException ex) {
         return ResponseEntity

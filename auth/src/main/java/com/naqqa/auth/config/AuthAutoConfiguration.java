@@ -2,6 +2,9 @@ package com.naqqa.auth.config;
 
 import com.naqqa.auth.config.auth.EmailMessages;
 import com.naqqa.auth.controller.AuthController;
+import com.naqqa.auth.exceptionhandlers.AuthExceptionHandler;
+import com.naqqa.auth.exceptionhandlers.AuthoritiesExceptionHandler;
+import com.naqqa.auth.exceptionhandlers.GlobalExceptionHandler;
 import com.naqqa.auth.repository.RefreshTokenRepository;
 import com.naqqa.auth.repository.RoleRepository;
 import com.naqqa.auth.repository.UserRepository;
@@ -19,6 +22,28 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 @AutoConfiguration
 public class AuthAutoConfiguration {
+
+    // ----------------------------------------
+    //  EXCEPTION HANDLERS
+    // ----------------------------------------
+
+    @Bean
+    @ConditionalOnMissingBean(AuthExceptionHandler.class)
+    public AuthExceptionHandler authExceptionHandler() {
+        return new AuthExceptionHandler();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(GlobalExceptionHandler.class)
+    public GlobalExceptionHandler globalExceptionHandler() {
+        return new GlobalExceptionHandler();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(AuthoritiesExceptionHandler.class)
+    public AuthoritiesExceptionHandler authoritiesExceptionHandler() {
+        return new AuthoritiesExceptionHandler();
+    }
 
     // ----------------------------------------
     //  CONTROLLER OVERRIDABLE BY MAIN APPLICATION

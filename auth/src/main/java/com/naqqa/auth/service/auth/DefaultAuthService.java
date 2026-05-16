@@ -67,7 +67,7 @@ public class DefaultAuthService implements AuthService {
         authEmailService.sendEmail(
                 request.getEmail(),
                 emailMessages.getSubjectEmailConfirmation(),
-                emailMessages.getEmailAddressConfirmationMessage(reg.getCode())
+                emailMessages.getEmailAddressConfirmationMessage(reg.getUuid(), reg.getCode())
         );
 
         RegisterResponse response = new RegisterResponse();
@@ -124,6 +124,10 @@ public class DefaultAuthService implements AuthService {
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new WrongCredentialsException();
+        }
+
+        if (!user.isEnabled()) {
+            throw new AccountBlockedException();
         }
 
         String accessToken = tokenService.generateAccessToken(user);
@@ -203,7 +207,7 @@ public class DefaultAuthService implements AuthService {
         authEmailService.sendEmail(
                 reg.getEmail(),
                 emailMessages.getSubjectEmailConfirmation(),
-                emailMessages.getEmailAddressConfirmationMessage(reg.getCode())
+                emailMessages.getEmailAddressConfirmationMessage(reg.getUuid(), reg.getCode())
         );
 
         return reg.getUuid();
