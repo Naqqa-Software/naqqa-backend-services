@@ -5,7 +5,6 @@ import com.naqqa.auth.dto.auth.*;
 import com.naqqa.auth.service.auth.AuthService;
 import com.naqqa.auth.service.auth.AuthEmailService;
 import com.naqqa.auth.security.CookieUtils;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +12,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.Arrays;
+
+import com.naqqa.auth.entity.auth.UserEntity;
+import com.naqqa.auth.repository.UserRepository;
+import com.naqqa.auth.service.security.DeviceSessionService;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 
 @RestController
 @RequiredArgsConstructor
@@ -23,11 +27,22 @@ public class AuthController {
     private final AuthService authService;
     private final AuthEmailService authEmailService;
     private final EmailMessages emailMessages;
+    private final DeviceSessionService deviceSessionService;
+    private final UserRepository userRepository;
+
+    @PostMapping("/logout/device")
+    public ResponseEntity<Void> logoutDevice(@RequestBody String deviceId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new com.naqqa.auth.exceptions.ResourceNotFoundException("User not found"));
+        
+        deviceSessionService.revokeDevice(user, deviceId);
+        return ResponseEntity.ok().build();
+    }
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
-        RegisterResponse uuid = authService.register(request);
-        return new ResponseEntity<>(uuid, HttpStatus.CREATED);
+        return ResponseEntity.ok(authService.register(request));
     }
 
     @PostMapping("/confirm-email")

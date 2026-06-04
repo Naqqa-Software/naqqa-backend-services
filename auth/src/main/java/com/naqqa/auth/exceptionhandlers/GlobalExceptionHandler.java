@@ -1,11 +1,15 @@
 package com.naqqa.auth.exceptionhandlers;
 
+import com.naqqa.auth.config.auth.Errors;
+import com.naqqa.auth.dto.auth.AuthErrorResponse;
 import com.naqqa.auth.exceptions.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -17,46 +21,73 @@ public class GlobalExceptionHandler {
 
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Object> handleResourceNotFound(ResourceNotFoundException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
+    public ResponseEntity<AuthErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(new AuthErrorResponse(ex.getMessage(), null));
     }
 
     @ExceptionHandler(InternalServerErrorException.class)
-    public ResponseEntity<Object> handleInternalServerError(InternalServerErrorException ex) {
-
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<AuthErrorResponse> handleInternalServerError(InternalServerErrorException ex) {
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new AuthErrorResponse(ex.getMessage(), null));
     }
 
     @ExceptionHandler(ForbiddenException.class)
-    public ResponseEntity<Object> handleForbidden(ForbiddenException ex) {
-
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.FORBIDDEN);
+    public ResponseEntity<AuthErrorResponse> handleForbidden(ForbiddenException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(new AuthErrorResponse(ex.getMessage(), null));
     }
 
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<Object> handleBadRequest(BadRequestException ex) {
-
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<AuthErrorResponse> handleBadRequest(BadRequestException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new AuthErrorResponse(ex.getMessage(), null));
     }
 
     @ExceptionHandler(ObjectUploadFailed.class)
-    public ResponseEntity<Object> handleObjectUploadFailed(ObjectUploadFailed ex) {
-
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<AuthErrorResponse> handleObjectUploadFailed(ObjectUploadFailed ex) {
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new AuthErrorResponse(Errors.INTERNAL_ERROR, null));
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)
-    public ResponseEntity<Object> handleMissingServletRequestPart(MissingServletRequestPartException ex) {
-
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<AuthErrorResponse> handleMissingServletRequestPart(MissingServletRequestPartException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new AuthErrorResponse(Errors.MISSING_FIELDS, null));
     }
 
-    // Handles requests that try to upload a multipart file with size that exceeds the limits specified in application.properties
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST) // Return HTTP 400 status
-    public String handleMaxSizeException(MaxUploadSizeExceededException exc) {
-        // Custom error message for file size exceeded
-        return "Error: The uploaded file exceeds the maximum allowed size. Please upload a smaller file.";
+    public ResponseEntity<AuthErrorResponse> handleMaxSizeException(MaxUploadSizeExceededException exc) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new AuthErrorResponse(Errors.INVALID_PAYLOAD, null));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<AuthErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new AuthErrorResponse(Errors.INVALID_PAYLOAD, null));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<AuthErrorResponse> handleMessageNotReadable(HttpMessageNotReadableException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new AuthErrorResponse(Errors.INVALID_REQUEST, null));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<AuthErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(new AuthErrorResponse(Errors.INTERNAL_ERROR, null));
     }
 
 }

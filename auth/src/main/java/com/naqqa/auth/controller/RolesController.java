@@ -66,8 +66,8 @@ public class RolesController {
     public ResponseEntity<String> switchRole(
             @RequestBody SwitchRoleRequest request
     ) {
-        String newToken = roleService.switchRole(request.roleId());
+        String email = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+        String newToken = roleService.switchRole(email, request);
         return ResponseEntity.ok(newToken);
     }
-
 }

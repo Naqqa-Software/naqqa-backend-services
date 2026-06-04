@@ -26,5 +26,12 @@ public class RefreshTokenEntity {
     private UserEntity user;
 
     @Column(nullable = false)
+    private String deviceId;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "active_role_id", nullable = false)
+    private com.naqqa.auth.entity.authorities.RoleEntity activeRole;
+
+    @Column(nullable = false)
     private Instant expiryDate;
 }

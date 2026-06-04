@@ -35,17 +35,17 @@ public class TokenService {
 
     /**
      * Builds claims for the token.
-     * Flattens authorities from the single 'LastRole' and ALL 'SubRoles'.
+     * Flattens authorities from the single 'activeRole' and ALL 'SubRoles'.
      */
-    private JwtClaimsSet buildClaims(UserEntity user, long expirationMinutes) {
+    private JwtClaimsSet buildClaims(UserEntity user, RoleEntity activeRole, long expirationMinutes) {
         Instant now = Instant.now();
 
-        if (user.getLastRole() == null) {
+        if (activeRole == null) {
             throw new IllegalStateException("Cannot generate token: User has no active role selected.");
         }
 
         // 1. Get Authorities from the ACTIVE Role only
-        Stream<String> activeRoleAuths = user.getLastRole().getAuthorities()
+        Stream<String> activeRoleAuths = activeRole.getAuthorities()
                 .stream()
                 .map(AuthorityEntity::getName);
 
@@ -63,8 +63,8 @@ public class TokenService {
 
         // Construct a simple role claim for the UI
         Map<String, Object> roleClaim = Map.of(
-                "id", user.getLastRole().getId(),
-                "name", user.getLastRole().getName()
+                "id", activeRole.getId(),
+                "name", activeRole.getName()
         );
 
         Set<String> allRoleNames = user.getRoles().stream()
@@ -85,8 +85,8 @@ public class TokenService {
                 .build();
     }
 
-    public String generateAccessToken(UserEntity user) {
-        return jwtEncoder.encode(JwtEncoderParameters.from(buildClaims(user, jwtExpiration))).getTokenValue();
+    public String generateAccessToken(UserEntity user, RoleEntity activeRole) {
+        return jwtEncoder.encode(JwtEncoderParameters.from(buildClaims(user, activeRole, jwtExpiration))).getTokenValue();
     }
 
     public String generateRefreshToken(UserEntity user) {

@@ -1,8 +1,11 @@
 package com.naqqa.auth.service.authorities;
 
+import com.naqqa.auth.config.authorities.AuthoritiesErrors;
 import com.naqqa.auth.dto.authorities.RoleRequestDto;
 import com.naqqa.auth.dto.authorities.RoleResponseDto;
+import com.naqqa.auth.dto.authorities.SwitchRoleRequest;
 import com.naqqa.auth.entity.auth.UserEntity;
+import com.naqqa.auth.entity.auth.UserDeviceEntity;
 import com.naqqa.auth.entity.authorities.AuthorityEntity;
 import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.exceptions.ForbiddenException;
@@ -10,7 +13,9 @@ import com.naqqa.auth.exceptions.ResourceNotFoundException;
 import com.naqqa.auth.exceptions.authorities.*;
 import com.naqqa.auth.repository.AuthorityRepository;
 import com.naqqa.auth.repository.RoleRepository;
+import com.naqqa.auth.repository.UserDeviceRepository;
 import com.naqqa.auth.repository.UserRepository;
+import com.naqqa.auth.roles.RoleProvider;
 import com.naqqa.auth.security.SecurityUtils;
 import com.naqqa.auth.service.security.TokenService;
 import lombok.AllArgsConstructor;
@@ -29,6 +34,8 @@ public class RoleService {
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final AuthorityRepository authorityRepository;
+    private final UserDeviceRepository userDeviceRepository;
+    private final RoleProvider roleProvider;
     private final TokenService tokenService;
 
     // --- Helper: validate and fetch authorities ---
@@ -119,22 +126,37 @@ public class RoleService {
     }
 
 
-    public String switchRole(Long roleId) {
-        String email = SecurityUtils.getCurrentUserEmail();
+    @Transactional
+    public String switchRole(String email, SwitchRoleRequest request) {
         UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException(AuthoritiesErrors.INVALID_REQUEST));
 
-        RoleEntity selectedRole = roleRepository.findById(roleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
+        RoleEntity selectedRole = roleRepository.findById(request.roleId())
+                .orElseThrow(() -> new ResourceNotFoundException(AuthoritiesErrors.ROLE_NOT_FOUND));
 
         if (!user.getRoles().contains(selectedRole)) {
-            throw new ForbiddenException("You are not allowed to switch to this role");
+            throw new ForbiddenException(AuthoritiesErrors.FORBIDDEN);
         }
 
-        user.setLastRole(selectedRole);
-        userRepository.save(user);
+        String deviceId = request.deviceId() != null && !request.deviceId().isBlank() ? request.deviceId() : "DEFAULT_DEVICE";
+        String clientType = request.clientType() != null && !request.clientType().isBlank() ? request.clientType() : "DEFAULT";
 
-        return tokenService.generateAccessToken(user);
+        if (!roleProvider.isRoleAllowed(clientType, selectedRole.getName())) {
+            throw new ForbiddenException(AuthoritiesErrors.FORBIDDEN);
+        }
+
+        UserDeviceEntity userDevice = userDeviceRepository.findByUserIdAndDeviceId(user.getId(), deviceId)
+                .orElseGet(() -> UserDeviceEntity.builder()
+                        .user(user)
+                        .deviceId(deviceId)
+                        .clientType(clientType)
+                        .build());
+
+        userDevice.setClientType(clientType);
+        userDevice.setLastRole(selectedRole);
+        userDeviceRepository.save(userDevice);
+
+        return tokenService.generateAccessToken(user, selectedRole);
     }
 
 

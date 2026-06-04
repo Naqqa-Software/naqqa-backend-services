@@ -3,12 +3,14 @@ package com.naqqa.auth.entity.authorities;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
-@Data
+@Getter
+@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
@@ -22,5 +24,6 @@ public class AuthorityEntity {
     private Long id;
 
     @Column(name = "name", unique = true, nullable = false)
+    @EqualsAndHashCode.Include
     private String name;
 }

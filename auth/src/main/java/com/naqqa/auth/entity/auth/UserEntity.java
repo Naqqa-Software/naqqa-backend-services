@@ -17,13 +17,16 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class UserEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @Column(unique = true, nullable = false)
+    @EqualsAndHashCode.Include
     private String email;
 
     @Column(nullable = false)
@@ -49,14 +52,17 @@ public class UserEntity {
     @Builder.Default
     private Set<SubRoleEntity> subRoles = new HashSet<>();
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "last_role_id")
-    private RoleEntity lastRole;
-
     @JsonFormat(pattern = "dd-MM-yyyy")
     @JoinColumn(name = "birth_date")
     private LocalDate birthDate;
 
     @Builder.Default
+    private boolean blocked = false;
+
+    @Builder.Default
     private boolean enabled = true;
+
+    private String googleId;
+    private String facebookId;
+    private String appleId;
 }

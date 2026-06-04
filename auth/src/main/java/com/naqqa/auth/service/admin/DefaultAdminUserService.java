@@ -51,7 +51,6 @@ public class DefaultAdminUserService implements AdminUserService {
                 .fullName(request.getFullName())
                 .enabled(true)
                 .roles(Collections.singleton(role))
-                .lastRole(role)
                 .build();
 
         userRepository.save(user);

@@ -62,7 +62,6 @@
                                 .email(user_email)
                                 .password(encoder.encode(user_password))
                                 .roles(Collections.singleton(adminRole))
-                                .lastRole(adminRole)
                                 .build();
                         userRepository.save(admin);
                     }

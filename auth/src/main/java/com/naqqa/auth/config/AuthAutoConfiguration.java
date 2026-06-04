@@ -7,6 +7,7 @@ import com.naqqa.auth.exceptionhandlers.AuthoritiesExceptionHandler;
 import com.naqqa.auth.exceptionhandlers.GlobalExceptionHandler;
 import com.naqqa.auth.repository.RefreshTokenRepository;
 import com.naqqa.auth.repository.RoleRepository;
+import com.naqqa.auth.repository.UserDeviceRepository;
 import com.naqqa.auth.repository.UserRepository;
 import com.naqqa.auth.repository.redis.PasswordResetRepository;
 import com.naqqa.auth.repository.redis.RegisterRecordRepository;
@@ -14,6 +15,7 @@ import com.naqqa.auth.roles.RoleProvider;
 import com.naqqa.auth.security.JwtService;
 import com.naqqa.auth.service.auth.*;
 import com.naqqa.auth.service.security.CodeGenService;
+import com.naqqa.auth.service.security.DeviceSessionService;
 import com.naqqa.auth.service.security.TokenService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -51,8 +53,14 @@ public class AuthAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(AuthController.class)
-    public AuthController authController(AuthService authService, AuthEmailService authEmailService, EmailMessages emailMessages) {
-        return new AuthController(authService, authEmailService, emailMessages);
+    public AuthController authController(
+            AuthService authService, 
+            AuthEmailService authEmailService, 
+            EmailMessages emailMessages,
+            DeviceSessionService deviceSessionService,
+            UserRepository userRepository
+    ) {
+        return new AuthController(authService, authEmailService, emailMessages, deviceSessionService, userRepository);
     }
 
     // ----------------------------------------
@@ -64,6 +72,8 @@ public class AuthAutoConfiguration {
     public AuthService defaultAuthService(
             UserRepository userRepository,
             RoleRepository roleRepository,
+            UserDeviceRepository userDeviceRepository,
+            DeviceSessionService deviceSessionService,
             PasswordEncoder passwordEncoder,
             RegisterRecordRepository registerRecordRepository,
             PasswordResetRepository passwordResetRepository,
@@ -78,6 +88,8 @@ public class AuthAutoConfiguration {
         return new DefaultAuthService(
                 userRepository,
                 roleRepository,
+                userDeviceRepository,
+                deviceSessionService,
                 passwordEncoder,
                 registerRecordRepository,
                 passwordResetRepository,
@@ -90,6 +102,7 @@ public class AuthAutoConfiguration {
                 emailMessages
         );
     }
+
 
 //    @Bean
 //    @ConditionalOnMissingBean(TokenService.class)
