@@ -9,8 +9,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import org.springframework.core.annotation.Order;
+
 @Slf4j
 @RestControllerAdvice
+@Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
 public class AuthoritiesExceptionHandler {
 
     // ----------------------------

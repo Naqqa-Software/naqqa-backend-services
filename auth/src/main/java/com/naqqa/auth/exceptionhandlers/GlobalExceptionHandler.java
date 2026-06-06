@@ -15,8 +15,11 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 
+import org.springframework.core.annotation.Order;
+
 @Slf4j
 @RestControllerAdvice
+@Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
 public class GlobalExceptionHandler {
 
 
