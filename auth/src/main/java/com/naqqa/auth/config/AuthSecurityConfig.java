@@ -1,7 +1,10 @@
 package com.naqqa.auth.config;
 
 import com.naqqa.auth.config.authorities.JwtToAuthorities;
+import com.naqqa.auth.config.social.SocialLoginProperties;
 import com.naqqa.auth.security.CookieUtils;
+import com.naqqa.auth.security.oauth2.OAuth2AuthenticationFailureHandler;
+import com.naqqa.auth.security.oauth2.OAuth2AuthenticationSuccessHandler;
 import lombok.AllArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -23,6 +26,10 @@ import org.springframework.security.web.SecurityFilterChain;
 @AllArgsConstructor
 @EnableMethodSecurity(prePostEnabled = true)
 public class AuthSecurityConfig {
+
+    private final SocialLoginProperties socialLoginProperties;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
 
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
@@ -60,6 +67,30 @@ public class AuthSecurityConfig {
     }
 
     @Bean
+    @Order(2)
+    public SecurityFilterChain oauth2SecurityFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/oauth2/**", "/login/oauth2/code/*");
+        if (isSocialLoginEnabled()) {
+            http
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().permitAll()
+                )
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(auth -> auth
+                                .baseUri("/oauth2/authorization")
+                        )
+                        .redirectionEndpoint(red -> red
+                                .baseUri("/login/oauth2/code/*")
+                        )
+                        .successHandler(oAuth2AuthenticationSuccessHandler)
+                        .failureHandler(oAuth2AuthenticationFailureHandler)
+                );
+        }
+        return http.build();
+    }
+
+    @Bean
     @ConditionalOnMissingBean(PasswordEncoder.class)
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -69,5 +100,11 @@ public class AuthSecurityConfig {
     @ConditionalOnMissingBean(AuthenticationManager.class)
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
+    }
+
+    private boolean isSocialLoginEnabled() {
+        return socialLoginProperties.getGoogle().isEnabled()
+                || socialLoginProperties.getFacebook().isEnabled()
+                || socialLoginProperties.getApple().isEnabled();
     }
 }

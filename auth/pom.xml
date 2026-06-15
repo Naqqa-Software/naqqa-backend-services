@@ -12,7 +12,7 @@
 
 	<groupId>com.naqqa</groupId>
 	<artifactId>naqqa-auth</artifactId>
-	<version>0.0.59</version>
+	<version>0.0.63</version>
 	<name>Naqqa Auth</name>
 	<description>Reusable authentication library for Naqqa apps</description>
 	<packaging>jar</packaging>
@@ -66,6 +66,11 @@
         </dependency>
 
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.sendgrid</groupId>
             <artifactId>sendgrid-java</artifactId>
             <version>4.10.3</version>
@@ -98,6 +103,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
