@@ -12,10 +12,10 @@
     </parent>
 
     <groupId>com.naqqa</groupId>
-    <artifactId>naqqa-chat</artifactId>
+    <artifactId>naqqa-scheduler</artifactId>
     <version>0.0.1</version>
-    <name>Naqqa Chat</name>
-    <description>Reusable end-to-end chat module (conversations, messages, reactions, read receipts, media, websocket) for Naqqa backend apps</description>
+    <name>Naqqa Scheduler</name>
+    <description>Reusable per-user calendar/scheduler module (event CRUD + iCalendar export) for Naqqa backend apps</description>
     <packaging>jar</packaging>
 
     <distributionManagement>
@@ -31,45 +31,27 @@
     </properties>
 
     <dependencies>
-        <!-- Spring Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- WebSocket -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-websocket</artifactId>
-        </dependency>
-
-        <!-- JPA -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
-        <!-- Security (Authentication in controllers) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
-        <!-- PostgreSQL -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- File storage (chat media upload + GCS streaming) -->
-        <dependency>
-            <groupId>com.naqqa</groupId>
-            <artifactId>naqqa-file-storage</artifactId>
-            <version>0.0.21</version>
-        </dependency>
-
-        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
