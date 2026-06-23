@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -48,7 +47,6 @@ public class SchedulerEventService {
 
     // ─── CRUD ────────────────────────────────────────────────────────────────
 
-    @Transactional
     public SchedulerEventResponse create(Long userId, SchedulerEventRequest req) {
         SchedulerEventEntity entity = new SchedulerEventEntity();
         entity.setUserId(userId);
@@ -56,14 +54,12 @@ public class SchedulerEventService {
         return toResponse(repository.save(entity));
     }
 
-    @Transactional
     public SchedulerEventResponse update(Long id, Long userId, SchedulerEventRequest req) {
         SchedulerEventEntity entity = findOwned(id, userId);
         applyDefaults(entity, req);
         return toResponse(repository.save(entity));
     }
 
-    @Transactional
     public void delete(Long id, Long userId) {
         repository.delete(findOwned(id, userId));
     }
@@ -151,7 +147,6 @@ public class SchedulerEventService {
      * with the supplied set. The consuming application builds the entities (with
      * {@code userId}/{@code courseId} already set) from its own domain model.
      */
-    @Transactional
     public void replaceCourseEvents(Long userId, Long courseId, List<SchedulerEventEntity> events) {
         repository.deleteAllByUserIdAndCourseId(userId, courseId);
         if (events != null && !events.isEmpty()) {

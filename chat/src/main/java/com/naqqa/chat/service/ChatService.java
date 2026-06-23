@@ -14,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZoneOffset;
 import java.util.*;
@@ -36,15 +35,36 @@ public class ChatService {
     // ─── Conversations ────────────────────────────────────────────────────────
 
     public Page<ConversationResponse> listConversations(Long userId, String query, int page, int size) {
-        // Sort is embedded in the native query (ORDER BY created_at DESC); pass unsorted Pageable
-        return conversationRepository
-                .searchByMemberId(userId, query != null ? query.trim() : "",
-                        PageRequest.of(page, size))
+        // Conversations come back already sorted by most-recent activity first.
+        // Search filtering (GROUP by title, DIRECT by partner name) and pagination are applied in-memory.
+        String lowerQuery = query != null ? query.trim().toLowerCase() : "";
+
+        List<ConversationResponse> all = conversationRepository.findAllByMemberId(userId).stream()
                 .map(c -> toConversationResponse(c,
-                        memberRepository.findUserIdsByConversationId(c.getId()), userId));
+                        memberRepository.findUserIdsByConversationId(c.getId()), userId))
+                .filter(r -> lowerQuery.isEmpty() || matchesQuery(r, userId, lowerQuery))
+                .collect(Collectors.toList());
+
+        int from = Math.min(page * size, all.size());
+        int to = Math.min(from + size, all.size());
+        return new org.springframework.data.domain.PageImpl<>(
+                all.subList(from, to), PageRequest.of(page, size), all.size());
     }
 
-    @Transactional
+    /**
+     * Search match semantics matching the previous SQL query:
+     * GROUP conversations match on any title translation; DIRECT match on the other member's name.
+     */
+    private boolean matchesQuery(ConversationResponse r, Long callerId, String lowerQuery) {
+        if (r.getType() == ChatConversationType.GROUP) {
+            return r.getTitle() != null && r.getTitle().values().stream()
+                    .anyMatch(v -> v != null && v.toLowerCase().contains(lowerQuery));
+        }
+        return r.getParticipants() != null && r.getParticipants().stream()
+                .filter(p -> p.getId() != null && !p.getId().equals(callerId))
+                .anyMatch(p -> p.getFullName() != null && p.getFullName().toLowerCase().contains(lowerQuery));
+    }
+
     public ConversationResponse createConversation(Long callerId, CreateConversationRequest req) {
         if ("DIRECT".equalsIgnoreCase(req.getKind())) {
             return createDirect(callerId, req.getTargetUserId());
@@ -54,13 +74,11 @@ public class ChatService {
     }
 
     /** Convenience overload for callers that only have a plain string title (e.g. legacy). */
-    @Transactional
     public ConversationResponse createGroup(Long callerId, String titleStr, List<Long> memberIds) {
         Map<String, String> titleMap = titleStr != null ? Map.of("default", titleStr) : null;
         return createGroup(callerId, titleMap, memberIds);
     }
 
-    @Transactional
     public ConversationResponse createDirect(Long callerId, Long targetUserId) {
         // Return existing if already exists
         Optional<ChatConversationEntity> existing =
@@ -81,7 +99,6 @@ public class ChatService {
         return toConversationResponse(conv, List.of(callerId, targetUserId), callerId);
     }
 
-    @Transactional
     public ConversationResponse createGroup(Long callerId, Map<String, String> title, List<Long> memberIds) {
         ChatConversationEntity conv = new ChatConversationEntity();
         conv.setType(ChatConversationType.GROUP);
@@ -105,7 +122,6 @@ public class ChatService {
     }
 
     /** Creates a course group chat if one doesn't exist yet. Returns the conversation. */
-    @Transactional
     public ChatConversationEntity getOrCreateCourseGroupChat(Long courseId, Map<String, String> titleTranslations) {
         return conversationRepository.findByCourseId(courseId).orElseGet(() -> {
             ChatConversationEntity conv = new ChatConversationEntity();
@@ -119,7 +135,6 @@ public class ChatService {
     }
 
     /** Adds a user to the course group chat (idempotent). */
-    @Transactional
     public void addUserToCourseChat(Long courseId, Map<String, String> titleTranslations, Long userId) {
         ChatConversationEntity conv = getOrCreateCourseGroupChat(courseId, titleTranslations);
         if (!memberRepository.existsById_ConversationIdAndId_UserId(conv.getId(), userId)) {
@@ -146,7 +161,6 @@ public class ChatService {
         return new org.springframework.data.domain.PageImpl<>(sorted, raw.getPageable(), raw.getTotalElements());
     }
 
-    @Transactional
     public MessageResponse sendMessage(Long conversationId, Long senderId, SendMessageRequest req) {
         requireMember(conversationId, senderId);
         ChatConversationEntity conv = requireConversation(conversationId);
@@ -168,7 +182,6 @@ public class ChatService {
         return toMessageResponse(msg, conv.getEncryptionKey(), senderId);
     }
 
-    @Transactional
     public MessageResponse editMessage(Long messageId, Long userId, String newContent) {
         ChatMessageEntity msg = requireMessage(messageId);
         if (!msg.getSenderId().equals(userId)) throw new ForbiddenException("Only the sender can edit this message");
@@ -179,7 +192,6 @@ public class ChatService {
         return toMessageResponse(messageRepository.save(msg), key, userId);
     }
 
-    @Transactional
     public void deleteMessage(Long messageId, Long userId) {
         ChatMessageEntity msg = requireMessage(messageId);
         if (!msg.getSenderId().equals(userId)) throw new ForbiddenException("Only the sender can delete this message");
@@ -195,7 +207,6 @@ public class ChatService {
      * Toggles an emoji reaction for a user on a message.
      * @return the conversationId the message belongs to (for WS broadcast)
      */
-    @Transactional
     public Long toggleReaction(Long messageId, Long userId, String emoji) {
         ChatMessageEntity msg = requireMessage(messageId);
         Optional<ChatMessageReactionEntity> existing = reactionRepository.findByMessageIdAndUserId(messageId, userId);
@@ -231,14 +242,8 @@ public class ChatService {
      * Only conversations with ≥1 unread message appear in byConversation.
      */
     public UnreadCountResponse getUnreadCounts(Long userId) {
-        long total = messageRepository.countTotalUnread(userId);
-
-        Map<Long, Long> byConversation = new LinkedHashMap<>();
-        messageRepository.countUnreadPerConversation(userId).forEach(row -> {
-            Long conversationId = ((Number) row[0]).longValue();
-            Long count          = ((Number) row[1]).longValue();
-            byConversation.put(conversationId, count);
-        });
+        Map<Long, Long> byConversation = messageRepository.countUnreadPerConversation(userId);
+        long total = byConversation.values().stream().mapToLong(Long::longValue).sum();
 
         return UnreadCountResponse.builder()
                 .total(total)
@@ -248,7 +253,6 @@ public class ChatService {
 
     // ─── Read receipts ────────────────────────────────────────────────────────
 
-    @Transactional
     public void markRead(Long conversationId, Long userId, Long lastMessageId) {
         requireMember(conversationId, userId);
 

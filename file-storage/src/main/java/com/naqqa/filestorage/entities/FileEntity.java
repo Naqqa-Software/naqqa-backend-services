@@ -1,17 +1,20 @@
 package com.naqqa.filestorage.entities;
 
-import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
-@Getter @Setter @Entity @Table(name = "file_entity")
+@Getter @Setter
+@Document(collection = "file_entity")
 public class FileEntity {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Indexed(unique = true)
     private String fileName; // GCS Object Key
 
     private String originalFileName;
@@ -20,9 +23,7 @@ public class FileEntity {
     private Long ownerId;
     private String status;
 
-    @Column(nullable = false)
     private boolean isLinked = false;
 
-    @Column(nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

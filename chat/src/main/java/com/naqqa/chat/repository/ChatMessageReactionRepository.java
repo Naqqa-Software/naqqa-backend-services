@@ -1,12 +1,12 @@
 package com.naqqa.chat.repository;
 
 import com.naqqa.chat.entity.ChatMessageReactionEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface ChatMessageReactionRepository extends JpaRepository<ChatMessageReactionEntity, Long> {
+public interface ChatMessageReactionRepository extends MongoRepository<ChatMessageReactionEntity, Long> {
 
     Optional<ChatMessageReactionEntity> findByMessageIdAndUserId(Long messageId, Long userId);
 

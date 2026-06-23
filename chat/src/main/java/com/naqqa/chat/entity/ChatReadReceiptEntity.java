@@ -1,29 +1,21 @@
 package com.naqqa.chat.entity;
 
-import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
-@Entity
+@Document(collection = "chat_read_receipts")
 @Getter
 @Setter
-@Table(name = "chat_read_receipts")
 public class ChatReadReceiptEntity {
 
-    @EmbeddedId
+    @Id
     private ChatReadReceiptKey id;
 
-    @Column(name = "last_message_id")
     private Long lastMessageId;
 
-    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    @PrePersist
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
 }

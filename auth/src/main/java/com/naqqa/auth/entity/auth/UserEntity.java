@@ -3,15 +3,17 @@ package com.naqqa.auth.entity.auth;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.entity.authorities.SubRoleEntity;
-import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.DBRef;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 
-@Entity
-@Table(name = "users")
+@Document(collection = "users")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -21,39 +23,26 @@ import java.util.Set;
 public class UserEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Include
     private Long id;
 
-    @Column(unique = true, nullable = false)
+    @Indexed(unique = true)
     @EqualsAndHashCode.Include
     private String email;
 
-    @Column(nullable = false)
     private String password;
 
     private String fullName;
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
+    @DBRef
     @Builder.Default
     private Set<RoleEntity> roles = new HashSet<>();
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "user_sub_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "sub_role_id")
-    )
+    @DBRef
     @Builder.Default
     private Set<SubRoleEntity> subRoles = new HashSet<>();
 
     @JsonFormat(pattern = "dd-MM-yyyy")
-    @JoinColumn(name = "birth_date")
     private LocalDate birthDate;
 
     @Builder.Default

@@ -2,18 +2,20 @@ package com.naqqa.chat.repository;
 
 import com.naqqa.chat.entity.ChatMemberEntity;
 import com.naqqa.chat.entity.ChatMemberKey;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
-public interface ChatMemberRepository extends JpaRepository<ChatMemberEntity, ChatMemberKey> {
+public interface ChatMemberRepository extends MongoRepository<ChatMemberEntity, ChatMemberKey> {
 
     List<ChatMemberEntity> findAllById_ConversationId(Long conversationId);
 
     boolean existsById_ConversationIdAndId_UserId(Long conversationId, Long userId);
 
-    @Query("SELECT m.id.userId FROM ChatMemberEntity m WHERE m.id.conversationId = :conversationId")
-    List<Long> findUserIdsByConversationId(@Param("conversationId") Long conversationId);
+    default List<Long> findUserIdsByConversationId(Long conversationId) {
+        return findAllById_ConversationId(conversationId).stream()
+                .map(m -> m.getId().getUserId())
+                .collect(Collectors.toList());
+    }
 }

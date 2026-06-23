@@ -2,6 +2,8 @@ package com.naqqa.auth.config;
 
 import com.naqqa.auth.config.auth.EmailMessages;
 import com.naqqa.auth.controller.AuthController;
+import com.naqqa.auth.persistence.AuthSequenceListener;
+import com.naqqa.auth.persistence.SequenceGenerator;
 import com.naqqa.auth.exceptionhandlers.AuthExceptionHandler;
 import com.naqqa.auth.exceptionhandlers.AuthoritiesExceptionHandler;
 import com.naqqa.auth.exceptionhandlers.GlobalExceptionHandler;
@@ -20,10 +22,29 @@ import com.naqqa.auth.service.security.TokenService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @AutoConfiguration
+@EnableMongoRepositories(basePackages = "com.naqqa.auth.repository")
 public class AuthAutoConfiguration {
+
+    // ----------------------------------------
+    //  MONGO SEQUENCE / ID GENERATION
+    // ----------------------------------------
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SequenceGenerator authSequenceGenerator(MongoOperations mongoOperations) {
+        return new SequenceGenerator(mongoOperations);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AuthSequenceListener authSequenceListener(SequenceGenerator sequenceGenerator) {
+        return new AuthSequenceListener(sequenceGenerator);
+    }
 
     // ----------------------------------------
     //  EXCEPTION HANDLERS

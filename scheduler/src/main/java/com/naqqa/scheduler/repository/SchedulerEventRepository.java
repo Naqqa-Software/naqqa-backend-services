@@ -1,12 +1,12 @@
 package com.naqqa.scheduler.repository;
 
 import com.naqqa.scheduler.entity.SchedulerEventEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.time.LocalDate;
 import java.util.List;
 
-public interface SchedulerEventRepository extends JpaRepository<SchedulerEventEntity, Long> {
+public interface SchedulerEventRepository extends MongoRepository<SchedulerEventEntity, Long> {
 
     /** All events for a user on a specific day. */
     List<SchedulerEventEntity> findAllByUserIdAndDate(Long userId, LocalDate date);

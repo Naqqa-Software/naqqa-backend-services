@@ -20,7 +20,6 @@ import com.naqqa.auth.security.SecurityUtils;
 import com.naqqa.auth.service.security.TokenService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
@@ -65,7 +64,6 @@ public class RoleService {
 
 
     // --- Create ---
-    @Transactional
     public RoleResponseDto createRole(RoleRequestDto dto) {
         if (roleRepository.findByName(dto.getName()).isPresent()) {
             throw new RoleAlreadyExistsException();
@@ -82,7 +80,6 @@ public class RoleService {
     }
 
     // --- Update ---
-    @Transactional
     public RoleResponseDto updateRole(Long roleId, RoleRequestDto dto) {
         RoleEntity role = roleRepository.findById(roleId)
                 .orElseThrow(RoleNotFoundException::new);
@@ -102,7 +99,6 @@ public class RoleService {
     }
 
     // --- Find all roles ---
-    @Transactional(readOnly = true)
     public List<RoleResponseDto> findAllRolesWithAuthorities() {
         return roleRepository.findAll().stream()
                 .map(this::toResponseDto)
@@ -110,7 +106,6 @@ public class RoleService {
     }
 
     // --- Find role by ID ---
-    @Transactional(readOnly = true)
     public RoleResponseDto findRoleById(Long roleId) {
         RoleEntity role = roleRepository.findById(roleId)
                 .orElseThrow(RoleNotFoundException::new);
@@ -118,7 +113,6 @@ public class RoleService {
     }
 
     // --- Delete ---
-    @Transactional
     public void deleteRole(Long roleId) {
         RoleEntity role = roleRepository.findById(roleId)
                 .orElseThrow(RoleNotFoundException::new);
@@ -126,7 +120,6 @@ public class RoleService {
     }
 
 
-    @Transactional
     public String switchRole(String email, SwitchRoleRequest request) {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException(AuthoritiesErrors.INVALID_REQUEST));
@@ -147,7 +140,7 @@ public class RoleService {
 
         UserDeviceEntity userDevice = userDeviceRepository.findByUserIdAndDeviceId(user.getId(), deviceId)
                 .orElseGet(() -> UserDeviceEntity.builder()
-                        .user(user)
+                        .userId(user.getId())
                         .deviceId(deviceId)
                         .clientType(clientType)
                         .build());

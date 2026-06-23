@@ -11,7 +11,6 @@ import com.sendgrid.helpers.mail.objects.Email;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -28,8 +27,6 @@ public class AuthEmailService {
 
     @Value("${spring.sendgrid.from-email}")
     private String sendGridFromEmail;
-
-    private final JdbcTemplate jdbcTemplate;
 
     public void sendEmail(String email, String subject, String message) {
         try {

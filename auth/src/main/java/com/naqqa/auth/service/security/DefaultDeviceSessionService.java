@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -25,7 +24,6 @@ public class DefaultDeviceSessionService implements DeviceSessionService {
     private int deviceLimit;
 
     @Override
-    @Transactional
     public void handleDeviceLogin(UserEntity user, String deviceId, String clientType, RoleEntity activeRole) {
         long deviceCount = userDeviceRepository.countByUserId(user.getId());
 
@@ -40,7 +38,7 @@ public class DefaultDeviceSessionService implements DeviceSessionService {
 
         UserDeviceEntity userDevice = userDeviceRepository.findByUserIdAndDeviceId(user.getId(), deviceId)
                 .orElse(UserDeviceEntity.builder()
-                        .user(user)
+                        .userId(user.getId())
                         .deviceId(deviceId)
                         .build());
         
@@ -51,7 +49,6 @@ public class DefaultDeviceSessionService implements DeviceSessionService {
     }
 
     @Override
-    @Transactional
     public void revokeDevice(UserEntity user, String deviceId) {
         refreshTokenRepository.deleteByUserAndDeviceId(user, deviceId);
         userDeviceRepository.deleteByUserIdAndDeviceId(user.getId(), deviceId);

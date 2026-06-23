@@ -1,12 +1,15 @@
 package com.naqqa.auth.entity.auth;
 
-import jakarta.persistence.*;
+import com.naqqa.auth.entity.authorities.RoleEntity;
 import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.DBRef;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 
-@Entity
-@Table(name = "refresh_tokens")
+@Document(collection = "refresh_tokens")
 @Getter
 @Setter
 @Builder
@@ -15,23 +18,18 @@ import java.time.Instant;
 public class RefreshTokenEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Indexed(unique = true)
     private String token;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @DBRef(lazy = true)
     private UserEntity user;
 
-    @Column(nullable = false)
     private String deviceId;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "active_role_id", nullable = false)
-    private com.naqqa.auth.entity.authorities.RoleEntity activeRole;
+    @DBRef
+    private RoleEntity activeRole;
 
-    @Column(nullable = false)
     private Instant expiryDate;
 }

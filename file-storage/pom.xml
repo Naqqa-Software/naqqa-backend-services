@@ -14,7 +14,7 @@
 
     <groupId>com.naqqa</groupId>
     <artifactId>naqqa-file-storage</artifactId>
-    <version>0.0.21</version>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
 
     <name>Naqqa File Storage</name>
@@ -67,7 +67,7 @@
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <artifactId>spring-boot-starter-data-mongodb</artifactId>
         </dependency>
 
         <dependency>
@@ -89,18 +89,8 @@
         </dependency>
 
         <dependency>
-            <groupId>jakarta.persistence</groupId>
-            <artifactId>jakarta.persistence-api</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.data</groupId>
-            <artifactId>spring-data-jpa</artifactId>
         </dependency>
 
         <dependency>

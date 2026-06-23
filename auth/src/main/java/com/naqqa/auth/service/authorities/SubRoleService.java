@@ -9,7 +9,6 @@ import com.naqqa.auth.repository.AuthorityRepository;
 import com.naqqa.auth.repository.SubRoleRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
@@ -50,7 +49,6 @@ public class SubRoleService {
 
 
     // --- Create ---
-    @Transactional
     public SubRoleResponseDto createSubRole(SubRoleRequestDto dto) {
         if (subRoleRepository.findByName(dto.getName()).isPresent()) {
             throw new RoleAlreadyExistsException();
@@ -67,7 +65,6 @@ public class SubRoleService {
     }
 
     // --- Update ---
-    @Transactional
     public SubRoleResponseDto updateSubRole(Long subRoleId, SubRoleRequestDto dto) {
         SubRoleEntity role = subRoleRepository.findById(subRoleId)
                 .orElseThrow(RoleNotFoundException::new);
@@ -87,7 +84,6 @@ public class SubRoleService {
     }
 
     // --- Find all roles ---
-    @Transactional(readOnly = true)
     public List<SubRoleResponseDto> findAllSubRolesWithAuthorities() {
         return subRoleRepository.findAll().stream()
                 .map(this::toResponseDto)
@@ -95,7 +91,6 @@ public class SubRoleService {
     }
 
     // --- Find role by ID ---
-    @Transactional(readOnly = true)
     public SubRoleResponseDto findSubRoleById(Long subRoleId) {
         SubRoleEntity subRole = subRoleRepository.findById(subRoleId)
                 .orElseThrow(RoleNotFoundException::new);
@@ -103,7 +98,6 @@ public class SubRoleService {
     }
 
     // --- Delete ---
-    @Transactional
     public void deleteSubRole(Long subRoleId) {
         SubRoleEntity subRole = subRoleRepository.findById(subRoleId)
                 .orElseThrow(RoleNotFoundException::new);

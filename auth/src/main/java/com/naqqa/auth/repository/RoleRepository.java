@@ -1,10 +1,10 @@
 package com.naqqa.auth.repository;
 
 import com.naqqa.auth.entity.authorities.RoleEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.Optional;
 
-public interface RoleRepository extends JpaRepository<RoleEntity, Long> {
+public interface RoleRepository extends MongoRepository<RoleEntity, Long> {
     Optional<RoleEntity> findByName(String name);
 }

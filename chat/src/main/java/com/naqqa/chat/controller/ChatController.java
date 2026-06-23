@@ -238,7 +238,7 @@ public class ChatController {
             // Find the conversation via the message that holds this file URL
             String urlSuffix = "/api/chat/media/" + fileId;
             Long conversationId = messageRepository
-                    .findFirstByMediaUrlContaining(urlSuffix)
+                    .findFirstByMediaUrlContainingAndDeletedForEveryoneFalse(urlSuffix)
                     .map(m -> m.getConversationId())
                     .orElse(null);
 

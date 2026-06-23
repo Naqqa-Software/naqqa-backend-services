@@ -1,37 +1,27 @@
 package com.naqqa.chat.entity;
 
-import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
-@Entity
+@Document(collection = "chat_message_reactions")
+@CompoundIndex(name = "idx_chat_reaction_msg_user", def = "{'messageId': 1, 'userId': 1}", unique = true)
 @Getter
 @Setter
-@Table(name = "chat_message_reactions",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"message_id", "user_id"}),
-       indexes = @Index(name = "idx_chat_reaction_msg", columnList = "message_id"))
 public class ChatMessageReactionEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "message_id", nullable = false)
     private Long messageId;
 
-    @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(nullable = false, length = 32)
     private String emoji;
 
-    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
 }

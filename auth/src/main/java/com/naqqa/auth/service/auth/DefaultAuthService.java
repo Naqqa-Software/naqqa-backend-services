@@ -23,7 +23,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -52,7 +51,6 @@ public class DefaultAuthService implements AuthService {
     private final AuthEmailService authEmailService;
     private final EmailMessages emailMessages;
 
-    @Transactional
     public RegisterResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new EmailInUseException();
@@ -80,7 +78,6 @@ public class DefaultAuthService implements AuthService {
     }
 
 
-    @Transactional
     public UserEntity confirmEmail(EmailConfirmationRequest request) {
 
         RoleEntity userRole = roleRepository.findByName(roleProvider.getDefaultRole())
@@ -109,7 +106,6 @@ public class DefaultAuthService implements AuthService {
     }
 
 
-    @Transactional
     public AuthResponse login(LoginRequest request, boolean rememberMe, HttpServletResponse response) {
         UserEntity user = userRepository.findByEmail(request.getEmail()).orElse(null);
 
@@ -211,7 +207,6 @@ public class DefaultAuthService implements AuthService {
                 .build();
     }
 
-    @Transactional
     public String refresh(String refreshToken, HttpServletResponse response) {
         RefreshTokenEntity storedToken = refreshTokenRepository.findByToken(refreshToken)
                 .orElseThrow(() -> new BadRequestException(Errors.TOKEN_INVALID));
@@ -233,7 +228,6 @@ public class DefaultAuthService implements AuthService {
         return newAccessToken;
     }
 
-    @Transactional
     public void logout(String refreshToken, HttpServletResponse response) {
         if (refreshToken != null) {
             refreshTokenRepository.deleteByToken(refreshToken);
