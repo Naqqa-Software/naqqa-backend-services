@@ -1,8 +1,10 @@
 package com.naqqa.entity.controller;
 
 import com.naqqa.entity.dto.EntitySchemaResponse;
+import com.naqqa.entity.dto.GenerateEntityRequest;
 import com.naqqa.entity.dto.PagedResponse;
 import com.naqqa.entity.entity.Entity;
+import com.naqqa.entity.service.entity.EntityAiService;
 import com.naqqa.entity.service.entity.EntityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,7 @@ import java.util.Map;
 public class EntityController {
 
     private final EntityService entityService;
+    private final EntityAiService entityAiService;
 
     @PostMapping
     @PreAuthorize("hasAuthority('entity:create')")
@@ -28,6 +31,16 @@ public class EntityController {
     @PreAuthorize("hasAuthority('entity:read')")
     public ResponseEntity<PagedResponse<Entity>> getAll(@RequestParam Map<String, String> params) {
         return ResponseEntity.ok(entityService.findAll(params));
+    }
+
+    /**
+     * Generates a full entity-definition blueprint from a natural-language prompt with Claude.
+     * The caller reviews/edits the returned draft in the designer form before saving.
+     */
+    @PostMapping("/generate")
+    @PreAuthorize("hasAuthority('entity:generate')")
+    public ResponseEntity<Map<String, Object>> generate(@RequestBody GenerateEntityRequest request) {
+        return ResponseEntity.ok(entityAiService.generate(request.prompt(), request.current()));
     }
 
     @GetMapping("/{id}")
