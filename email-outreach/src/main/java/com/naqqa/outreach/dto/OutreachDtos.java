@@ -1,0 +1,60 @@
+package com.naqqa.outreach.dto;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+
+/** Client-facing DTOs for the outreach admin surface. */
+public final class OutreachDtos {
+
+    /** One row in the "Emails sent" table. */
+    public record SentEmailRow(
+            String id, String profileKey, String fromEmail, String companyName, String toEmail, String toName,
+            String website, String city, String subject, String body, int sequenceStep,
+            String status, Instant sentAt) {
+    }
+
+    /** Edit payload for a sent-email record. */
+    public record SentEmailUpdate(
+            String companyName, String toEmail, String website, String city,
+            String subject, String body, String status) {
+    }
+
+    /** Sender profile view (app password is never returned — write-only). */
+    public record ProfileView(
+            String key, String fromEmail, String fromName, String signature,
+            LocalDate warmupStartDate, List<Integer> warmupSchedule, Integer dailyLimit,
+            boolean enabled, boolean hasPassword) {
+    }
+
+    /** Upsert payload for a sender profile. */
+    public record ProfileUpsert(
+            String fromEmail, String fromName, String signature, String appPassword,
+            LocalDate warmupStartDate, List<Integer> warmupSchedule, Integer dailyLimit, Boolean enabled) {
+    }
+
+    /** Global runtime switches shown on the emails page (sending + extraction on/off + pipeline counts). */
+    public record SettingsView(boolean sendingActive, boolean extractionActive, long enrichedCount) {
+    }
+
+    /** Patch payload for the runtime switches — only the non-null field(s) are applied. */
+    public record SettingsUpdate(Boolean sendingActive, Boolean extractionActive) {
+    }
+
+    /** A single {label, value} slice used by the analytics charts. */
+    public record StatBucket(String label, long value) {
+    }
+
+    /** One point on the "emails over time" line (day = yyyy-MM-dd). */
+    public record TimePoint(String day, long value) {
+    }
+
+    /** Aggregated sent-email stats for the analytics tab (respects the date/profile filters). */
+    public record OutreachStats(
+            long total, List<StatBucket> byStatus, List<StatBucket> byProfile,
+            List<StatBucket> byStep, List<TimePoint> overTime) {
+    }
+
+    private OutreachDtos() {
+    }
+}

@@ -1,0 +1,234 @@
+package com.naqqa.outreach.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.naqqa.outreach.config.OutreachProperties;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
+
+/** Generates the outreach email via the local Ollama model — faithful port of the chat call in the script. */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class OllamaClient {
+
+    public record GeneratedEmail(boolean shouldSend, String skipReason, String language, String subject, String emailBody) {
+    }
+
+    private final OutreachProperties props;
+    private final OllamaThrottle throttle;
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    private static final String SYSTEM_PROMPT = """
+            You write B2B cold outreach emails for a company offering IT outstaffing services.
+
+            IMPORTANT:
+            Always create an email ready to send.
+            Do NOT decide whether to send.
+            Do NOT skip the lead.
+            Do NOT return shouldSend=false.
+            Do NOT return {}.
+
+            Return ONLY valid JSON:
+            {
+              "shouldSend": true,
+              "skipReason": null,
+              "language": "en" | "ro" | "ru",
+              "subject": string,
+              "emailBody": string
+            }
+
+            FIELD RULES:
+            - shouldSend must always be true.
+            - skipReason must always be null.
+            - language must be "en", "ro", or "ru".
+            - subject must not be empty.
+            - emailBody must not be empty.
+
+            LANGUAGE:
+            - Company info mainly Romanian -> write in Romanian and set language = "ro".
+            - Company info mainly Russian -> write in Russian and set language = "ru".
+            - Otherwise -> write in English and set language = "en".
+            - Do not mix languages.
+
+            SUBJECT:
+            - Max 50 characters.
+            - 2-6 words.
+            - Neutral and professional.
+            - Do NOT include the recipient company name.
+            - Do NOT include Naqqa or Naqqa Software.
+            - Good directions:
+              "Team extension"
+              "Engineering capacity"
+              "Development team support"
+              "Dedicated developers"
+              "IT staffing support"
+              "Extra development capacity"
+
+            UNIQUENESS:
+            Every email must feel individually written.
+            Vary sentence length, opener, wording, CTA, and service framing.
+            Do not copy the example structure too closely.
+            Do not reuse the same phrases repeatedly.
+
+            TONE:
+            - Professional, formal, natural.
+            - No hype. No buzzwords. No marketing cliches.
+            - No promises. No guarantees. No ROI, savings, speed, or price claims.
+            - Do not invent facts.
+            - Reference only one detail clearly supported by company data.
+
+            ALLOWED SERVICES ONLY:
+            - IT outstaffing
+            - dedicated developers
+            - dedicated teams
+            - team extension
+            - IT staffing
+
+            FORBIDDEN SERVICES:
+            Never mention or imply: custom software development, end-to-end delivery, consulting,
+            system integration, implementation, technical support, QA, DevOps, UI/UX design,
+            product development, managed services.
+
+            GREETING:
+            Paragraph 1 only.
+            - If Contact name contains a clear human first name -> "Hello, [FirstName],"
+            - If uncertain or empty -> exactly "Hello,"
+            - Never use full name.
+            - Never guess from role emails like info@, sales@, hello@, support@, admin@, office@, team@, hr@.
+
+            COMPANY NAME RULE:
+            You receive companyNameConfidence: high, medium, or low.
+            - high -> you may use the company name once in emailBody.
+            - medium or low -> do not use company name; say "your company", "your team", or "your engineering team".
+            - Never use company name more than once.
+
+            EMAIL BODY:
+            Plain text only. No HTML. No links. No attachments. No signature. No sender name.
+            No sender role. No company website. No closing/sign-off.
+            Exactly 5 short paragraphs. Max 135 words total.
+
+            STRUCTURE:
+            P1: Greeting only.
+            P2: Open with interest in potential collaboration and mention one specific company detail from input.
+                Vary using openerVariant: collaboration, company-detail-first, team-extension, staffing-partner, engineering-capacity.
+            P3: Introduce our background. Mention that we are an IT Park-resident company from Eastern Europe,
+                with people in the Republic of Moldova and Romania. Vary the angle naturally.
+            P4: Present the service offer as a proposal. Use only allowed services. Vary phrasing based on styleVariant.
+            P5: CTA. Invite a reply or further conversation. Do not ask to schedule/book a meeting.
+                Do not say "at your convenience" or "brief chat". Vary using ctaVariant.
+
+            STYLE VARIANTS:
+            - direct: simple and short
+            - soft: warmer but still professional
+            - operator: practical and business-like
+            - peer-to-peer: natural founder-to-founder tone
+            - capacity-focused: focus on extra engineering capacity
+            - engineering-focused: focus on developers/team extension
+
+            HARD BANS:
+            Never use: guarantee, guaranteed, proven, world-class, top-tier, industry-leading, best in class,
+            save money, reduce costs, boost, revolutionary, cutting-edge, game-changer, disruptive,
+            potential partnership, synergies, seamlessly, impressed by, at your convenience, brief chat,
+            I am excited, I am thrilled, touch base, circle back, move the needle, leverage, bandwidth,
+            pain points, unlock, transform, empower, elevate, robust, tailored solutions, reach out,
+            warm wishes, dear sir, dear madam.
+            """;
+
+    private static final String FEWSHOT_USER = """
+            Company: Generic Software Studio
+            Industry: software development
+            Country: NL
+            Company info: ["Custom software solutions for SMEs", "Agile teams across Europe"]
+            Contact name: john smith
+            Contact title: CTO
+            Email: john.smith@genericsoftware.nl
+            companyNameConfidence: high
+            styleVariant: direct
+            openerVariant: company-detail-first
+            ctaVariant: ask-relevance
+            """;
+
+    private static final String FEWSHOT_ASSISTANT =
+            "{\"shouldSend\":true,\"skipReason\":null,\"language\":\"en\",\"subject\":\"Team extension\","
+                    + "\"emailBody\":\"Hello, John,\\n\\nGeneric Software Studio's work with agile teams across Europe "
+                    + "made me think there could be room for a practical collaboration.\\n\\nWe are an IT Park-resident "
+                    + "company from Eastern Europe, with people in the Republic of Moldova and Romania.\\n\\nOur focus is "
+                    + "IT outstaffing, dedicated developers, dedicated teams, and team extension for companies that already "
+                    + "have their own delivery structure.\\n\\nWould this be relevant for your team?\"}";
+
+    public GeneratedEmail generate(String companyName, String industry, String country,
+                                   List<String> companyInfo, String contactName, String contactTitle,
+                                   String email, String companyNameConfidence) {
+        String style = pick(OutreachConstants.STYLE_VARIANTS);
+        String opener = pick(OutreachConstants.OPENER_VARIANTS);
+        String cta = pick(OutreachConstants.CTA_VARIANTS);
+
+        String infoJson;
+        try {
+            infoJson = mapper.writeValueAsString(companyInfo == null ? List.of()
+                    : companyInfo.stream().limit(5).toList());
+        } catch (Exception e) {
+            infoJson = "[]";
+        }
+
+        String userMsg = ("Write a cold outreach email for the following lead.\n\n"
+                + "Company: " + nz(companyName) + "\n"
+                + "Industry: " + nz(industry) + "\n"
+                + "Country: " + nz(country) + "\n"
+                + "Company info: " + infoJson + "\n"
+                + "Contact name: " + (contactName == null ? "" : contactName) + "\n"
+                + "Contact title: " + (contactTitle == null ? "" : contactTitle) + "\n"
+                + "Email: " + email + "\n"
+                + "companyNameConfidence: " + companyNameConfidence + "\n"
+                + "styleVariant: " + style + "\n"
+                + "openerVariant: " + opener + "\n"
+                + "ctaVariant: " + cta + "\n\n"
+                + "Return JSON only.\nAlways set shouldSend=true.\nAlways set skipReason=null.\n"
+                + "Create the email ready to send.");
+
+        Map<String, Object> body = Map.of(
+                "model", props.getOllamaModel(),
+                "stream", false,
+                "format", "json",
+                "messages", List.of(
+                        Map.of("role", "system", "content", SYSTEM_PROMPT),
+                        Map.of("role", "user", "content", FEWSHOT_USER),
+                        Map.of("role", "assistant", "content", FEWSHOT_ASSISTANT),
+                        Map.of("role", "user", "content", userMsg)));
+
+        RestClient client = RestClient.builder().baseUrl(props.getOllamaUrl()).build();
+        // Global chat-lock + cooldown across both profiles (protects the local model).
+        JsonNode res = throttle.execute(() -> client.post().uri("/api/chat").contentType(MediaType.APPLICATION_JSON)
+                .body(body).retrieve().body(JsonNode.class));
+
+        String content = res == null ? "{}" : res.path("message").path("content").asText("{}");
+        try {
+            JsonNode j = mapper.readTree(content);
+            return new GeneratedEmail(
+                    j.path("shouldSend").asBoolean(false),
+                    j.path("skipReason").isNull() ? null : j.path("skipReason").asText(null),
+                    j.path("language").asText("en"),
+                    j.path("subject").asText(""),
+                    j.path("emailBody").asText(""));
+        } catch (Exception e) {
+            log.warn("Ollama returned unparseable content: {}", e.getMessage());
+            return new GeneratedEmail(false, "parse_error", "en", "", "");
+        }
+    }
+
+    private String pick(List<String> options) {
+        return options.get(ThreadLocalRandom.current().nextInt(options.size()));
+    }
+
+    private String nz(String s) {
+        return s == null || s.isBlank() ? "N/A" : s;
+    }
+}
