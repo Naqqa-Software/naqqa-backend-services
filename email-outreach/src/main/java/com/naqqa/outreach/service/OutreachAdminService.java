@@ -16,7 +16,6 @@ import com.naqqa.outreach.repository.SentEmailRepository;
 import com.naqqa.outreach.scheduler.OutreachRunner;
 import lombok.RequiredArgsConstructor;
 import org.bson.Document;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
@@ -71,15 +70,11 @@ public class OutreachAdminService {
         int safePage = Math.max(0, page);
         int safeSize = Math.min(Math.max(1, pageSize), 200);
 
-        List<SentEmailRow> rows;
-        if ("priority".equalsIgnoreCase(sortKey)) {
-            rows = byPriority(criteria, safePage, safeSize);
-        } else {
-            String key = SORTABLE.contains(sortKey) ? sortKey : "sentAt";
-            Sort.Direction dir = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
-            Query query = new Query(criteria).with(Sort.by(dir, key)).with(PageRequest.of(safePage, safeSize));
-            rows = mongo.find(query, SentEmailEntity.class).stream().map(this::toRow).toList();
-        }
+        // Response-priority is ALWAYS the primary order (responded → positive → negative → rest), no
+        // matter which filters or column sort are active; any column sort is a within-tier tiebreak.
+        String secKey = SORTABLE.contains(sortKey) ? sortKey : "sentAt";
+        Sort.Direction secDir = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        List<SentEmailRow> rows = byPriority(criteria, safePage, safeSize, secKey, secDir);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("emails", rows);
@@ -89,16 +84,20 @@ public class OutreachAdminService {
         return out;
     }
 
-    /** Triage order: responded first, then positive, then negative, then everything else, newest-first. */
-    private List<SentEmailRow> byPriority(Criteria criteria, int page, int size) {
+    /**
+     * Triage order (primary): 1 = has a response (RESPONDED/REPLIED), 2 = positive, 3 = negative
+     * (incl. unsubscribe), 9 = no response yet — then the requested column (or newest-first) within
+     * each tier.
+     */
+    private List<SentEmailRow> byPriority(Criteria criteria, int page, int size, String secKey, Sort.Direction secDir) {
         Document rank = new Document("$switch", new Document("branches", List.of(
-                rankBranch("RESPONDED", 1), rankBranch("POSITIVE", 2),
-                rankBranch("NEGATIVE", 3), rankBranch("REPLIED", 4)))
+                rankBranch("RESPONDED", 1), rankBranch("REPLIED", 1), rankBranch("POSITIVE", 2),
+                rankBranch("NEGATIVE", 3), rankBranch("UNSUBSCRIBED", 3)))
                 .append("default", 9));
         Aggregation agg = Aggregation.newAggregation(
                 Aggregation.match(criteria),
                 (AggregationOperation) ctx -> new Document("$addFields", new Document("statusRank", rank)),
-                Aggregation.sort(Sort.by(Sort.Direction.ASC, "statusRank").and(Sort.by(Sort.Direction.DESC, "sentAt"))),
+                Aggregation.sort(Sort.by(Sort.Direction.ASC, "statusRank").and(Sort.by(secDir, secKey))),
                 Aggregation.skip((long) page * size),
                 Aggregation.limit(size));
         return mongo.aggregate(agg, "outreach_sent_emails", SentEmailEntity.class)
