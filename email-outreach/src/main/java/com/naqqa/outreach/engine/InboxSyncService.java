@@ -89,7 +89,7 @@ public class InboxSyncService {
 
     private void stopSequence(String threadKey, boolean unsubscribe) {
         List<SentEmailEntity> thread = sentRepo.findByThreadKey(threadKey);
-        SendStatus target = unsubscribe ? SendStatus.UNSUBSCRIBED : SendStatus.REPLIED;
+        SendStatus target = unsubscribe ? SendStatus.UNSUBSCRIBED : SendStatus.RESPONDED;
         for (SentEmailEntity s : thread) {
             if (s.getStatus() == SendStatus.SENT) {
                 s.setStatus(target);

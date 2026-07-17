@@ -10,7 +10,13 @@ public enum SendStatus {
     SKIPPED,
     /** A bounce was later detected for this message. */
     BOUNCED,
-    /** The lead replied to this message (stops the sequence). */
+    /** The lead responded to this message (stops the sequence). */
+    RESPONDED,
+    /** Response triaged as positive (interested). */
+    POSITIVE,
+    /** Response triaged as negative (not interested). */
+    NEGATIVE,
+    /** Legacy reply status (kept for existing records; new replies use RESPONDED). */
     REPLIED,
     /** The lead unsubscribed (stops the sequence). */
     UNSUBSCRIBED

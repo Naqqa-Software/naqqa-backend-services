@@ -42,6 +42,15 @@ public class OutreachScheduler {
         run(null);
     }
 
+    /** Dedicated inbox sync (replies / bounces) every ~2h, independent of the send flow. */
+    @Scheduled(fixedDelayString = "${naqqa.outreach.inbox-sync-tick-ms:7200000}", initialDelay = 90000)
+    public void inboxSyncTick() {
+        if (!props.isEnabled()) {
+            return;
+        }
+        profiles.findAllByEnabledTrue().forEach(runner::syncOnly);
+    }
+
     /** Immediate catch-up on boot (don't wait for the first tick). */
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {

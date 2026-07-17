@@ -48,15 +48,16 @@ public class OutreachProperties {
     private int minDelaySeconds = 180;
     private int maxDelaySeconds = 300;
 
-    /**
-     * Master switch for the follow-up sequence. OFF for now — send a single initial email only, no
-     * step-2/step-3 follow-ups. Flip to true to re-enable the cadence below.
-     */
-    private boolean followupsEnabled = false;
+    /** Master switch for the AI follow-up sequence (threaded replies). */
+    private boolean followupsEnabled = true;
 
-    /** Follow-up cadence: days after the previous step for each follow-up (max = maxFollowups). */
-    private List<Integer> followupDelaysDays = List.of(3, 7);
-    private int maxFollowups = 2;
+    /** Share of the daily cap reserved for follow-ups (0.30 = 30%); the rest goes to new leads. */
+    private double followupRatio = 0.30;
+
+    /** Follow-up cadence: days after the previous step for each level (index 0 = level 1, …). */
+    private List<Integer> followupDelaysDays = List.of(3, 6, 10);
+    /** Max follow-up levels (1..maxFollowups). */
+    private int maxFollowups = 3;
 
     /** Cron for the daily kickoff (default 09:00). */
     private String dailyCron = "0 0 9 * * *";
@@ -67,6 +68,12 @@ public class OutreachProperties {
      * (sends only up to the per-profile daily cap, which persists in {@code outreach_account_state}).
      */
     private long catchUpTickMs = 1800000; // 30 min
+
+    /**
+     * Dedicated inbox-sync cadence (ms) — how often to poll each mailbox for replies / bounces,
+     * independent of the send flow. Default 2 h. Inbox sync also runs on every startup + catch-up.
+     */
+    private long inboxSyncTickMs = 7200000; // 2 h
 
     /** Directory for the per-profile daily log files (also mirrored to the {@code outreach_logs} collection). */
     private String logDir = "logs/outreach";

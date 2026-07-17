@@ -67,16 +67,19 @@ public class OutreachAdminService {
             parts.add(Criteria.where("status").is(status.trim().toUpperCase()));
         }
         Criteria criteria = parts.isEmpty() ? new Criteria() : new Criteria().andOperator(parts.toArray(new Criteria[0]));
-        Query query = new Query(criteria);
-        long total = mongo.count(query, SentEmailEntity.class);
-
-        String key = SORTABLE.contains(sortKey) ? sortKey : "sentAt";
-        Sort.Direction dir = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        long total = mongo.count(new Query(criteria), SentEmailEntity.class);
         int safePage = Math.max(0, page);
         int safeSize = Math.min(Math.max(1, pageSize), 200);
-        query.with(Sort.by(dir, key)).with(PageRequest.of(safePage, safeSize));
 
-        List<SentEmailRow> rows = mongo.find(query, SentEmailEntity.class).stream().map(this::toRow).toList();
+        List<SentEmailRow> rows;
+        if ("priority".equalsIgnoreCase(sortKey)) {
+            rows = byPriority(criteria, safePage, safeSize);
+        } else {
+            String key = SORTABLE.contains(sortKey) ? sortKey : "sentAt";
+            Sort.Direction dir = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+            Query query = new Query(criteria).with(Sort.by(dir, key)).with(PageRequest.of(safePage, safeSize));
+            rows = mongo.find(query, SentEmailEntity.class).stream().map(this::toRow).toList();
+        }
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("emails", rows);
@@ -84,6 +87,26 @@ public class OutreachAdminService {
         out.put("totalPages", (int) Math.ceil(total / (double) safeSize));
         out.put("currentPage", safePage);
         return out;
+    }
+
+    /** Triage order: responded first, then positive, then negative, then everything else, newest-first. */
+    private List<SentEmailRow> byPriority(Criteria criteria, int page, int size) {
+        Document rank = new Document("$switch", new Document("branches", List.of(
+                rankBranch("RESPONDED", 1), rankBranch("POSITIVE", 2),
+                rankBranch("NEGATIVE", 3), rankBranch("REPLIED", 4)))
+                .append("default", 9));
+        Aggregation agg = Aggregation.newAggregation(
+                Aggregation.match(criteria),
+                (AggregationOperation) ctx -> new Document("$addFields", new Document("statusRank", rank)),
+                Aggregation.sort(Sort.by(Sort.Direction.ASC, "statusRank").and(Sort.by(Sort.Direction.DESC, "sentAt"))),
+                Aggregation.skip((long) page * size),
+                Aggregation.limit(size));
+        return mongo.aggregate(agg, "outreach_sent_emails", SentEmailEntity.class)
+                .getMappedResults().stream().map(this::toRow).toList();
+    }
+
+    private Document rankBranch(String status, int rank) {
+        return new Document("case", new Document("$eq", List.of("$status", status))).append("then", rank);
     }
 
     public SentEmailRow updateSentEmail(String id, SentEmailUpdate req) {
