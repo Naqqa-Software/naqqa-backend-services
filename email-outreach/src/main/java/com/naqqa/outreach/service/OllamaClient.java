@@ -80,7 +80,7 @@ public class OllamaClient {
                         Map.of("role", "system", "content", FOLLOWUP_SYSTEM_PROMPT),
                         Map.of("role", "user", "content", userMsg)));
 
-        RestClient client = RestClient.builder().baseUrl(props.getOllamaUrl()).build();
+        RestClient client = ollamaClient();
         JsonNode res = throttle.execute(() -> client.post().uri("/api/chat").contentType(MediaType.APPLICATION_JSON)
                 .body(body).retrieve().body(JsonNode.class));
         String content = res == null ? "{}" : res.path("message").path("content").asText("{}");
@@ -275,7 +275,7 @@ public class OllamaClient {
                         Map.of("role", "assistant", "content", FEWSHOT_ASSISTANT),
                         Map.of("role", "user", "content", userMsg)));
 
-        RestClient client = RestClient.builder().baseUrl(props.getOllamaUrl()).build();
+        RestClient client = ollamaClient();
         // Global chat-lock + cooldown across both profiles (protects the local model).
         JsonNode res = throttle.execute(() -> client.post().uri("/api/chat").contentType(MediaType.APPLICATION_JSON)
                 .body(body).retrieve().body(JsonNode.class));
@@ -293,6 +293,17 @@ public class OllamaClient {
             log.warn("Ollama returned unparseable content: {}", e.getMessage());
             return new GeneratedEmail(false, "parse_error", "en", "", "");
         }
+    }
+
+    /** Ollama HTTP client, adding an {@code Authorization: Bearer} header when a token is configured. */
+    private RestClient ollamaClient() {
+        return RestClient.builder().baseUrl(props.getOllamaUrl())
+                .defaultHeaders(h -> {
+                    String token = props.getOllamaToken();
+                    if (token != null && !token.isBlank()) {
+                        h.setBearerAuth(token.trim());
+                    }
+                }).build();
     }
 
     private String pick(List<String> options) {

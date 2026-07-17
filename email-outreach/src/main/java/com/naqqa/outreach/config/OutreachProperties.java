@@ -19,9 +19,16 @@ public class OutreachProperties {
     /** Master switch for the daily scheduler. */
     private boolean enabled = true;
 
-    /** Local Ollama endpoint + model used to generate emails (kept from the script). */
+    /** Ollama endpoint + model used to generate emails (kept from the script). */
     private String ollamaUrl = "http://localhost:11434";
     private String ollamaModel = "gpt-oss:20b";
+
+    /**
+     * Optional bearer token sent as {@code Authorization: Bearer <token>} on every Ollama call — set
+     * this to match the token your Ollama reverse-proxy expects (remote Ollama behind auth). Blank =
+     * no auth header (local Ollama).
+     */
+    private String ollamaToken;
 
     /**
      * Serialize all Ollama calls across both profiles (the script's global chat-lock) and wait this
@@ -39,10 +46,10 @@ public class OutreachProperties {
      */
     private String secretKey;
 
-    /** Working window (senders only run inside this, in the configured timezone). */
+    /** Working window (senders only run inside this, in the configured timezone). End hour is exclusive. */
     private String timezone = "Europe/Chisinau";
     private int workStartHour = 9;
-    private int workEndHour = 18;
+    private int workEndHour = 21; // sends until 21:00 (9 PM); set 22 to include the 21:00 hour
 
     /** Randomized delay between sends (seconds). */
     private int minDelaySeconds = 180;
