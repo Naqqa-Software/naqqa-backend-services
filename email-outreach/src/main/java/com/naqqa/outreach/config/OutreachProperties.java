@@ -90,6 +90,9 @@ public class OutreachProperties {
     /** How often the extraction tick fires. */
     private long extractionTickMs = 30000;
 
+    /** How often the website-info backfill tick fires (scrapes companies that have an email but no info). */
+    private long scrapeTickMs = 60000;
+
     /** Optional outbound HTTP proxy for the jsoup company-info scraper. */
     private String proxyHost;
     private Integer proxyPort;

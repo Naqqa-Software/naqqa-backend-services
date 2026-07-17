@@ -48,6 +48,37 @@ public class LeadService {
                 LeadEntity.class);
     }
 
+    /** Persist company context scraped from the website (shown in the edit drawer, used by the AI). */
+    public void saveWebsiteInfo(String id, String info) {
+        if (id == null || info == null || info.isBlank()) {
+            return;
+        }
+        mongo.updateFirst(new Query(Criteria.where("_id").is(id)),
+                new Update().set("websiteInfo", info).set("updatedAt", Instant.now()), LeadEntity.class);
+    }
+
+    public LeadEntity get(String id) {
+        return id == null ? null : mongo.findById(id, LeadEntity.class);
+    }
+
+    /** Next company that has an email + website but no scraped info yet (for the info back-fill). */
+    public LeadEntity reserveForScrape() {
+        Query q = new Query(new Criteria().andOperator(
+                Criteria.where("emails.0").exists(true),
+                Criteria.where("website").ne(null).ne(""),
+                new Criteria().orOperator(
+                        Criteria.where("websiteInfo").exists(false),
+                        Criteria.where("websiteInfo").is(null))));
+        return mongo.findOne(q, LeadEntity.class);
+    }
+
+    /** Store scraped info (or an empty marker so a company with no scrapable info isn't retried). */
+    public void markScraped(String id, String info) {
+        mongo.updateFirst(new Query(Criteria.where("_id").is(id)),
+                new Update().set("websiteInfo", info == null ? "" : info).set("updatedAt", Instant.now()),
+                LeadEntity.class);
+    }
+
     /** Apollo found nothing — take the company out of the extraction/send rotation. */
     public void markNoEmail(String id) {
         mongo.updateFirst(new Query(Criteria.where("_id").is(id)),

@@ -32,6 +32,9 @@ public class LeadEntity {
 
     private List<String> emails = new ArrayList<>();
 
+    /** Company context scraped from the website (persisted for the edit drawer + AI generation). */
+    private String websiteInfo;
+
     /** DEFAULT | ENRICHED | USED | BLOCKED. */
     private String status;
 }

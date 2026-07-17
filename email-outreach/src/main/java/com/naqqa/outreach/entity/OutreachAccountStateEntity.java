@@ -32,6 +32,9 @@ public class OutreachAccountStateEntity {
     private String counterDate; // DD/MM/YYYY
     private int sentToday;
 
+    /** Follow-ups sent today (subset of sentToday) — caps the daily follow-up allocation. */
+    private int followupsSentToday;
+
     /** Rolling last-100 outcomes ("sent" / "bounced") for bounce-rate. */
     private List<String> recentEmails = new ArrayList<>();
 

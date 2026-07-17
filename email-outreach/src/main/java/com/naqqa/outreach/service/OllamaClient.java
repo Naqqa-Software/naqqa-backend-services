@@ -22,6 +22,77 @@ public class OllamaClient {
     public record GeneratedEmail(boolean shouldSend, String skipReason, String language, String subject, String emailBody) {
     }
 
+    /** One earlier message in a thread, oldest first, fed to the follow-up generator as context. */
+    public record ThreadMessage(int step, String subject, String body) {
+    }
+
+    private static final String FOLLOWUP_SYSTEM_PROMPT = """
+            You write short B2B follow-up emails as a REPLY within an existing cold-outreach thread for
+            a company offering IT outstaffing services (dedicated developers / dedicated teams / team
+            extension / IT staffing only).
+
+            You are given the full thread so far (our previous message(s) to this contact) and the
+            follow-up level. Write the next follow-up as a natural, polite reply that:
+            - Clearly refers to the previous message without repeating it.
+            - Is SHORTER than the original, adds a light, low-pressure nudge, no guilt-tripping.
+            - Escalates gently: level 1 = gentle bump; higher levels = final, respectful note that you
+              will stop following up.
+            - Uses the SAME language as the previous messages (en / ro / ru).
+            - Plain text only. No HTML, links, attachments, signature, sender name, or sign-off.
+            - Starts with "Hello," (or "Hello, [FirstName]," only if a clear first name is known).
+            - Max 90 words, 2-4 short paragraphs.
+
+            Never use: guarantee, proven, world-class, save money, boost, revolutionary, cutting-edge,
+            game-changer, leverage, touch base, circle back, at your convenience, brief chat, dear sir,
+            dear madam. Do not invent facts. Only allowed services above.
+
+            Return ONLY valid JSON: { "emailBody": string }  (emailBody must not be empty).
+            """;
+
+    /** Generates the next follow-up body (a reply) from the whole thread history. Null on failure. */
+    public String generateFollowup(String companyName, List<String> companyInfo,
+                                   List<ThreadMessage> thread, int followupLevel) {
+        StringBuilder history = new StringBuilder();
+        for (ThreadMessage m : thread) {
+            history.append("--- Message (step ").append(m.step()).append(") ---\n")
+                    .append("Subject: ").append(nz(m.subject())).append("\n")
+                    .append(nz(m.body())).append("\n\n");
+        }
+        String infoJson;
+        try {
+            infoJson = mapper.writeValueAsString(companyInfo == null ? List.of()
+                    : companyInfo.stream().limit(5).toList());
+        } catch (Exception e) {
+            infoJson = "[]";
+        }
+
+        String userMsg = "Write follow-up level " + followupLevel + " as a reply in this thread.\n\n"
+                + "Company: " + nz(companyName) + "\n"
+                + "Company info: " + infoJson + "\n\n"
+                + "Thread so far (oldest first):\n" + history + "\n"
+                + "Return JSON only: {\"emailBody\": \"...\"}.";
+
+        Map<String, Object> body = Map.of(
+                "model", props.getOllamaModel(),
+                "stream", false,
+                "format", "json",
+                "messages", List.of(
+                        Map.of("role", "system", "content", FOLLOWUP_SYSTEM_PROMPT),
+                        Map.of("role", "user", "content", userMsg)));
+
+        RestClient client = RestClient.builder().baseUrl(props.getOllamaUrl()).build();
+        JsonNode res = throttle.execute(() -> client.post().uri("/api/chat").contentType(MediaType.APPLICATION_JSON)
+                .body(body).retrieve().body(JsonNode.class));
+        String content = res == null ? "{}" : res.path("message").path("content").asText("{}");
+        try {
+            String out = mapper.readTree(content).path("emailBody").asText("");
+            return out == null || out.isBlank() ? null : out;
+        } catch (Exception e) {
+            log.warn("Ollama follow-up unparseable: {}", e.getMessage());
+            return null;
+        }
+    }
+
     private final OutreachProperties props;
     private final OllamaThrottle throttle;
     private final ObjectMapper mapper = new ObjectMapper();

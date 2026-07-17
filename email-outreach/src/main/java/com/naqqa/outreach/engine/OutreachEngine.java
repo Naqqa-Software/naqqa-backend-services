@@ -54,15 +54,20 @@ public class OutreachEngine {
         OutreachAccountStateEntity state = bounce.state(profile.getKey());
         limits.resetIfNewDay(state);
 
-        int effectiveLimit = limits.effectiveCap(profile, state);
-        if (effectiveLimit <= 0) {
+        int cap = limits.effectiveCap(profile, state);
+        if (cap <= 0) {
             log.info("[{}] not sending today (warm-up/bounce cap = 0).", profile.getKey());
             return;
         }
-        log.info("[{}] initial-send run: cap={} sentToday={}", profile.getKey(),
-                effectiveLimit, state.getSentToday());
+        // Reserve the follow-up share of the cap for follow-ups; initial (new-lead) sends take the
+        // rest (e.g. 70%). Anything initial can't fill (no enriched leads) is left for follow-ups.
+        int initialCap = props.isFollowupsEnabled()
+                ? (int) Math.ceil(cap * (1.0 - props.getFollowupRatio())) : cap;
+        log.info("[{}] initial-send run: cap={} initialCap={} sentToday={}", profile.getKey(),
+                cap, initialCap, state.getSentToday());
 
-        while (state.getSentToday() < effectiveLimit
+        while (state.getSentToday() - state.getFollowupsSentToday() < initialCap
+                && state.getSentToday() < cap
                 && OutreachTime.isWorkingHours(props.getWorkStartHour(), props.getWorkEndHour())) {
             try {
                 LeadEntity lead = leads.reserveForSending();
@@ -108,7 +113,10 @@ public class OutreachEngine {
         }
         String email = v.email();
 
-        List<String> companyInfo = scraper.scrape(lead.getWebsite());
+        // Prefer the website context saved at extraction; fall back to a live scrape.
+        List<String> companyInfo = (lead.getWebsiteInfo() != null && !lead.getWebsiteInfo().isBlank())
+                ? List.of(lead.getWebsiteInfo())
+                : scraper.scrape(lead.getWebsite());
         SafetyGates.Gate quality = gates.validateLeadQuality(lead.getName(), email, companyInfo);
         if (!quality.valid()) {
             return false;

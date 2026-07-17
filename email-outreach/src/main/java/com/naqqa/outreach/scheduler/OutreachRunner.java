@@ -52,12 +52,14 @@ public class OutreachRunner {
                         profile.getKey());
                 return;
             }
+            // Initial sends first (capped at the non-follow-up share of the daily cap), then
+            // follow-ups fill whatever is left — so no-new-leads days go to 2nd/3rd emails.
+            engine.runProfile(profile);
             if (props.isFollowupsEnabled()) {
                 followups.dispatchDue(profile);
             } else {
-                log.info("[{}] follow-ups disabled — sending a single initial email only.", profile.getKey());
+                log.info("[{}] follow-ups disabled — initial emails only.", profile.getKey());
             }
-            engine.runProfile(profile);
             log.info("[{}] outreach run finished.", profile.getKey());
         } catch (Exception e) {
             log.error("[{}] daily run failed", profile.getKey(), e);

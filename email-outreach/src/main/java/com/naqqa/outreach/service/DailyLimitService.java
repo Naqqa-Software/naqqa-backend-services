@@ -20,6 +20,7 @@ public class DailyLimitService {
         if (!today.equals(state.getCounterDate())) {
             state.setCounterDate(today);
             state.setSentToday(0);
+            state.setFollowupsSentToday(0);
             bounce.save(state);
         }
     }
