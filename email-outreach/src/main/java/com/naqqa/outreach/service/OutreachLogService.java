@@ -39,6 +39,27 @@ public class OutreachLogService {
         saveDoc(key, day, level, logger, message, ts);
     }
 
+    /**
+     * Appends one line to a DEDICATED per-profile daily file (e.g. {@code {logDir}/{profile}/
+     * sent-{day}.txt}) — a clean, analyzable stream separate from the noisy operational log. Used
+     * for the email-sending log and the replies log. Does NOT touch Mongo; never uses SLF4J.
+     */
+    public void recordToStream(String profileKey, String stream, String message) {
+        String key = (profileKey == null || profileKey.isBlank()) ? "system" : profileKey;
+        Instant ts = Instant.now();
+        String day = DAY.format(ts);
+        try {
+            Path dir = Paths.get(props.getLogDir(), key);
+            Files.createDirectories(dir);
+            Path file = dir.resolve(stream + "-" + day + ".txt");
+            String line = "[" + TIME.format(ts) + "] " + message + System.lineSeparator();
+            Files.writeString(file, line, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (Exception e) {
+            System.err.println("outreach " + stream + " log write failed: " + e.getMessage());
+        }
+    }
+
     private void appendFile(String key, String day, String level, String message, Instant ts) {
         try {
             Path dir = Paths.get(props.getLogDir(), key);

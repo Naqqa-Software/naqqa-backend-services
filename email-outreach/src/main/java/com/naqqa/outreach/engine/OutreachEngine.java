@@ -15,6 +15,7 @@ import com.naqqa.outreach.service.EmailValidator;
 import com.naqqa.outreach.service.GmailSender;
 import com.naqqa.outreach.service.LeadService;
 import com.naqqa.outreach.service.OllamaClient;
+import com.naqqa.outreach.service.OutreachLogService;
 import com.naqqa.outreach.service.OutreachTime;
 import com.naqqa.outreach.service.SafetyGates;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,7 @@ public class OutreachEngine {
     private final BounceTracker bounce;
     private final DailyLimitService limits;
     private final SentEmailRepository sentRepo;
+    private final OutreachLogService logService;
 
     public void runProfile(OutreachProfileEntity profile) {
         if (!profile.isEnabled() || !OutreachTime.isWorkingDay()) {
@@ -152,6 +154,10 @@ public class OutreachEngine {
         leads.markContacted(lead.getId());
         record(profile, lead, null, email, gen, result.messageId(), 1, null);
         log.info("[{}] sent step 1 -> {} ({})", profile.getKey(), email, lead.getName());
+        // Dedicated, analyzable email-sending log ({logDir}/{profile}/sent-{day}.txt).
+        logService.recordToStream(profile.getKey(), "sent", String.format(
+                "SENT step=1 to=%s company=\"%s\" subject=\"%s\" msgId=%s",
+                email, safe(lead.getName()), safe(gen.subject()), result.messageId()));
         return true;
     }
 
@@ -176,6 +182,11 @@ public class OutreachEngine {
         s.setSentAt(Instant.now());
         s.setLastSentAt(Instant.now());
         sentRepo.save(s);
+    }
+
+    /** One-line-safe: strip newlines/quotes so a value can't break the send-log line format. */
+    private String safe(String v) {
+        return v == null ? "" : v.replaceAll("[\\r\\n\\t]+", " ").replace("\"", "'").trim();
     }
 
     private void sleep(int seconds) throws InterruptedException {

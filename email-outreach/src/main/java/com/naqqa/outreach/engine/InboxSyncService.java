@@ -10,6 +10,7 @@ import com.naqqa.outreach.service.BounceTracker;
 import com.naqqa.outreach.service.ImapReader;
 import com.naqqa.outreach.service.LeadService;
 import com.naqqa.outreach.service.OutreachConstants;
+import com.naqqa.outreach.service.OutreachLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ public class InboxSyncService {
     private final SentEmailRepository sentRepo;
     private final LeadService leads;
     private final OutreachProperties props;
+    private final OutreachLogService logService;
 
     /** Routine sync over the configured recent window. */
     public void sync(OutreachProfileEntity profile) {
@@ -77,7 +79,16 @@ public class InboxSyncService {
             SentEmailEntity matched = matchThread(m);
             if (matched != null) {
                 boolean unsub = containsUnsub(m.subject()) || containsUnsub(m.bodyPreview());
-                stopSequence(matched.getThreadKey(), unsub, m.subject(), m.bodyPreview());
+                boolean captured = stopSequence(matched.getThreadKey(), unsub, m.subject(), m.bodyPreview());
+                if (captured) {
+                    log.info("[{}] reply from {} ({}) -> {}", profile.getKey(), m.fromEmail(),
+                            matched.getCompanyName(), unsub ? "UNSUBSCRIBED" : "RESPONDED");
+                    // Dedicated, readable replies log ({logDir}/{profile}/replies-{day}.txt).
+                    logService.recordToStream(profile.getKey(), "replies", String.format(
+                            "REPLY from=%s company=\"%s\" subject=\"%s\"%n%s%n----",
+                            m.fromEmail(), safe(matched.getCompanyName()), safe(m.subject()),
+                            m.bodyPreview() == null ? "" : m.bodyPreview().trim()));
+                }
             }
         }
         if (stateDirty) {
@@ -101,10 +112,12 @@ public class InboxSyncService {
         return null;
     }
 
-    private void stopSequence(String threadKey, boolean unsubscribe, String replySubject, String replyBody) {
+    /** @return true if this reply changed anything (status flip or reply-text backfill) — i.e. it's news. */
+    private boolean stopSequence(String threadKey, boolean unsubscribe, String replySubject, String replyBody) {
         List<SentEmailEntity> thread = sentRepo.findByThreadKey(threadKey);
         SendStatus target = unsubscribe ? SendStatus.UNSUBSCRIBED : SendStatus.RESPONDED;
         String reply = buildReplyText(replySubject, replyBody);
+        boolean anyChange = false;
         for (SentEmailEntity s : thread) {
             boolean changed = false;
             // Still-open row: mark it replied/unsubscribed and stop the sequence.
@@ -125,9 +138,18 @@ public class InboxSyncService {
             }
             if (changed) {
                 sentRepo.save(s);
+                anyChange = true;
             }
         }
-        log.info("Sequence {} stopped ({}).", threadKey, target);
+        if (anyChange) {
+            log.info("Sequence {} stopped ({}).", threadKey, target);
+        }
+        return anyChange;
+    }
+
+    /** One-line-safe: strip newlines/quotes so a value can't break the replies-log line format. */
+    private String safe(String v) {
+        return v == null ? "" : v.replaceAll("[\\r\\n\\t]+", " ").replace("\"", "'").trim();
     }
 
     /** True for statuses that represent an inbound reply (so the reply text belongs on the row). */

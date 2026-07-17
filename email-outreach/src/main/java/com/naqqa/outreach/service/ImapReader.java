@@ -106,7 +106,8 @@ public class ImapReader {
                 return "";
             }
             text = text.replaceAll("\\s+", " ").trim();
-            return text.length() > 500 ? text.substring(0, 500) : text;
+            // Keep enough of the reply to actually read it (bounce detection only needs the head).
+            return text.length() > 4000 ? text.substring(0, 4000) : text;
         } catch (Exception e) {
             return "";
         }

@@ -12,6 +12,7 @@ import com.naqqa.outreach.service.DailyLimitService;
 import com.naqqa.outreach.service.GmailSender;
 import com.naqqa.outreach.service.LeadService;
 import com.naqqa.outreach.service.OllamaClient;
+import com.naqqa.outreach.service.OutreachLogService;
 import com.naqqa.outreach.service.OutreachTime;
 import com.naqqa.outreach.service.SafetyGates;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,7 @@ public class FollowupService {
     private final DailyLimitService limits;
     private final OllamaClient ollama;
     private final LeadService leads;
+    private final OutreachLogService logService;
 
     public void dispatchDue(OutreachProfileEntity profile) {
         OutreachAccountStateEntity state = bounce.state(profile.getKey());
@@ -92,6 +94,11 @@ public class FollowupService {
                 log.warn("[{}] follow-up failed for {}: {}", profile.getKey(), row.getToEmail(), e.getMessage());
             }
         }
+    }
+
+    /** One-line-safe: strip newlines/quotes so a value can't break the send-log line format. */
+    private String safe(String v) {
+        return v == null ? "" : v.replaceAll("[\\r\\n\\t]+", " ").replace("\"", "'").trim();
     }
 
     /** "Subject" → "Re: Subject" (unless already a reply) so a follow-up reads as a reply. */
@@ -159,6 +166,9 @@ public class FollowupService {
         bounce.save(state);
         log.info("[{}] sent AI follow-up #{} -> {} ({})",
                 profile.getKey(), level, row.getToEmail(), row.getCompanyName());
+        logService.recordToStream(profile.getKey(), "sent", String.format(
+                "FOLLOWUP #%d to=%s company=\"%s\" subject=\"%s\" msgId=%s",
+                level, row.getToEmail(), safe(row.getCompanyName()), safe(subject), res.messageId()));
         return true;
     }
 }
