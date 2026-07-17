@@ -92,8 +92,9 @@ public class ExtractionRunner {
             leads.markNoEmail(lead.getId());
             return;
         }
+        // Persist the email on the company immediately — saved in the DB even if it is never sent.
         leads.markEnriched(lead.getId(), v.email());
-        log.debug("[extraction] {} -> {}", lead.getName(), v.email());
+        log.info("[extraction] {} ({}) -> {} saved", lead.getName(), lead.getSize(), v.email());
     }
 
     private void sleepQuiet(long ms) {

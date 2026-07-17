@@ -27,12 +27,16 @@ public class LeadService {
 
     private final MongoTemplate mongo;
 
-    /** Claim the next un-enriched company (DEFAULT, has website) for Apollo extraction. */
+    /**
+     * Claim the next un-enriched company (DEFAULT, has website) for Apollo extraction, biggest
+     * companies first ({@code sizeRank} desc) so headcount-heavy leads get enriched before the long
+     * tail. Nulls (unknown size) sort last.
+     */
     public LeadEntity reserveForExtraction() {
         Query q = new Query(new Criteria().andOperator(
                 Criteria.where("status").is("DEFAULT"),
                 Criteria.where("website").ne(null).ne("")
-        )).with(Sort.by(Sort.Direction.ASC, "name"));
+        )).with(Sort.by(Sort.Direction.DESC, "sizeRank"));
         Update u = new Update().set("status", "ENRICHING").set("updatedAt", Instant.now());
         return mongo.findAndModify(q, u, FindAndModifyOptions.options().returnNew(true), LeadEntity.class);
     }
@@ -57,16 +61,16 @@ public class LeadService {
     }
 
     /**
-     * Claim the next enriched company (has an email) to send to. Skips companies we have already
-     * emailed ({@code emailSended=true}) — historical/seeded contacts stay ENRICHED and visible but
-     * are never re-contacted (there is no send-time dedup against the sent-email log otherwise).
+     * Claim the next enriched company (has an email) to send to, biggest companies first
+     * ({@code sizeRank} desc). Skips companies we have already emailed ({@code emailSended=true}) —
+     * historical/seeded contacts stay ENRICHED and visible but are never re-contacted.
      */
     public LeadEntity reserveForSending() {
         Query q = new Query(new Criteria().andOperator(
                 Criteria.where("status").is("ENRICHED"),
                 Criteria.where("emails.0").exists(true),
                 Criteria.where("emailSended").ne(true)
-        )).with(Sort.by(Sort.Direction.ASC, "name"));
+        )).with(Sort.by(Sort.Direction.DESC, "sizeRank"));
         Update u = new Update().set("status", "USED").set("updatedAt", Instant.now());
         return mongo.findAndModify(q, u, FindAndModifyOptions.options().returnNew(true), LeadEntity.class);
     }
@@ -81,6 +85,16 @@ public class LeadService {
     public void markContacted(String id) {
         mongo.updateFirst(new Query(Criteria.where("_id").is(id)),
                 new Update().set("emailSended", true).set("updatedAt", Instant.now()), LeadEntity.class);
+    }
+
+    /** Flag a company whose email hard-bounced — status BOUNCED, so it is excluded from re-targeting. */
+    public void markBounced(String id) {
+        if (id == null || id.isBlank()) {
+            return;
+        }
+        mongo.updateFirst(new Query(Criteria.where("_id").is(id)),
+                new Update().set("status", "BOUNCED").set("emailSended", true).set("updatedAt", Instant.now()),
+                LeadEntity.class);
     }
 
     /** Count of companies genuinely ready to send (enriched and not yet contacted). */

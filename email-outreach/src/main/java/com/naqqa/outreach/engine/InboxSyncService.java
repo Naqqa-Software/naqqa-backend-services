@@ -7,6 +7,7 @@ import com.naqqa.outreach.entity.SentEmailEntity;
 import com.naqqa.outreach.repository.SentEmailRepository;
 import com.naqqa.outreach.service.BounceTracker;
 import com.naqqa.outreach.service.ImapReader;
+import com.naqqa.outreach.service.LeadService;
 import com.naqqa.outreach.service.OutreachConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ public class InboxSyncService {
     private final ImapReader imap;
     private final BounceTracker bounce;
     private final SentEmailRepository sentRepo;
+    private final LeadService leads;
 
     public void sync(OutreachProfileEntity profile) {
         List<ImapReader.Inbound> inbound = imap.readRecent(profile, System.currentTimeMillis() - WINDOW_MS);
@@ -109,6 +111,9 @@ public class InboxSyncService {
                     s.setStatus(SendStatus.BOUNCED);
                     s.setBouncedAt(Instant.now());
                     sentRepo.save(s);
+                    // Flag the company too so it drops out of extraction/sending.
+                    leads.markBounced(s.getCompanyId());
+                    log.info("Bounce detected for {} — email + company marked BOUNCED.", s.getToEmail());
                 }
             }
         }
