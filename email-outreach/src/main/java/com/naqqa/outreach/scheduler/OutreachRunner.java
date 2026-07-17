@@ -80,4 +80,17 @@ public class OutreachRunner {
             MDC.remove(OutreachLogAppender.MDC_KEY);
         }
     }
+
+    /** On-demand deep inbox scan (catch replies to older campaigns). */
+    @Async
+    public void deepScan(OutreachProfileEntity profile, int days) {
+        MDC.put(OutreachLogAppender.MDC_KEY, profile.getKey());
+        try {
+            inbox.deepScan(profile, days);
+        } catch (Exception e) {
+            log.warn("[{}] deep inbox scan failed: {}", profile.getKey(), e.getMessage());
+        } finally {
+            MDC.remove(OutreachLogAppender.MDC_KEY);
+        }
+    }
 }

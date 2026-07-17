@@ -82,6 +82,9 @@ public class OutreachProperties {
      */
     private long inboxSyncTickMs = 7200000; // 2 h
 
+    /** How far back the routine inbox sync scans for replies/bounces (hours). */
+    private int inboxWindowHours = 48;
+
     /** Directory for the per-profile daily log files (also mirrored to the {@code outreach_logs} collection). */
     private String logDir = "logs/outreach";
 

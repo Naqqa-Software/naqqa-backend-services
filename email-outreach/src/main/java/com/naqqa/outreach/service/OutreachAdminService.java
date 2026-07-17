@@ -161,6 +161,13 @@ public class OutreachAdminService {
         profiles.findByKey(key).ifPresent(runner::runDaily);
     }
 
+    /** Deep-scan every enabled mailbox over the last {@code days} — catches older replies/bounces. */
+    public int deepScanInbox(int days) {
+        var enabled = profiles.findAllByEnabledTrue();
+        enabled.forEach(p -> runner.deepScan(p, days));
+        return enabled.size();
+    }
+
     public SettingsView settings() {
         return new SettingsView(settings.isSendingActive(), settings.isExtractionActive(), leads.enrichedCount());
     }

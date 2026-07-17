@@ -4,6 +4,7 @@ import com.naqqa.outreach.entity.OutreachAccountStateEntity;
 import com.naqqa.outreach.entity.OutreachProfileEntity;
 import com.naqqa.outreach.entity.SendStatus;
 import com.naqqa.outreach.entity.SentEmailEntity;
+import com.naqqa.outreach.config.OutreachProperties;
 import com.naqqa.outreach.repository.SentEmailRepository;
 import com.naqqa.outreach.service.BounceTracker;
 import com.naqqa.outreach.service.ImapReader;
@@ -18,22 +19,34 @@ import java.util.List;
 
 /**
  * Reads each profile's inbox and (a) records hard bounces into the throttling state and (b)
- * detects replies / unsubscribes, stopping the follow-up sequence for that lead.
+ * detects replies / unsubscribes, stopping the follow-up sequence for that lead. The routine sync
+ * looks back {@code inboxWindowHours}; {@link #deepScan} rescans a much larger window on demand to
+ * catch replies to older campaigns.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class InboxSyncService {
 
-    private static final long WINDOW_MS = 48L * 60 * 60 * 1000;
-
     private final ImapReader imap;
     private final BounceTracker bounce;
     private final SentEmailRepository sentRepo;
     private final LeadService leads;
+    private final OutreachProperties props;
 
+    /** Routine sync over the configured recent window. */
     public void sync(OutreachProfileEntity profile) {
-        List<ImapReader.Inbound> inbound = imap.readRecent(profile, System.currentTimeMillis() - WINDOW_MS);
+        syncSince(profile, System.currentTimeMillis() - props.getInboxWindowHours() * 3600_000L);
+    }
+
+    /** One-off deep scan over the last {@code days} — catches replies to old (e.g. seeded) campaigns. */
+    public void deepScan(OutreachProfileEntity profile, int days) {
+        log.info("[{}] deep inbox scan over last {} days.", profile.getKey(), days);
+        syncSince(profile, System.currentTimeMillis() - days * 86_400_000L);
+    }
+
+    private void syncSince(OutreachProfileEntity profile, long sinceMillis) {
+        List<ImapReader.Inbound> inbound = imap.readRecent(profile, sinceMillis);
         if (inbound.isEmpty()) {
             return;
         }

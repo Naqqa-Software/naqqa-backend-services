@@ -82,6 +82,14 @@ public class OutreachController {
         return Map.of("started", true, "profile", key);
     }
 
+    /** Deep inbox scan across all profiles (default 180 days) — catches replies to older campaigns. */
+    @PostMapping("/inbox-scan")
+    @PreAuthorize("hasAuthority('outreach:manage')")
+    public Map<String, Object> deepScan(@RequestParam(defaultValue = "180") int days) {
+        int profiles = admin.deepScanInbox(days);
+        return Map.of("started", true, "profiles", profiles, "days", days);
+    }
+
     @GetMapping("/settings")
     @PreAuthorize("hasAuthority('outreach:read')")
     public SettingsView settings() {
