@@ -61,13 +61,14 @@ public class InboxSyncService {
 
             if (isBounce && !transient_) {
                 if (!state.getProcessedUids().contains(m.uid())) {
-                    bounce.recordBounce(state);
+                    // Mark the email + company BOUNCED. The bounce THROTTLE reads these BOUNCED
+                    // records back from the DB (real data), so no separate counter is kept here.
+                    markBouncedByBody(m.bodyPreview());
                     state.getProcessedUids().add(m.uid());
                     while (state.getProcessedUids().size() > 1000) {
                         state.getProcessedUids().remove(0);
                     }
                     stateDirty = true;
-                    markBouncedByBody(m.bodyPreview());
                 }
                 continue;
             }

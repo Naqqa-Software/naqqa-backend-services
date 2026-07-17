@@ -153,7 +153,6 @@ public class FollowupService {
         next.setSentAt(Instant.now());
         sentRepo.save(next);
 
-        bounce.recordSent(state);
         state.setSentToday(state.getSentToday() + 1);
         state.setFollowupsSentToday(state.getFollowupsSentToday() + 1);
         bounce.save(state);

@@ -3,25 +3,34 @@ package com.naqqa.outreach.service;
 import com.naqqa.outreach.entity.OutreachAccountStateEntity;
 import com.naqqa.outreach.repository.OutreachAccountStateRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Bounce protection — faithful port of checkBounceRules(): rolling last-100 bounce-rate thresholds
- * (>5% stop, >3% reduce ×0.5, >2% freeze) plus daily hard-bounce rules (≥2 → 24h pause, 1 → freeze).
- * Also owns the per-profile rolling send/bounce window state.
+ * Bounce protection driven by REAL data — it reads bounces straight from the {@code
+ * outreach_sent_emails} log (status BOUNCED, set by the inbox sync), not a separate rolling counter.
+ * Rate over the last {@value #WINDOW_DAYS} days of sends: >5% stop, >3% halve, >2% freeze; hard
+ * bounces on recent sends in the last 24h: ≥2 → 24h pause, 1 → freeze. Only the pause window lives
+ * in {@code outreach_account_state}.
  */
 @Service
 @RequiredArgsConstructor
 public class BounceTracker {
+
+    private static final int WINDOW_DAYS = 7;
+    private static final int MIN_SAMPLE = 20;
 
     /** action ∈ pause|stop|reduce|freeze|continue. */
     public record BounceRules(String action, String reason, double limitMultiplier) {
     }
 
     private final OutreachAccountStateRepository stateRepo;
+    private final MongoTemplate mongo;
 
     public OutreachAccountStateEntity state(String profileKey) {
         return stateRepo.findByProfileKey(profileKey).orElseGet(() -> {
@@ -42,10 +51,12 @@ public class BounceTracker {
             stateRepo.save(s);
         }
 
-        int total = s.getRecentEmails().size();
-        long bounced = s.getRecentEmails().stream().filter("bounced"::equals).count();
-        double rate = total >= 20 ? (bounced / (double) total) * 100.0 : 0.0;
-        if (total >= 20) {
+        String key = s.getProfileKey();
+        Instant sentFrom = now.minus(WINDOW_DAYS, ChronoUnit.DAYS);
+        long sent = count(key, Criteria.where("sentAt").gte(sentFrom));
+        long bounced = count(key, Criteria.where("sentAt").gte(sentFrom).and("status").is("BOUNCED"));
+        double rate = sent >= MIN_SAMPLE ? (bounced / (double) sent) * 100.0 : 0.0;
+        if (sent >= MIN_SAMPLE) {
             if (rate > 5) {
                 return new BounceRules("stop", String.format("Bounce rate %.1f%% > 5%% — campaign stopped", rate), 0.0);
             }
@@ -57,35 +68,25 @@ public class BounceTracker {
             }
         }
 
-        int todayBounces = s.getDailyBounces().getOrDefault(OutreachTime.todayKey(), 0);
-        if (todayBounces >= 2) {
+        // Hard bounces on RECENT sends, detected in the last 24h (old-campaign bounces don't pause us).
+        long recentBounces = mongo.count(new Query(new Criteria().andOperator(
+                Criteria.where("profileKey").is(key),
+                Criteria.where("status").is("BOUNCED"),
+                Criteria.where("sentAt").gte(sentFrom),
+                Criteria.where("bouncedAt").gte(now.minus(24, ChronoUnit.HOURS)))), "outreach_sent_emails");
+        if (recentBounces >= 2) {
             s.setPausedUntil(now.plus(24, ChronoUnit.HOURS));
             stateRepo.save(s);
-            return new BounceRules("pause", "2 hard bounces today — account paused 24h", 0.0);
+            return new BounceRules("pause", "2 recent hard bounces — account paused 24h", 0.0);
         }
-        if (todayBounces == 1) {
-            return new BounceRules("freeze", "1 hard bounce today — not increasing volume", 1.0);
+        if (recentBounces == 1) {
+            return new BounceRules("freeze", "1 recent hard bounce — not increasing volume", 1.0);
         }
         return new BounceRules("continue", "ok", 1.0);
     }
 
-    public void recordSent(OutreachAccountStateEntity s) {
-        push(s, "sent");
-        stateRepo.save(s);
-    }
-
-    public void recordBounce(OutreachAccountStateEntity s) {
-        String today = OutreachTime.todayKey();
-        s.getDailyBounces().merge(today, 1, Integer::sum);
-        push(s, "bounced");
-        stateRepo.save(s);
-    }
-
-    private void push(OutreachAccountStateEntity s, String outcome) {
-        s.getRecentEmails().add(outcome);
-        while (s.getRecentEmails().size() > 100) {
-            s.getRecentEmails().remove(0);
-        }
+    private long count(String profileKey, Criteria criteria) {
+        return mongo.count(new Query(criteria.and("profileKey").is(profileKey)), "outreach_sent_emails");
     }
 
     public void save(OutreachAccountStateEntity s) {

@@ -8,9 +8,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Per-profile runtime state that used to live in the {@code data/*-{alex,radu}.json} files:
@@ -34,12 +32,6 @@ public class OutreachAccountStateEntity {
 
     /** Follow-ups sent today (subset of sentToday) — caps the daily follow-up allocation. */
     private int followupsSentToday;
-
-    /** Rolling last-100 outcomes ("sent" / "bounced") for bounce-rate. */
-    private List<String> recentEmails = new ArrayList<>();
-
-    /** date (DD/MM/YYYY) -> hard bounces that day. */
-    private Map<String, Integer> dailyBounces = new LinkedHashMap<>();
 
     /** Account paused until this instant (bounce protection). */
     private Instant pausedUntil;

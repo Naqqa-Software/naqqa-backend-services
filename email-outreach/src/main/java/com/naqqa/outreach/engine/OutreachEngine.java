@@ -82,7 +82,6 @@ public class OutreachEngine {
                     leads.revertToEnriched(lead.getId());
                 }
                 if (sent) {
-                    bounce.recordSent(state);
                     state.setSentToday(state.getSentToday() + 1);
                     bounce.save(state);
                     sleep(ThreadLocalRandom.current().nextInt(

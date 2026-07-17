@@ -57,6 +57,17 @@ public class OutreachScheduler {
         run("startup catch-up");
     }
 
+    /** Sync each mailbox for replies/bounces immediately on boot (independent of the send flow). */
+    @EventListener(ApplicationReadyEvent.class)
+    public void syncInboxOnStartup() {
+        if (!props.isEnabled()) {
+            return;
+        }
+        var enabled = profiles.findAllByEnabledTrue();
+        log.info("Outreach startup inbox sync for {} profile(s).", enabled.size());
+        enabled.forEach(runner::syncOnly);
+    }
+
     private void run(String label) {
         if (!props.isEnabled()) {
             return;
