@@ -106,17 +106,35 @@ public class InboxSyncService {
         SendStatus target = unsubscribe ? SendStatus.UNSUBSCRIBED : SendStatus.RESPONDED;
         String reply = buildReplyText(replySubject, replyBody);
         for (SentEmailEntity s : thread) {
+            boolean changed = false;
+            // Still-open row: mark it replied/unsubscribed and stop the sequence.
             if (s.getStatus() == SendStatus.SENT) {
                 s.setStatus(target);
                 s.setRepliedAt(Instant.now());
-                // Save what the prospect actually replied, so it's readable in the admin.
-                if (reply != null && (s.getResponseText() == null || s.getResponseText().isBlank())) {
-                    s.setResponseText(reply);
+                changed = true;
+            }
+            // Save/BACKFILL what the prospect actually replied — also for rows already marked
+            // RESPONDED (e.g. before this feature existed) so a re-sync fills the missing reply text.
+            if (reply != null && (s.getResponseText() == null || s.getResponseText().isBlank())
+                    && isReplyOutcome(s.getStatus())) {
+                s.setResponseText(reply);
+                if (s.getRepliedAt() == null) {
+                    s.setRepliedAt(Instant.now());
                 }
+                changed = true;
+            }
+            if (changed) {
                 sentRepo.save(s);
             }
         }
         log.info("Sequence {} stopped ({}).", threadKey, target);
+    }
+
+    /** True for statuses that represent an inbound reply (so the reply text belongs on the row). */
+    private boolean isReplyOutcome(SendStatus status) {
+        return status == SendStatus.RESPONDED || status == SendStatus.UNSUBSCRIBED
+                || status == SendStatus.POSITIVE || status == SendStatus.NEGATIVE
+                || status == SendStatus.REPLIED;
     }
 
     /** Compact, readable snapshot of the reply (subject + trimmed body) for the admin drawer. */
