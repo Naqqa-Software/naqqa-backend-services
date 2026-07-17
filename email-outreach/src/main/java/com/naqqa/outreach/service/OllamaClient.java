@@ -295,9 +295,14 @@ public class OllamaClient {
         }
     }
 
-    /** Ollama HTTP client, adding an {@code Authorization: Bearer} header when a token is configured. */
+    /** Ollama HTTP client — bearer token (if configured) + connect/read timeouts so it can't hang forever. */
     private RestClient ollamaClient() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory rf =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        rf.setConnectTimeout(30_000);
+        rf.setReadTimeout((int) Math.min(props.getOllamaTimeoutMs(), Integer.MAX_VALUE));
         return RestClient.builder().baseUrl(props.getOllamaUrl())
+                .requestFactory(rf)
                 .defaultHeaders(h -> {
                     String token = props.getOllamaToken();
                     if (token != null && !token.isBlank()) {

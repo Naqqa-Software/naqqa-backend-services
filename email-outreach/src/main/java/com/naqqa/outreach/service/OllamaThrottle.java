@@ -21,6 +21,10 @@ public class OllamaThrottle {
     private final Semaphore lock = new Semaphore(1, true);
 
     public <T> T execute(Supplier<T> call) {
+        // Chat-lock off → let Ollama serialize requests itself; a stuck call never blocks others.
+        if (!props.isOllamaChatLock()) {
+            return call.get();
+        }
         try {
             lock.acquire();
         } catch (InterruptedException e) {

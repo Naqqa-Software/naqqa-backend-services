@@ -32,9 +32,14 @@ public class OutreachProperties {
 
     /**
      * Serialize all Ollama calls across both profiles (the script's global chat-lock) and wait this
-     * long after each generation (the script's 20 s cooldown) — protects the local model.
+     * long after each generation (the script's 20 s cooldown) — protects the local model. Turn the
+     * lock OFF (Ollama queues requests itself) so a stuck generation can never block others.
      */
+    private boolean ollamaChatLock = true;
     private long ollamaCooldownMs = 20000;
+
+    /** Read timeout (ms) for an Ollama call — a hung/unreachable model fails fast instead of blocking. */
+    private long ollamaTimeoutMs = 120000; // 2 min (allow slow generation, but never hang forever)
 
     /** Apollo.io API key (decision-maker email finder). */
     private String apolloApiKey;
@@ -49,7 +54,7 @@ public class OutreachProperties {
     /** Working window (senders only run inside this, in the configured timezone). End hour is exclusive. */
     private String timezone = "Europe/Chisinau";
     private int workStartHour = 9;
-    private int workEndHour = 21; // sends until 21:00 (9 PM); set 22 to include the 21:00 hour
+    private int workEndHour = 23; // sends until 23:00 (11 PM); end hour is exclusive
 
     /** Randomized delay between sends (seconds). */
     private int minDelaySeconds = 180;
