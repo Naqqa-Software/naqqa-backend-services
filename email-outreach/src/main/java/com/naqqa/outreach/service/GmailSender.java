@@ -26,6 +26,7 @@ import java.util.UUID;
 public class GmailSender {
 
     private final SecretCipher cipher;
+    private final com.naqqa.outreach.config.OutreachProperties props;
 
     public record SendResult(String messageId) {
     }
@@ -37,7 +38,9 @@ public class GmailSender {
         String normBody = body.trim()
                 .replaceAll("\\r\\n", "\n").replaceAll("\\r", "\n")
                 .replaceAll("\\t", "  ").replaceAll("[^\\S\\n]{2,}", " ");
-        String fullBody = normBody + (profile.getSignature() == null ? "" : profile.getSignature());
+        String sig = profile.getSignature() == null ? "" : profile.getSignature();
+        String footer = props.getUnsubscribeFooter() == null ? "" : props.getUnsubscribeFooter();
+        String fullBody = normBody + sig + footer;
 
         Session session = session(profile);
         MimeMessage msg = new MimeMessage(session);

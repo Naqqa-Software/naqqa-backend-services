@@ -70,7 +70,7 @@ public class OutreachProfileConfigurer {
         p.setFromEmail(cfg.getFromEmail());
         p.setAppPassword(cipher.encrypt(cfg.getAppPassword()));
         if (cfg.getFromName() != null) p.setFromName(cfg.getFromName());
-        if (cfg.getSignature() != null) p.setSignature(cfg.getSignature());
+        if (cfg.getSignature() != null && !cfg.getSignature().isBlank()) p.setSignature(cfg.getSignature());
         if (cfg.getSmtpHost() != null) p.setSmtpHost(cfg.getSmtpHost());
         if (cfg.getSmtpPort() != null) p.setSmtpPort(cfg.getSmtpPort());
         if (cfg.getImapHost() != null) p.setImapHost(cfg.getImapHost());

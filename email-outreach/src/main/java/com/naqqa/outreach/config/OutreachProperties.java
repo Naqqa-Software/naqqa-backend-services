@@ -55,6 +55,13 @@ public class OutreachProperties {
     private int minDelaySeconds = 180;
     private int maxDelaySeconds = 300;
 
+    /**
+     * Optional opt-out footer appended after the signature. Blank by default because the sender
+     * signature already ends with the "reply unsubscribe" line. A reply containing "unsubscribe" is
+     * detected and stops the sequence.
+     */
+    private String unsubscribeFooter = "";
+
     /** Master switch for the AI follow-up sequence (threaded replies). */
     private boolean followupsEnabled = true;
 
