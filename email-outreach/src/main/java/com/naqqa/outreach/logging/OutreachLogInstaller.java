@@ -20,6 +20,15 @@ public class OutreachLogInstaller {
 
     @PostConstruct
     public void install() {
+        try {
+            attach();
+        } catch (Throwable t) {
+            // Logging setup must never break application start-up.
+            System.err.println("outreach log appender install failed: " + t.getMessage());
+        }
+    }
+
+    private void attach() {
         if (!(LoggerFactory.getILoggerFactory() instanceof LoggerContext ctx)) {
             return; // not logback — skip (files/DB logging unavailable)
         }
