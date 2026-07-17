@@ -5,16 +5,23 @@ import com.naqqa.outreach.engine.FollowupService;
 import com.naqqa.outreach.engine.InboxSyncService;
 import com.naqqa.outreach.engine.OutreachEngine;
 import com.naqqa.outreach.entity.OutreachProfileEntity;
+import com.naqqa.outreach.logging.OutreachLogAppender;
 import com.naqqa.outreach.service.OutreachSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Runs a profile's day asynchronously so the scheduler thread isn't held for the whole working
  * window. Order: sync inbox (stop replied/bounced/unsubscribed) → send due follow-ups → send new
- * initial emails, all under the shared daily cap + pacing.
+ * initial emails, all under the shared daily cap + pacing. Re-entrancy guarded per profile so the
+ * 9am cron, the catch-up tick and the startup catch-up can't run the same profile twice at once.
+ * Every log line is tagged with the profile via MDC for the per-profile log files.
  */
 @Component
 @RequiredArgsConstructor
@@ -27,10 +34,17 @@ public class OutreachRunner {
     private final OutreachSettingsService settings;
     private final OutreachProperties props;
 
+    /** Profiles with a run in flight (prevents concurrent double-sends). */
+    private final Set<String> running = ConcurrentHashMap.newKeySet();
+
     @Async
     public void runDaily(OutreachProfileEntity profile) {
-        log.info("[{}] daily outreach run starting.", profile.getKey());
+        if (!running.add(profile.getKey())) {
+            return; // already sending for this profile — the persisted sentToday counter drives the cap
+        }
+        MDC.put(OutreachLogAppender.MDC_KEY, profile.getKey());
         try {
+            log.info("[{}] outreach run starting.", profile.getKey());
             // Inbox sync always runs (detect replies/bounces even while sending is paused).
             inbox.sync(profile);
             if (!settings.isSendingActive()) {
@@ -44,18 +58,24 @@ public class OutreachRunner {
                 log.info("[{}] follow-ups disabled — sending a single initial email only.", profile.getKey());
             }
             engine.runProfile(profile);
+            log.info("[{}] outreach run finished.", profile.getKey());
         } catch (Exception e) {
             log.error("[{}] daily run failed", profile.getKey(), e);
+        } finally {
+            running.remove(profile.getKey());
+            MDC.remove(OutreachLogAppender.MDC_KEY);
         }
-        log.info("[{}] daily outreach run finished.", profile.getKey());
     }
 
     @Async
     public void syncOnly(OutreachProfileEntity profile) {
+        MDC.put(OutreachLogAppender.MDC_KEY, profile.getKey());
         try {
             inbox.sync(profile);
         } catch (Exception e) {
             log.warn("[{}] inbox sync failed: {}", profile.getKey(), e.getMessage());
+        } finally {
+            MDC.remove(OutreachLogAppender.MDC_KEY);
         }
     }
 }

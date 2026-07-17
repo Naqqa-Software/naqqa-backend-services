@@ -48,6 +48,7 @@ public class OutreachAdminService {
     private final OutreachRunner runner;
     private final OutreachSettingsService settings;
     private final LeadService leads;
+    private final SecretCipher cipher;
 
     /** Server-side filtered/paged "Emails sent" list (same envelope shape as the other grids). */
     public Map<String, Object> sentEmails(String profileKey, String email, String company, String status,
@@ -124,7 +125,7 @@ public class OutreachAdminService {
         if (req.fromEmail() != null) p.setFromEmail(req.fromEmail());
         if (req.fromName() != null) p.setFromName(req.fromName());
         if (req.signature() != null) p.setSignature(req.signature());
-        if (req.appPassword() != null && !req.appPassword().isBlank()) p.setAppPassword(req.appPassword());
+        if (req.appPassword() != null && !req.appPassword().isBlank()) p.setAppPassword(cipher.encrypt(req.appPassword()));
         if (req.warmupStartDate() != null) p.setWarmupStartDate(req.warmupStartDate());
         if (req.warmupSchedule() != null) p.setWarmupSchedule(req.warmupSchedule());
         if (req.dailyLimit() != null) p.setDailyLimit(req.dailyLimit());

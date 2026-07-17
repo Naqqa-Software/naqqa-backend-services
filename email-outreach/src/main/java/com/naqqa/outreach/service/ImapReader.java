@@ -26,6 +26,8 @@ import java.util.Properties;
 @Slf4j
 public class ImapReader {
 
+    private final SecretCipher cipher;
+
     /** A recent inbound message. {@code inReplyTo} holds any In-Reply-To / References message-ids. */
     public record Inbound(long uid, String fromEmail, String subject, List<String> inReplyTo, String bodyPreview) {
     }
@@ -43,7 +45,7 @@ public class ImapReader {
         try {
             store = session.getStore("imaps");
             store.connect(profile.getImapHost(), profile.getImapPort(),
-                    profile.getFromEmail(), profile.getAppPassword());
+                    profile.getFromEmail(), cipher.decrypt(profile.getAppPassword()));
             inbox = store.getFolder("INBOX");
             inbox.open(Folder.READ_ONLY);
 

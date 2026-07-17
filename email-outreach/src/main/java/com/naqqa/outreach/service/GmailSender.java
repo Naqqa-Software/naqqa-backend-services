@@ -25,6 +25,8 @@ import java.util.UUID;
 @Slf4j
 public class GmailSender {
 
+    private final SecretCipher cipher;
+
     public record SendResult(String messageId) {
     }
 
@@ -57,7 +59,7 @@ public class GmailSender {
 
         try (Transport transport = session.getTransport("smtp")) {
             transport.connect(profile.getSmtpHost(), profile.getSmtpPort(),
-                    profile.getFromEmail(), profile.getAppPassword());
+                    profile.getFromEmail(), cipher.decrypt(profile.getAppPassword()));
             transport.sendMessage(msg, msg.getAllRecipients());
         }
         return new SendResult(messageId);

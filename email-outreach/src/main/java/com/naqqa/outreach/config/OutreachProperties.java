@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -31,6 +32,13 @@ public class OutreachProperties {
     /** Apollo.io API key (decision-maker email finder). */
     private String apolloApiKey;
 
+    /**
+     * Secret used to encrypt sender app passwords at rest (AES-GCM; the key is the SHA-256 of this
+     * string). Inject from env/secrets. If blank, passwords are stored as plaintext (a warning is
+     * logged) — set it in every environment that persists real credentials.
+     */
+    private String secretKey;
+
     /** Working window (senders only run inside this, in the configured timezone). */
     private String timezone = "Europe/Chisinau";
     private int workStartHour = 9;
@@ -54,6 +62,16 @@ public class OutreachProperties {
     private String dailyCron = "0 0 9 * * *";
 
     /**
+     * Catch-up tick: how often (ms) to re-check whether the day's sends still need to run — covers
+     * starting the app mid-day and recovering from downtime inside the working window. Idempotent
+     * (sends only up to the per-profile daily cap, which persists in {@code outreach_account_state}).
+     */
+    private long catchUpTickMs = 1800000; // 30 min
+
+    /** Directory for the per-profile daily log files (also mirrored to the {@code outreach_logs} collection). */
+    private String logDir = "logs/outreach";
+
+    /**
      * Email extraction (Apollo) runs continuously and independently of the daily send cap —
      * it fills the enriched pool up to your Apollo API limits. Sending then drains that pool.
      */
@@ -68,4 +86,43 @@ public class OutreachProperties {
     /** Optional outbound HTTP proxy for the jsoup company-info scraper. */
     private String proxyHost;
     private Integer proxyPort;
+
+    /**
+     * Sender profiles (the "email users") provisioned from the HOST backend's config — e.g.
+     * {@code naqqa.outreach.profiles[0].key=alex}, with the mailbox + Gmail app password injected
+     * from environment/secrets. On startup {@code OutreachProfileConfigurer} upserts each into the
+     * {@code outreach_profiles} collection (a profile with a blank mailbox or app password is
+     * skipped). This keeps sender accounts configurable from the backend instead of hardcoded in
+     * the library or set only via the API.
+     */
+    private List<ProfileConfig> profiles = new ArrayList<>();
+
+    /** One configured sender mailbox. Mirrors the writable fields of {@code OutreachProfileEntity}. */
+    @Getter
+    @Setter
+    public static class ProfileConfig {
+        private String key;
+        private String fromEmail;
+        private String fromName;
+        private String signature;
+        private String appPassword;
+        private String smtpHost;
+        private Integer smtpPort;
+        private String imapHost;
+        private Integer imapPort;
+        /** Flat fallback cap used ONLY when no warm-up schedule is configured. */
+        private Integer dailyLimit;
+        /**
+         * Path to a warm-up JSON file — {@code {"startDate":"dd/MM/yyyy","schedule":[1,0,1,...]}} —
+         * where {@code schedule[n]} is the max sends on working-day n after {@code startDate} (the
+         * last value is the steady post-warm-up cap). Accepts {@code classpath:...} or {@code file:...}.
+         * Takes precedence over the inline warm-up fields below. This is the warm-up ramp.
+         */
+        private String warmupFile;
+        /** Inline warm-up start (ISO yyyy-MM-dd), alternative to {@link #warmupFile}. */
+        private String warmupStartDate;
+        /** Inline warm-up per-working-day caps, alternative to {@link #warmupFile}. */
+        private List<Integer> warmupSchedule;
+        private Boolean enabled;
+    }
 }

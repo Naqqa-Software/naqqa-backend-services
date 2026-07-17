@@ -2,12 +2,14 @@ package com.naqqa.outreach.engine;
 
 import com.naqqa.outreach.config.OutreachProperties;
 import com.naqqa.outreach.entity.LeadEntity;
+import com.naqqa.outreach.logging.OutreachLogAppender;
 import com.naqqa.outreach.service.ApolloClient;
 import com.naqqa.outreach.service.EmailValidator;
 import com.naqqa.outreach.service.LeadService;
 import com.naqqa.outreach.service.OutreachSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -53,24 +55,29 @@ public class ExtractionRunner {
         if (!props.isEnabled() || !props.isExtractionEnabled() || !settings.isExtractionActive()) {
             return;
         }
-        int done = 0;
-        for (int i = 0; i < props.getExtractionBatchSize(); i++) {
-            LeadEntity lead = leads.reserveForExtraction();
-            if (lead == null) {
-                break; // pool of DEFAULT companies is drained
+        MDC.put(OutreachLogAppender.MDC_KEY, "leadgen");
+        try {
+            int done = 0;
+            for (int i = 0; i < props.getExtractionBatchSize(); i++) {
+                LeadEntity lead = leads.reserveForExtraction();
+                if (lead == null) {
+                    break; // pool of DEFAULT companies is drained
+                }
+                try {
+                    extract(lead);
+                    done++;
+                } catch (Exception e) {
+                    log.warn("[extraction] {} failed: {}", lead.getWebsite(), e.getMessage());
+                    leads.markNoEmail(lead.getId());
+                }
+                sleepQuiet(props.getExtractionDelayMs());
             }
-            try {
-                extract(lead);
-                done++;
-            } catch (Exception e) {
-                log.warn("[extraction] {} failed: {}", lead.getWebsite(), e.getMessage());
-                leads.markNoEmail(lead.getId());
+            if (done > 0) {
+                log.info("[extraction] enriched {} companies this tick ({} ready to send).",
+                        done, leads.enrichedCount());
             }
-            sleepQuiet(props.getExtractionDelayMs());
-        }
-        if (done > 0) {
-            log.info("[extraction] enriched {} companies this tick ({} ready to send).",
-                    done, leads.enrichedCount());
+        } finally {
+            MDC.remove(OutreachLogAppender.MDC_KEY);
         }
     }
 
