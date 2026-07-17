@@ -121,6 +121,7 @@ public class OutreachAdminService {
             s.setStatus(SendStatus.valueOf(req.status().trim().toUpperCase()));
         }
         if (req.notes() != null) s.setNotes(req.notes());
+        if (req.responseText() != null) s.setResponseText(req.responseText());
         return toRow(sentRepo.save(s));
     }
 

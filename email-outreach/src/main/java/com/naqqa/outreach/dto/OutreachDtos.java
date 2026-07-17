@@ -18,7 +18,7 @@ public final class OutreachDtos {
     /** Edit payload for a sent-email record. */
     public record SentEmailUpdate(
             String companyName, String toEmail, String website, String city,
-            String subject, String body, String status, String notes) {
+            String subject, String body, String status, String notes, String responseText) {
     }
 
     /** Sender profile view (app password is never returned — write-only). */

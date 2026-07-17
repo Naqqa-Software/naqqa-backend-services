@@ -113,6 +113,11 @@ public class FollowupService {
     }
 
     private boolean isDue(SentEmailEntity row) {
+        // Never follow up a lead that has responded: a captured reply (any text) — on top of the
+        // status filter, which already excludes RESPONDED / POSITIVE / NEGATIVE / UNSUBSCRIBED.
+        if (row.getResponseText() != null && !row.getResponseText().isBlank()) {
+            return false;
+        }
         int done = progress(row);
         Instant since = row.getLastActivity();
         if (done + 1 > props.getMaxFollowups() || since == null) {
