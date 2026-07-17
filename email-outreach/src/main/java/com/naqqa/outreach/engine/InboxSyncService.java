@@ -77,7 +77,7 @@ public class InboxSyncService {
             SentEmailEntity matched = matchThread(m);
             if (matched != null) {
                 boolean unsub = containsUnsub(m.subject()) || containsUnsub(m.bodyPreview());
-                stopSequence(matched.getThreadKey(), unsub);
+                stopSequence(matched.getThreadKey(), unsub, m.subject(), m.bodyPreview());
             }
         }
         if (stateDirty) {
@@ -93,7 +93,7 @@ public class InboxSyncService {
             }
         }
         if (m.fromEmail() != null && !m.fromEmail().isBlank()) {
-            List<SentEmailEntity> byAddr = sentRepo.findByToEmail(m.fromEmail());
+            List<SentEmailEntity> byAddr = sentRepo.findByToEmailIgnoreCase(m.fromEmail().trim());
             if (!byAddr.isEmpty()) {
                 return byAddr.get(0);
             }
@@ -101,17 +101,35 @@ public class InboxSyncService {
         return null;
     }
 
-    private void stopSequence(String threadKey, boolean unsubscribe) {
+    private void stopSequence(String threadKey, boolean unsubscribe, String replySubject, String replyBody) {
         List<SentEmailEntity> thread = sentRepo.findByThreadKey(threadKey);
         SendStatus target = unsubscribe ? SendStatus.UNSUBSCRIBED : SendStatus.RESPONDED;
+        String reply = buildReplyText(replySubject, replyBody);
         for (SentEmailEntity s : thread) {
             if (s.getStatus() == SendStatus.SENT) {
                 s.setStatus(target);
                 s.setRepliedAt(Instant.now());
+                // Save what the prospect actually replied, so it's readable in the admin.
+                if (reply != null && (s.getResponseText() == null || s.getResponseText().isBlank())) {
+                    s.setResponseText(reply);
+                }
                 sentRepo.save(s);
             }
         }
         log.info("Sequence {} stopped ({}).", threadKey, target);
+    }
+
+    /** Compact, readable snapshot of the reply (subject + trimmed body) for the admin drawer. */
+    private String buildReplyText(String subject, String body) {
+        String b = body == null ? "" : body.trim();
+        if (b.length() > 4000) {
+            b = b.substring(0, 4000) + "…";
+        }
+        String s = subject == null ? "" : subject.trim();
+        if (s.isBlank() && b.isBlank()) {
+            return null;
+        }
+        return (s.isBlank() ? "" : "Subject: " + s + "\n\n") + b;
     }
 
     private void markBouncedByBody(String body) {
@@ -120,7 +138,7 @@ public class InboxSyncService {
         }
         var matcher = OutreachConstants.EMAIL_SCRAPE.matcher(body);
         while (matcher.find()) {
-            for (SentEmailEntity s : sentRepo.findByToEmail(matcher.group().toLowerCase())) {
+            for (SentEmailEntity s : sentRepo.findByToEmailIgnoreCase(matcher.group())) {
                 if (s.getStatus() == SendStatus.SENT) {
                     s.setStatus(SendStatus.BOUNCED);
                     s.setBouncedAt(Instant.now());

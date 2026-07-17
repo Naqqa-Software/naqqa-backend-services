@@ -26,5 +26,8 @@ public interface SentEmailRepository extends MongoRepository<SentEmailEntity, St
 
     List<SentEmailEntity> findByToEmail(String toEmail);
 
+    /** Case-insensitive recipient lookup — reply/bounce From addresses vs mixed-case stored toEmail. */
+    List<SentEmailEntity> findByToEmailIgnoreCase(String toEmail);
+
     List<SentEmailEntity> findByThreadKey(String threadKey);
 }

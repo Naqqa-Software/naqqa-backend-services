@@ -66,32 +66,44 @@ public class OutreachEngine {
         log.info("[{}] initial-send run: cap={} initialCap={} sentToday={}", profile.getKey(),
                 cap, initialCap, state.getSentToday());
 
+        int consecutiveErrors = 0;
         while (state.getSentToday() - state.getFollowupsSentToday() < initialCap
                 && state.getSentToday() < cap
                 && OutreachTime.isWorkingHours(props.getWorkStartHour(), props.getWorkEndHour())) {
+            LeadEntity lead = null;
             try {
-                LeadEntity lead = leads.reserveForSending();
+                lead = leads.reserveForSending();
                 if (lead == null) {
                     log.info("[{}] no enriched leads left to contact (extraction fills the pool).",
                             profile.getKey());
                     break;
                 }
                 boolean sent = processLead(profile, state, lead);
-                if (!sent) {
-                    // gate/generation/send failed — return it to the enriched pool for a later retry.
-                    leads.revertToEnriched(lead.getId());
-                }
                 if (sent) {
+                    lead = null; // consumed as USED
+                    consecutiveErrors = 0;
                     state.setSentToday(state.getSentToday() + 1);
                     bounce.save(state);
                     sleep(ThreadLocalRandom.current().nextInt(
                             props.getMinDelaySeconds(), props.getMaxDelaySeconds() + 1));
+                } else {
+                    // gate/generation/send failed — return it to the enriched pool for a later retry.
+                    leads.revertToEnriched(lead.getId());
+                    lead = null;
                 }
             } catch (InterruptedException ie) {
+                if (lead != null) leads.revertToEnriched(lead.getId());
                 Thread.currentThread().interrupt();
                 return;
             } catch (Exception e) {
+                // ALWAYS return the claimed lead to the pool so it isn't consumed without a send.
+                if (lead != null) leads.revertToEnriched(lead.getId());
                 log.warn("[{}] lead error: {}", profile.getKey(), e.getMessage());
+                if (++consecutiveErrors >= 5) {
+                    log.warn("[{}] too many consecutive errors (Ollama/SMTP down?) — stopping this run.",
+                            profile.getKey());
+                    break;
+                }
                 sleepQuiet(5);
             }
         }
@@ -162,6 +174,7 @@ public class OutreachEngine {
         s.setInReplyTo(inReplyTo);
         s.setStatus(SendStatus.SENT);
         s.setSentAt(Instant.now());
+        s.setLastSentAt(Instant.now());
         sentRepo.save(s);
     }
 

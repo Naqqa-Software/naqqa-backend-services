@@ -121,6 +121,7 @@ public class OutreachAdminService {
         if (req.status() != null && !req.status().isBlank()) {
             s.setStatus(SendStatus.valueOf(req.status().trim().toUpperCase()));
         }
+        if (req.notes() != null) s.setNotes(req.notes());
         return toRow(sentRepo.save(s));
     }
 
@@ -131,7 +132,8 @@ public class OutreachAdminService {
     private SentEmailRow toRow(SentEmailEntity s) {
         return new SentEmailRow(s.getId(), s.getProfileKey(), s.getFromEmail(), s.getCompanyName(),
                 s.getToEmail(), s.getToName(), s.getWebsite(), s.getCity(), s.getSubject(), s.getBody(),
-                s.getSequenceStep(), s.getStatus() == null ? null : s.getStatus().name(), s.getSentAt());
+                s.getSequenceStep(), s.getFollowupCount(), s.getResponseText(), s.getNotes(),
+                s.getStatus() == null ? null : s.getStatus().name(), s.getSentAt(), s.getRepliedAt());
     }
 
     public List<ProfileView> listProfiles() {
