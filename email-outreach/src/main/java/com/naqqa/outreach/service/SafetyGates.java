@@ -15,20 +15,17 @@ public class SafetyGates {
     public record Gate(boolean valid, String reason) {
     }
 
-    /** Pre-AI: needs a company name, an email, and ≥1 companyInfo snippet longer than 20 chars. */
+    /**
+     * Pre-AI: needs a company name and an email. Company info is OPTIONAL — leads whose site can't be
+     * scraped (JS-heavy sites jsoup can't render) still get a GENERIC email (the AI is told not to
+     * invent details when info is empty). Only the name + email are hard requirements.
+     */
     public Gate validateLeadQuality(String companyName, String email, List<String> companyInfo) {
         if (companyName == null || companyName.trim().length() < 2) {
             return new Gate(false, "no_company_name");
         }
         if (email == null || email.isBlank()) {
             return new Gate(false, "no_email");
-        }
-        if (companyInfo == null || companyInfo.isEmpty()) {
-            return new Gate(false, "no_company_info");
-        }
-        boolean usable = companyInfo.stream().anyMatch(s -> s != null && s.trim().length() > 20);
-        if (!usable) {
-            return new Gate(false, "company_info_too_thin");
         }
         return new Gate(true, "ok");
     }

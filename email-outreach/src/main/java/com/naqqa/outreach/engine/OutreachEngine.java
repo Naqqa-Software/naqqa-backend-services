@@ -97,11 +97,14 @@ public class OutreachEngine {
                             profile.getKey(), state.getSentToday(), cap, wait);
                     sleep(wait);
                 } else {
-                    // gate/generation/send failed — return it to the enriched pool for a later retry.
-                    // Short back-off so a lead the gates keep rejecting can't hot-loop the CPU silently.
-                    leads.revertToEnriched(lead.getId());
+                    // CONTENT rejection (bad email / no company info / gate / model shouldSend=false):
+                    // leave the lead USED (already set by reserveForSending) so we DON'T re-reserve the
+                    // same top lead in a tight loop — move on to the next one. Only transient EXCEPTIONS
+                    // (Ollama/SMTP down, handled in the catch below) revert the lead for a later retry.
+                    log.info("⏭️ [{}] [LEAD] {} left out of the send pool (rejected, not retried).",
+                            profile.getKey(), lead.getName());
                     lead = null;
-                    sleepQuiet(3);
+                    sleepQuiet(1);
                 }
             } catch (InterruptedException ie) {
                 if (lead != null) leads.revertToEnriched(lead.getId());

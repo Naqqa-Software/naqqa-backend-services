@@ -248,6 +248,7 @@ public class OllamaClient {
             infoJson = "[]";
         }
 
+        boolean noInfo = companyInfo == null || companyInfo.stream().noneMatch(s -> s != null && s.trim().length() > 20);
         String userMsg = ("Write a cold outreach email for the following lead.\n\n"
                 + "Company: " + nz(companyName) + "\n"
                 + "Industry: " + nz(industry) + "\n"
@@ -260,6 +261,11 @@ public class OllamaClient {
                 + "styleVariant: " + style + "\n"
                 + "openerVariant: " + opener + "\n"
                 + "ctaVariant: " + cta + "\n\n"
+                + (noInfo
+                    ? "NOTE: No public company info is available. Do NOT invent or assume any company "
+                      + "detail. Write a GENERIC version: in P2 open with general interest in a possible "
+                      + "collaboration (no specific company fact), and use \"your team\"/\"your company\".\n\n"
+                    : "")
                 + "Return JSON only.\nAlways set shouldSend=true.\nAlways set skipReason=null.\n"
                 + "Create the email ready to send.");
 
