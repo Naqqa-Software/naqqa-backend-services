@@ -1,5 +1,7 @@
 package com.naqqa.outreach.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.naqqa.outreach.config.OutreachProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +33,7 @@ public class CompanyScraper {
     private static final String[] SUBPATHS = {"about", "about-us", "company", "team", "impressum", "mission", "vision"};
 
     private final OutreachProperties props;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public List<String> scrape(String website) {
         List<String> snippets = new ArrayList<>();
@@ -69,11 +72,22 @@ public class CompanyScraper {
     }
 
     private void collect(Document doc, List<String> out) {
+        // SEO metadata — server-rendered into the raw HTML even on JavaScript-only sites (LG, Roblox
+        // etc.), which is exactly what jsoup CAN read without executing JS. This is the highest-signal
+        // company context, so harvest it first.
         add(out, doc.title());
-        Element meta = doc.selectFirst("meta[name=description]");
-        if (meta != null) {
-            add(out, meta.attr("content"));
+        addMeta(out, doc, "meta[name=description]");
+        addMeta(out, doc, "meta[property=og:description]");
+        addMeta(out, doc, "meta[name=twitter:description]");
+        addMeta(out, doc, "meta[property=og:site_name]");
+        addMeta(out, doc, "meta[property=og:title]");
+        addMeta(out, doc, "meta[name=keywords]");
+        addMeta(out, doc, "meta[name=application-name]");
+        // JSON-LD structured data (schema.org Organization/WebSite) — also server-rendered for SEO.
+        for (Element s : doc.select("script[type=application/ld+json]")) {
+            extractJsonLd(s.html(), out);
         }
+
         for (Element h : doc.select("h1, h2, h3")) {
             add(out, h.text());
         }
@@ -83,6 +97,59 @@ public class CompanyScraper {
                 add(out, s.text());
             }
         }
+    }
+
+    /** A curated meta/OG tag — lower length bar (≥15) than body text since these are dense signals. */
+    private void addMeta(List<String> out, Document doc, String selector) {
+        Element el = doc.selectFirst(selector);
+        if (el == null || out.size() >= 5) {
+            return;
+        }
+        String t = el.attr("content").trim().replaceAll("\\s+", " ");
+        if (t.length() >= 15 && !out.contains(t)) {
+            out.add(trimWords(t));
+        }
+    }
+
+    /** Pull "name"/"description"/"slogan" values out of a JSON-LD blob (handles arrays + @graph). */
+    private void extractJsonLd(String json, List<String> out) {
+        if (json == null || json.isBlank()) {
+            return;
+        }
+        try {
+            walkJsonLd(mapper.readTree(json), out);
+        } catch (Exception e) {
+            log.debug("json-ld parse failed: {}", e.getMessage());
+        }
+    }
+
+    private void walkJsonLd(JsonNode node, List<String> out) {
+        if (node == null || out.size() >= 5) {
+            return;
+        }
+        if (node.isArray()) {
+            node.forEach(n -> walkJsonLd(n, out));
+            return;
+        }
+        if (node.isObject()) {
+            for (String key : new String[]{"description", "slogan", "name"}) {
+                JsonNode v = node.get(key);
+                if (v != null && v.isTextual()) {
+                    String t = v.asText().trim().replaceAll("\\s+", " ");
+                    if (t.length() >= 15 && !out.contains(t) && out.size() < 5) {
+                        out.add(trimWords(t));
+                    }
+                }
+            }
+            node.forEach(child -> walkJsonLd(child, out)); // recurse into nested objects / @graph
+        }
+    }
+
+    /** Cap a snippet at 100 words. */
+    private String trimWords(String t) {
+        String[] words = t.split(" ");
+        return words.length > 100
+                ? String.join(" ", java.util.Arrays.copyOfRange(words, 0, 100)) : t;
     }
 
     private void add(List<String> out, String text) {
