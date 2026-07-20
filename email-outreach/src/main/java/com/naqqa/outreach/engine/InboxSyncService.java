@@ -67,12 +67,22 @@ public class InboxSyncService {
             if (state.getProcessedUids().contains(m.uid())) {
                 continue; // already processed in a prior sync — never sent to the AI again
             }
-            String hay = (m.fromEmail() + " " + m.subject()).toLowerCase();
-            boolean isBounce = OutreachConstants.BOUNCE_PATTERNS.stream().anyMatch(hay::contains);
-            boolean transient_ = OutreachConstants.TRANSIENT_PATTERNS.stream()
-                    .anyMatch(p -> m.subject().toLowerCase().contains(p));
+            String fromLower = m.fromEmail() == null ? "" : m.fromEmail().toLowerCase();
+            String subjLower = m.subject() == null ? "" : m.subject().toLowerCase();
+            String bodyLower = m.bodyPreview() == null ? "" : m.bodyPreview().toLowerCase();
+            // A bounce if it's from a mail daemon, or the sender/subject signals a delivery failure.
+            // Body phrases only count from an AUTOMATED (daemon/no-reply) sender, so a human reply
+            // that merely quotes "couldn't be delivered" isn't mistaken for a bounce.
+            boolean fromDaemon = fromLower.contains("mailer-daemon") || fromLower.contains("maildaemon")
+                    || fromLower.contains("mail-daemon") || fromLower.contains("postmaster")
+                    || fromLower.contains("mail delivery") || fromLower.contains("no-reply")
+                    || fromLower.contains("noreply") || fromLower.contains("do-not-reply");
+            boolean isBounce =
+                    OutreachConstants.BOUNCE_PATTERNS.stream().anyMatch((fromLower + " " + subjLower)::contains)
+                    || (fromDaemon && OutreachConstants.BODY_BOUNCE_PATTERNS.stream().anyMatch(bodyLower::contains));
+            boolean transient_ = OutreachConstants.TRANSIENT_PATTERNS.stream().anyMatch(subjLower::contains);
 
-            // Obvious automated bounce (mailer-daemon keywords) → BOUNCED, no AI needed.
+            // Automated delivery failure → BOUNCED, no AI needed.
             if (isBounce && !transient_) {
                 markBouncedByBody(m.subject(), m.bodyPreview());
                 markProcessed(state, m.uid());
@@ -267,9 +277,14 @@ public class InboxSyncService {
         }
         // The mailer-daemon body IS the "why not delivered" reason — save it so it's readable in the drawer.
         String reason = buildReplyText(subject, body);
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
         var matcher = OutreachConstants.EMAIL_SCRAPE.matcher(body);
         while (matcher.find()) {
-            for (SentEmailEntity s : sentRepo.findByToEmailIgnoreCase(matcher.group())) {
+            seen.add(matcher.group());
+        }
+        boolean any = false;
+        for (String addr : seen) {
+            for (SentEmailEntity s : sentRepo.findByToEmailIgnoreCase(addr)) {
                 if (s.getStatus() == SendStatus.SENT) {
                     s.setStatus(SendStatus.BOUNCED);
                     s.setBouncedAt(Instant.now());
@@ -279,9 +294,16 @@ public class InboxSyncService {
                     sentRepo.save(s);
                     // Flag the company too so it drops out of extraction/sending.
                     leads.markBounced(s.getCompanyId());
-                    log.info("Bounce detected for {} — email + company marked BOUNCED.", s.getToEmail());
+                    log.info("📭 Bounce: {} ({}) — email + company marked BOUNCED.",
+                            s.getToEmail(), s.getCompanyName());
+                    any = true;
                 }
             }
+        }
+        if (!any) {
+            // Detected a delivery failure but couldn't tie it to a sent row (address we never sent to,
+            // or already handled). Logged so it's visible rather than silently dropped.
+            log.warn("📭 Bounce detected but no open sent email matched (recipients seen: {}).", seen);
         }
     }
 

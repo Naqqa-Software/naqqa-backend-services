@@ -54,7 +54,16 @@ public final class OutreachConstants {
             "mailer-daemon", "postmaster", "mail delivery", "delivery status",
             "undelivered mail", "delivery failure", "failed delivery",
             "returned mail", "undeliverable", "delivery notification",
-            "mail delivery failed", "delivery has failed");
+            "mail delivery failed", "delivery has failed", "address not found");
+
+    /** Delivery-failure phrases found in the BODY of a bounce (checked alongside sender/subject). */
+    public static final List<String> BODY_BOUNCE_PATTERNS = List.of(
+            "wasn't delivered", "was not delivered", "couldn't be delivered", "could not be delivered",
+            "couldn't be found", "could not be found", "address couldn't be found", "address not found",
+            "wasn't found", "was not found", "unable to receive mail", "recipient not found",
+            "user unknown", "no such user", "does not exist", "mailbox unavailable",
+            "mailbox is full", "over quota", "address rejected", "recipient address rejected",
+            "returning message to sender", "message could not be delivered", "delivery to the following");
 
     public static final List<String> TRANSIENT_PATTERNS = List.of(
             "delay", "delayed", "delivery delay", "still trying", "will retry");
