@@ -90,8 +90,10 @@ public class OutreachEngine {
                             props.getMinDelaySeconds(), props.getMaxDelaySeconds() + 1));
                 } else {
                     // gate/generation/send failed — return it to the enriched pool for a later retry.
+                    // Short back-off so a lead the gates keep rejecting can't hot-loop the CPU silently.
                     leads.revertToEnriched(lead.getId());
                     lead = null;
+                    sleepQuiet(3);
                 }
             } catch (InterruptedException ie) {
                 if (lead != null) leads.revertToEnriched(lead.getId());
@@ -118,29 +120,43 @@ public class OutreachEngine {
     private boolean processLead(OutreachProfileEntity profile, OutreachAccountStateEntity state, LeadEntity lead)
             throws Exception {
         if (lead.getEmails() == null || lead.getEmails().isEmpty()) {
+            log.info("[{}] skip {} — no email stored on lead.", profile.getKey(), lead.getName());
             return false;
         }
         EmailValidator.Result v = validator.validate(lead.getEmails().get(0));
         if (!v.valid()) {
+            log.info("[{}] skip {} — email failed validation: {}", profile.getKey(),
+                    lead.getName(), lead.getEmails().get(0));
             return false;
         }
         String email = v.email();
+        log.info("[{}] processing {} <{}>", profile.getKey(), lead.getName(), email);
 
         // Prefer the website context saved at extraction; fall back to a live scrape.
-        List<String> companyInfo = (lead.getWebsiteInfo() != null && !lead.getWebsiteInfo().isBlank())
-                ? List.of(lead.getWebsiteInfo())
-                : scraper.scrape(lead.getWebsite());
+        List<String> companyInfo;
+        if (lead.getWebsiteInfo() != null && !lead.getWebsiteInfo().isBlank()) {
+            companyInfo = List.of(lead.getWebsiteInfo());
+        } else {
+            log.info("[{}] scraping website {} for {}", profile.getKey(), lead.getWebsite(), lead.getName());
+            companyInfo = scraper.scrape(lead.getWebsite());
+        }
         SafetyGates.Gate quality = gates.validateLeadQuality(lead.getName(), email, companyInfo);
         if (!quality.valid()) {
+            log.info("[{}] skip {} — quality gate: {}", profile.getKey(), lead.getName(), quality.reason());
             return false;
         }
 
         String confidence = gates.computeCompanyNameConfidence(lead.getName(),
                 companyInfo.stream().filter(s -> s != null && s.trim().length() > 20).limit(4).toList());
 
+        log.info("[{}] generating email for {} (Ollama)...", profile.getKey(), lead.getName());
         OllamaClient.GeneratedEmail gen = ollama.generate(lead.getName(), lead.getIndustry(),
                 lead.getCountryCode(), companyInfo, null, null, email, confidence);
+        log.info("[{}] generated for {} (shouldSend={}, lang={})", profile.getKey(),
+                lead.getName(), gen.shouldSend(), gen.language());
         if (!gen.shouldSend()) {
+            log.info("[{}] skip {} — model returned shouldSend=false ({}).", profile.getKey(),
+                    lead.getName(), gen.skipReason());
             return false;
         }
         SafetyGates.Gate safe = gates.validateGeneratedEmail(gen.subject(), gen.emailBody(), lead.getName());
