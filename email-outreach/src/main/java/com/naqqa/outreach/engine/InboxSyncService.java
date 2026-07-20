@@ -9,6 +9,7 @@ import com.naqqa.outreach.repository.SentEmailRepository;
 import com.naqqa.outreach.service.BounceTracker;
 import com.naqqa.outreach.service.ImapReader;
 import com.naqqa.outreach.service.LeadService;
+import com.naqqa.outreach.service.OllamaClient;
 import com.naqqa.outreach.service.OutreachConstants;
 import com.naqqa.outreach.service.OutreachLogService;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class InboxSyncService {
     private final LeadService leads;
     private final OutreachProperties props;
     private final OutreachLogService logService;
+    private final OllamaClient ollama;
 
     /** Routine sync over the configured recent window. */
     public void sync(OutreachProfileEntity profile) {
@@ -56,43 +58,102 @@ public class InboxSyncService {
         boolean stateDirty = false;
 
         for (ImapReader.Inbound m : inbound) {
+            if (state.getProcessedUids().contains(m.uid())) {
+                continue; // already handled in a prior sync — don't re-classify (saves Ollama calls)
+            }
             String hay = (m.fromEmail() + " " + m.subject()).toLowerCase();
             boolean isBounce = OutreachConstants.BOUNCE_PATTERNS.stream().anyMatch(hay::contains);
             boolean transient_ = OutreachConstants.TRANSIENT_PATTERNS.stream()
                     .anyMatch(p -> m.subject().toLowerCase().contains(p));
 
+            // 1. Obvious automated bounce (mailer-daemon keywords) → BOUNCED, no AI needed.
             if (isBounce && !transient_) {
-                if (!state.getProcessedUids().contains(m.uid())) {
-                    // Mark the email + company BOUNCED. The bounce THROTTLE reads these BOUNCED
-                    // records back from the DB (real data), so no separate counter is kept here.
-                    markBouncedByBody(m.bodyPreview());
-                    state.getProcessedUids().add(m.uid());
-                    while (state.getProcessedUids().size() > 1000) {
-                        state.getProcessedUids().remove(0);
-                    }
-                    stateDirty = true;
-                }
+                markBouncedByBody(m.subject(), m.bodyPreview());
+                markProcessed(state, m.uid());
+                stateDirty = true;
                 continue;
             }
 
-            // Reply detection: match In-Reply-To/References to one of our sent Message-IDs, else by sender.
+            // 2. Match to one of our sent threads; ignore unrelated mail.
             SentEmailEntity matched = matchThread(m);
-            if (matched != null) {
-                boolean unsub = containsUnsub(m.subject()) || containsUnsub(m.bodyPreview());
-                boolean captured = stopSequence(matched.getThreadKey(), unsub, m.subject(), m.bodyPreview());
-                if (captured) {
-                    log.info("[{}] reply from {} ({}) -> {}", profile.getKey(), m.fromEmail(),
-                            matched.getCompanyName(), unsub ? "UNSUBSCRIBED" : "RESPONDED");
-                    // Dedicated, readable replies log ({logDir}/{profile}/replies-{day}.txt).
-                    logService.recordToStream(profile.getKey(), "replies", String.format(
-                            "REPLY from=%s company=\"%s\" subject=\"%s\"%n%s%n----",
-                            m.fromEmail(), safe(matched.getCompanyName()), safe(m.subject()),
-                            m.bodyPreview() == null ? "" : m.bodyPreview().trim()));
-                }
+            if (matched == null) {
+                continue;
             }
+
+            if (matched.getStatus() == SendStatus.SENT) {
+                // UNCLASSIFIED reply → keyword unsubscribe fast-path, else ask Ollama to classify it
+                // (UNSUBSCRIBE / BOUNCE / OTHER). Positive/negative "OTHER" replies → RESPONDED for
+                // the admin to triage manually.
+                String category = (containsUnsub(m.subject()) || containsUnsub(m.bodyPreview()))
+                        ? "UNSUBSCRIBE"
+                        : ollama.classifyReply(m.subject(), m.bodyPreview());
+                classify(profile, matched, m, category);
+            } else {
+                // Already classified — just backfill the reply text if missing (no AI, no status change).
+                stopSequence(matched.getThreadKey(), matched.getStatus() == SendStatus.UNSUBSCRIBED,
+                        m.subject(), m.bodyPreview());
+            }
+            markProcessed(state, m.uid());
+            stateDirty = true;
         }
         if (stateDirty) {
             bounce.save(state);
+        }
+    }
+
+    private void markProcessed(OutreachAccountStateEntity state, long uid) {
+        state.getProcessedUids().add(uid);
+        while (state.getProcessedUids().size() > 1000) {
+            state.getProcessedUids().remove(0);
+        }
+    }
+
+    /** Apply the AI/keyword category to a still-open (SENT) matched thread + log it. */
+    private void classify(OutreachProfileEntity profile, SentEmailEntity matched,
+                          ImapReader.Inbound m, String category) {
+        switch (category) {
+            case "BOUNCE" -> {
+                markThreadBounced(matched, m.subject(), m.bodyPreview());
+                log.info("📭 [{}] [CLASSIFY] {} ({}) -> BOUNCED (send error).",
+                        profile.getKey(), m.fromEmail(), matched.getCompanyName());
+                logReply(profile, matched, m, "BOUNCE");
+            }
+            case "UNSUBSCRIBE" -> {
+                stopSequence(matched.getThreadKey(), true, m.subject(), m.bodyPreview());
+                log.info("🚫 [{}] [CLASSIFY] {} ({}) -> UNSUBSCRIBED.",
+                        profile.getKey(), m.fromEmail(), matched.getCompanyName());
+                logReply(profile, matched, m, "UNSUBSCRIBE");
+            }
+            default -> {
+                stopSequence(matched.getThreadKey(), false, m.subject(), m.bodyPreview());
+                log.info("✉️ [{}] [CLASSIFY] {} ({}) -> RESPONDED (manual triage).",
+                        profile.getKey(), m.fromEmail(), matched.getCompanyName());
+                logReply(profile, matched, m, "RESPONDED");
+            }
+        }
+    }
+
+    private void logReply(OutreachProfileEntity profile, SentEmailEntity matched,
+                          ImapReader.Inbound m, String category) {
+        logService.recordToStream(profile.getKey(), "replies", String.format(
+                "%s from=%s company=\"%s\" subject=\"%s\"%n%s%n----", category, m.fromEmail(),
+                safe(matched.getCompanyName()), safe(m.subject()),
+                m.bodyPreview() == null ? "" : m.bodyPreview().trim()));
+    }
+
+    /** AI-detected delivery error — mark the matched thread's open rows BOUNCED (+ company). */
+    private void markThreadBounced(SentEmailEntity matched, String subject, String body) {
+        String reply = buildReplyText(subject, body);
+        for (SentEmailEntity s : sentRepo.findByThreadKey(matched.getThreadKey())) {
+            if (s.getStatus() == SendStatus.SENT) {
+                s.setStatus(SendStatus.BOUNCED);
+                s.setBouncedAt(Instant.now());
+                if (reply != null && (s.getResponseText() == null || s.getResponseText().isBlank())) {
+                    s.setResponseText(reply);
+                }
+                sentRepo.save(s);
+                leads.markBounced(s.getCompanyId());
+            }
         }
     }
 
@@ -172,16 +233,21 @@ public class InboxSyncService {
         return (s.isBlank() ? "" : "Subject: " + s + "\n\n") + b;
     }
 
-    private void markBouncedByBody(String body) {
+    private void markBouncedByBody(String subject, String body) {
         if (body == null || body.isBlank()) {
             return;
         }
+        // The mailer-daemon body IS the "why not delivered" reason — save it so it's readable in the drawer.
+        String reason = buildReplyText(subject, body);
         var matcher = OutreachConstants.EMAIL_SCRAPE.matcher(body);
         while (matcher.find()) {
             for (SentEmailEntity s : sentRepo.findByToEmailIgnoreCase(matcher.group())) {
                 if (s.getStatus() == SendStatus.SENT) {
                     s.setStatus(SendStatus.BOUNCED);
                     s.setBouncedAt(Instant.now());
+                    if (reason != null && (s.getResponseText() == null || s.getResponseText().isBlank())) {
+                        s.setResponseText(reason);
+                    }
                     sentRepo.save(s);
                     // Flag the company too so it drops out of extraction/sending.
                     leads.markBounced(s.getCompanyId());

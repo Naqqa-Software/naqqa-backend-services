@@ -29,5 +29,8 @@ public class OutreachSettingsEntity {
     /** When false, the Apollo extraction loop is paused (stops the "infinite" enrichment). */
     private boolean extractionActive = true;
 
+    /** Auto-pause: Apollo enrichment is suspended until this time (set when credits run out). Null = not paused. */
+    private Instant apolloPausedUntil;
+
     private Instant updatedAt;
 }

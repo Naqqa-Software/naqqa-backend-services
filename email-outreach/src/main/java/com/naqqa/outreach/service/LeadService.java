@@ -79,6 +79,12 @@ public class LeadService {
                 LeadEntity.class);
     }
 
+    /** Return a claimed-for-extraction lead to DEFAULT (e.g. Apollo out of credits) so it retries later. */
+    public void revertToDefault(String id) {
+        mongo.updateFirst(new Query(Criteria.where("_id").is(id)),
+                new Update().set("status", "DEFAULT").set("updatedAt", Instant.now()), LeadEntity.class);
+    }
+
     /** Apollo found nothing — take the company out of the extraction/send rotation. */
     public void markNoEmail(String id) {
         mongo.updateFirst(new Query(Criteria.where("_id").is(id)),

@@ -39,4 +39,18 @@ public class OutreachSettingsService {
         s.setUpdatedAt(Instant.now());
         return repo.save(s);
     }
+
+    /** True while Apollo enrichment is auto-paused (e.g. after running out of credits). */
+    public boolean isApolloPaused() {
+        Instant until = get().getApolloPausedUntil();
+        return until != null && until.isAfter(Instant.now());
+    }
+
+    /** Suspend Apollo enrichment for {@code hours} (e.g. 24h when credits are exhausted). */
+    public OutreachSettingsEntity pauseApolloFor(long hours) {
+        OutreachSettingsEntity s = get();
+        s.setApolloPausedUntil(Instant.now().plusSeconds(hours * 3600));
+        s.setUpdatedAt(Instant.now());
+        return repo.save(s);
+    }
 }

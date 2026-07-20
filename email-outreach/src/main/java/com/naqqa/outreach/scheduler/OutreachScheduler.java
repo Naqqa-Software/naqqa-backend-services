@@ -57,15 +57,28 @@ public class OutreachScheduler {
         run("startup catch-up");
     }
 
-    /** Sync each mailbox for replies/bounces immediately on boot (independent of the send flow). */
+    /**
+     * On boot, DEEP-scan each mailbox over the last {@code startupScanDays} (default 50) and
+     * AI-classify still-unclassified replies (unsubscribe / send-error → auto status; genuine
+     * positive/negative replies → RESPONDED for manual triage). Falls back to the routine window
+     * scan when the deep scan is disabled (days = 0).
+     */
     @EventListener(ApplicationReadyEvent.class)
     public void syncInboxOnStartup() {
         if (!props.isEnabled()) {
             return;
         }
         var enabled = profiles.findAllByEnabledTrue();
-        log.info("Outreach startup inbox sync for {} profile(s).", enabled.size());
-        enabled.forEach(runner::syncOnly);
+        int days = props.getStartupScanDays();
+        log.info("Outreach startup inbox {} for {} profile(s).",
+                days > 0 ? "deep-scan (" + days + "d)" : "sync", enabled.size());
+        enabled.forEach(p -> {
+            if (days > 0) {
+                runner.deepScan(p, days);
+            } else {
+                runner.syncOnly(p);
+            }
+        });
     }
 
     private void run(String label) {

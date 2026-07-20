@@ -77,6 +77,11 @@ public class OutreachProperties {
     private List<Integer> followupDelaysDays = List.of(3, 6, 10);
     /** Max follow-up levels (1..maxFollowups). */
     private int maxFollowups = 3;
+    /**
+     * Only follow up on threads whose INITIAL email was sent on/after this date (UTC). Excludes old /
+     * seeded / imported campaigns that shouldn't be followed up. Null = no cutoff (follow up any age).
+     */
+    private java.time.LocalDate followupMinSentDate;
 
     /** Cron for the daily kickoff (default 09:00). */
     private String dailyCron = "0 0 9 * * *";
@@ -97,6 +102,9 @@ public class OutreachProperties {
     /** How far back the routine inbox sync scans for replies/bounces (hours). */
     private int inboxWindowHours = 48;
 
+    /** On app startup, deep-scan + AI-classify inbox replies over the last N days (0 = disabled). */
+    private int startupScanDays = 50;
+
     /** Directory for the per-profile daily log files (also mirrored to the {@code outreach_logs} collection). */
     private String logDir = "logs/outreach";
 
@@ -105,6 +113,8 @@ public class OutreachProperties {
      * it fills the enriched pool up to your Apollo API limits. Sending then drains that pool.
      */
     private boolean extractionEnabled = true;
+    /** Hours to auto-pause Apollo enrichment after it reports out-of-credits (422 insufficient credits). */
+    private long apolloCreditPauseHours = 24;
     /** Companies enriched per tick. */
     private int extractionBatchSize = 20;
     /** Delay between Apollo lookups (paces the API). */

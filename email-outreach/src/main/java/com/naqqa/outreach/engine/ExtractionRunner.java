@@ -4,6 +4,7 @@ import com.naqqa.outreach.config.OutreachProperties;
 import com.naqqa.outreach.entity.LeadEntity;
 import com.naqqa.outreach.logging.OutreachLogAppender;
 import com.naqqa.outreach.service.ApolloClient;
+import com.naqqa.outreach.service.ApolloCreditsException;
 import com.naqqa.outreach.service.CompanyScraper;
 import com.naqqa.outreach.service.EmailValidator;
 import com.naqqa.outreach.service.LeadService;
@@ -59,6 +60,10 @@ public class ExtractionRunner {
         if (!props.isEnabled() || !props.isExtractionEnabled() || !settings.isExtractionActive()) {
             return;
         }
+        // Auto-pause when Apollo has run out of credits (set below); silently skip until it lapses.
+        if (settings.isApolloPaused()) {
+            return;
+        }
         MDC.put(OutreachLogAppender.MDC_KEY, "leadgen");
         try {
             int done = 0;
@@ -70,6 +75,14 @@ public class ExtractionRunner {
                 try {
                     extract(lead);
                     done++;
+                } catch (ApolloCreditsException ce) {
+                    // Out of Apollo credits — DON'T burn the lead as NO_EMAIL; return it to the pool
+                    // and pause enrichment for 24h so we stop hammering the API.
+                    leads.revertToDefault(lead.getId());
+                    settings.pauseApolloFor(props.getApolloCreditPauseHours());
+                    log.warn("[extraction] Apollo out of lead credits — pausing enrichment for {}h.",
+                            props.getApolloCreditPauseHours());
+                    break;
                 } catch (Exception e) {
                     log.warn("[extraction] {} failed: {}", lead.getWebsite(), e.getMessage());
                     leads.markNoEmail(lead.getId());

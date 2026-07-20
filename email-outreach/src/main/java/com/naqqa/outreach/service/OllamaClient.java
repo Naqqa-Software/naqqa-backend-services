@@ -95,6 +95,47 @@ public class OllamaClient {
     private final OllamaThrottle throttle;
     private final ObjectMapper mapper = new ObjectMapper();
 
+    private static final String CLASSIFY_SYSTEM_PROMPT = """
+            You classify ONE inbound email that arrived in reply to our cold B2B outreach. Pick the
+            single best category and return ONLY JSON: { "category": "UNSUBSCRIBE" | "BOUNCE" | "OTHER" }.
+
+            - UNSUBSCRIBE: the person explicitly asks to stop being contacted — unsubscribe, remove me,
+              do not email/contact me, opt out, stop emailing, take me off your list.
+            - BOUNCE: an AUTOMATED delivery-failure / system notice — mailer-daemon, undeliverable,
+              address not found, mailbox full/over quota, delivery status notification, message blocked.
+            - OTHER: any genuine human reply (interested, not interested, questions, out-of-office, etc.).
+
+            A plain "not interested" WITHOUT a request to stop is OTHER, not UNSUBSCRIBE.
+            When unsure, choose OTHER.
+            """;
+
+    /**
+     * Classify an inbound reply as UNSUBSCRIBE / BOUNCE / OTHER for auto-status. Defaults to "OTHER"
+     * on any failure (safe — a genuine reply just goes to manual triage, never wrongly bounced).
+     */
+    public String classifyReply(String subject, String body) {
+        String userMsg = "Classify this inbound email.\n\n"
+                + "Subject: " + nz(subject) + "\n\n"
+                + "Body:\n" + (body == null ? "" : body) + "\n\n"
+                + "Return JSON only: {\"category\": \"UNSUBSCRIBE\" | \"BOUNCE\" | \"OTHER\"}.";
+        Map<String, Object> req = Map.of(
+                "model", props.getOllamaModel(),
+                "stream", false,
+                "format", "json",
+                "messages", List.of(
+                        Map.of("role", "system", "content", CLASSIFY_SYSTEM_PROMPT),
+                        Map.of("role", "user", "content", userMsg)));
+        JsonNode res = chat(req);
+        String content = res == null ? "{}" : res.path("message").path("content").asText("{}");
+        try {
+            String c = mapper.readTree(content).path("category").asText("OTHER").trim().toUpperCase();
+            return ("UNSUBSCRIBE".equals(c) || "BOUNCE".equals(c)) ? c : "OTHER";
+        } catch (Exception e) {
+            log.warn("🤖 [AI] reply classification unparseable: {}", e.getMessage());
+            return "OTHER";
+        }
+    }
+
     private static final String SYSTEM_PROMPT = """
             You write B2B cold outreach emails for a company offering IT outstaffing services.
 

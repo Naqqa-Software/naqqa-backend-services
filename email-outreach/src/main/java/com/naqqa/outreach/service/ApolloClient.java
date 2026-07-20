@@ -63,10 +63,22 @@ public class ApolloClient {
                     return c;
                 }
             }
+        } catch (ApolloCreditsException ce) {
+            throw ce; // propagate so the extraction loop pauses + returns the lead to the pool
         } catch (Exception e) {
+            if (isInsufficientCredits(e)) {
+                log.warn("Apollo out of credits for {} — signalling enrichment pause.", domain);
+                throw new ApolloCreditsException(e.getMessage());
+            }
             log.warn("Apollo lookup failed for {}: {}", domain, e.getMessage());
         }
         return null;
+    }
+
+    /** Apollo returns HTTP 422 with an "insufficient credits" message when the lead quota is spent. */
+    private boolean isInsufficientCredits(Exception e) {
+        String msg = e.getMessage();
+        return msg != null && msg.toLowerCase().contains("insufficient credits");
     }
 
     // ── Step 0: free website scrape ──────────────────────────────────────────

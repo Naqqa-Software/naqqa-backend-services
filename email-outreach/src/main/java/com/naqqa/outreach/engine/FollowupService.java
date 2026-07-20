@@ -118,6 +118,14 @@ public class FollowupService {
         if (row.getResponseText() != null && !row.getResponseText().isBlank()) {
             return false;
         }
+        // Only follow up campaigns first sent on/after the cutoff — skip old/seeded/imported emails.
+        java.time.LocalDate cutoff = props.getFollowupMinSentDate();
+        if (cutoff != null) {
+            java.time.Instant firstSent = row.getSentAt();
+            if (firstSent == null || firstSent.isBefore(cutoff.atStartOfDay(java.time.ZoneOffset.UTC).toInstant())) {
+                return false;
+            }
+        }
         int done = progress(row);
         Instant since = row.getLastActivity();
         if (done + 1 > props.getMaxFollowups() || since == null) {
