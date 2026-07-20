@@ -56,17 +56,19 @@ public class OutreachEngine {
         OutreachAccountStateEntity state = bounce.state(profile.getKey());
         limits.resetIfNewDay(state);
 
+        log.info("🚀 [{}] Starting email send run...", profile.getKey());
         int cap = limits.effectiveCap(profile, state);
         if (cap <= 0) {
-            log.info("[{}] not sending today (warm-up/bounce cap = 0).", profile.getKey());
+            log.info("🛑 [{}] [WARMUP] Daily cap is 0 today (warm-up/bounce throttle) — not sending.",
+                    profile.getKey());
             return;
         }
         // Reserve the follow-up share of the cap for follow-ups; initial (new-lead) sends take the
         // rest (e.g. 70%). Anything initial can't fill (no enriched leads) is left for follow-ups.
         int initialCap = props.isFollowupsEnabled()
                 ? (int) Math.ceil(cap * (1.0 - props.getFollowupRatio())) : cap;
-        log.info("[{}] initial-send run: cap={} initialCap={} sentToday={}", profile.getKey(),
-                cap, initialCap, state.getSentToday());
+        log.info("📊 [{}] [COUNTER] Daily cap={} (initial={}, follow-ups={}), already sent today={}.",
+                profile.getKey(), cap, initialCap, cap - initialCap, state.getSentToday());
 
         int consecutiveErrors = 0;
         while (state.getSentToday() - state.getFollowupsSentToday() < initialCap
@@ -74,20 +76,26 @@ public class OutreachEngine {
                 && OutreachTime.isWorkingHours(props.getWorkStartHour(), props.getWorkEndHour())) {
             LeadEntity lead = null;
             try {
+                log.info("📋 [{}] [LEAD] Reserving next enriched lead...", profile.getKey());
                 lead = leads.reserveForSending();
                 if (lead == null) {
-                    log.info("[{}] no enriched leads left to contact (extraction fills the pool).",
+                    log.info("⏹️ [{}] [LEAD] No enriched leads left to contact (extraction fills the pool).",
                             profile.getKey());
                     break;
                 }
+                log.info("✅ [{}] [LEAD] Reserved: company={} | industry={} | country={}", profile.getKey(),
+                        lead.getName(), nz(lead.getIndustry()), nz(lead.getCountryCode()));
                 boolean sent = processLead(profile, state, lead);
                 if (sent) {
                     lead = null; // consumed as USED
                     consecutiveErrors = 0;
                     state.setSentToday(state.getSentToday() + 1);
                     bounce.save(state);
-                    sleep(ThreadLocalRandom.current().nextInt(
-                            props.getMinDelaySeconds(), props.getMaxDelaySeconds() + 1));
+                    int wait = ThreadLocalRandom.current().nextInt(
+                            props.getMinDelaySeconds(), props.getMaxDelaySeconds() + 1);
+                    log.info("📊 [{}] [COUNTER] Sent today: {}/{}. ⏳ [DELAY] Waiting {}s before next email...",
+                            profile.getKey(), state.getSentToday(), cap, wait);
+                    sleep(wait);
                 } else {
                     // gate/generation/send failed — return it to the enriched pool for a later retry.
                     // Short back-off so a lead the gates keep rejecting can't hot-loop the CPU silently.
@@ -120,56 +128,70 @@ public class OutreachEngine {
     private boolean processLead(OutreachProfileEntity profile, OutreachAccountStateEntity state, LeadEntity lead)
             throws Exception {
         if (lead.getEmails() == null || lead.getEmails().isEmpty()) {
-            log.info("[{}] skip {} — no email stored on lead.", profile.getKey(), lead.getName());
+            log.info("⏭️ [{}] [LEAD] Skip {} — no email stored on lead.", profile.getKey(), lead.getName());
             return false;
         }
         EmailValidator.Result v = validator.validate(lead.getEmails().get(0));
         if (!v.valid()) {
-            log.info("[{}] skip {} — email failed validation: {}", profile.getKey(),
-                    lead.getName(), lead.getEmails().get(0));
+            log.info("⏭️ [{}] [VALIDATE] Skip {} — email {} failed validation ({}).", profile.getKey(),
+                    lead.getName(), lead.getEmails().get(0), v.reason());
             return false;
         }
         String email = v.email();
-        log.info("[{}] processing {} <{}>", profile.getKey(), lead.getName(), email);
+        log.info("✅ [{}] [VALIDATE] Email {} passed all checks.", profile.getKey(), email);
 
         // Prefer the website context saved at extraction; fall back to a live scrape.
         List<String> companyInfo;
         if (lead.getWebsiteInfo() != null && !lead.getWebsiteInfo().isBlank()) {
             companyInfo = List.of(lead.getWebsiteInfo());
+            log.info("🌐 [{}] [SCRAPE] Using stored website info for {} ({} chars).", profile.getKey(),
+                    lead.getName(), lead.getWebsiteInfo().length());
         } else {
-            log.info("[{}] scraping website {} for {}", profile.getKey(), lead.getWebsite(), lead.getName());
+            log.info("🌐 [{}] [SCRAPE] Extracting company info for {} ({})...", profile.getKey(),
+                    lead.getName(), nz(lead.getWebsite()));
             companyInfo = scraper.scrape(lead.getWebsite());
+            log.info("✅ [{}] [SCRAPE] Company info snippets: {}", profile.getKey(), companyInfo.size());
         }
         SafetyGates.Gate quality = gates.validateLeadQuality(lead.getName(), email, companyInfo);
         if (!quality.valid()) {
-            log.info("[{}] skip {} — quality gate: {}", profile.getKey(), lead.getName(), quality.reason());
+            log.info("⏭️ [{}] [QUALITY] Skip {} — {}.", profile.getKey(), lead.getName(), quality.reason());
             return false;
         }
+        log.info("✅ [{}] [QUALITY] Lead {} passed quality check.", profile.getKey(), lead.getName());
 
         String confidence = gates.computeCompanyNameConfidence(lead.getName(),
                 companyInfo.stream().filter(s -> s != null && s.trim().length() > 20).limit(4).toList());
+        log.info("🔍 [{}] [AI] Company-name confidence for \"{}\": {}", profile.getKey(),
+                lead.getName(), confidence);
 
-        log.info("[{}] generating email for {} (Ollama)...", profile.getKey(), lead.getName());
+        log.info("🤖 [{}] [AI] Generating email for {} ({})...", profile.getKey(),
+                lead.getName(), props.getOllamaModel());
         OllamaClient.GeneratedEmail gen = ollama.generate(lead.getName(), lead.getIndustry(),
                 lead.getCountryCode(), companyInfo, null, null, email, confidence);
-        log.info("[{}] generated for {} (shouldSend={}, lang={})", profile.getKey(),
-                lead.getName(), gen.shouldSend(), gen.language());
+        log.info("✅ [{}] [AI] Parsed — shouldSend={} | language={} | subject={}", profile.getKey(),
+                gen.shouldSend(), nz(gen.language()), nz(gen.subject()));
         if (!gen.shouldSend()) {
-            log.info("[{}] skip {} — model returned shouldSend=false ({}).", profile.getKey(),
+            log.info("⏭️ [{}] [AI] Skip {} — model shouldSend=false ({}).", profile.getKey(),
                     lead.getName(), gen.skipReason());
             return false;
         }
         SafetyGates.Gate safe = gates.validateGeneratedEmail(gen.subject(), gen.emailBody(), lead.getName());
         if (!safe.valid()) {
-            log.info("[{}] generated email failed gate ({}) for {}", profile.getKey(), safe.reason(), email);
+            log.info("⏭️ [{}] [VALIDATE] Skip {} — generated email failed safety gate ({}).",
+                    profile.getKey(), lead.getName(), safe.reason());
             return false;
         }
+        log.info("✅ [{}] [VALIDATE] Generated email passed safety check.", profile.getKey());
 
+        log.info("✉️ [{}] [GMAIL] Sending... → From: {} ({}) | To: {} | Subject: {} | Body: {}...",
+                profile.getKey(), profile.getFromEmail(), nz(profile.getFromName()), email,
+                gen.subject(), preview(gen.emailBody()));
         GmailSender.SendResult result = sender.send(profile, email, gen.subject(), gen.emailBody(), null);
 
         leads.markContacted(lead.getId());
         record(profile, lead, null, email, gen, result.messageId(), 1, null);
-        log.info("[{}] sent step 1 -> {} ({})", profile.getKey(), email, lead.getName());
+        log.info("✅ [{}] [GMAIL] Email sent to {} ({}) — msgId={}", profile.getKey(),
+                email, lead.getName(), result.messageId());
         // Dedicated, analyzable email-sending log ({logDir}/{profile}/sent-{day}.txt).
         logService.recordToStream(profile.getKey(), "sent", String.format(
                 "SENT step=1 to=%s company=\"%s\" subject=\"%s\" msgId=%s",
@@ -203,6 +225,20 @@ public class OutreachEngine {
     /** One-line-safe: strip newlines/quotes so a value can't break the send-log line format. */
     private String safe(String v) {
         return v == null ? "" : v.replaceAll("[\\r\\n\\t]+", " ").replace("\"", "'").trim();
+    }
+
+    /** Null/blank → "N/A" for readable log lines (matches the old script). */
+    private String nz(String v) {
+        return v == null || v.isBlank() ? "N/A" : v;
+    }
+
+    /** First ~100 chars of a body on one line, for the "Body: …" log preview. */
+    private String preview(String body) {
+        if (body == null) {
+            return "";
+        }
+        String flat = body.replaceAll("\\s+", " ").trim();
+        return flat.length() > 100 ? flat.substring(0, 100) : flat;
     }
 
     private void sleep(int seconds) throws InterruptedException {

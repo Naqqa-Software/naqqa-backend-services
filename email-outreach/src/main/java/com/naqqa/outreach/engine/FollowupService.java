@@ -144,16 +144,23 @@ public class FollowupService {
         List<String> companyInfo = lead != null && lead.getWebsiteInfo() != null && !lead.getWebsiteInfo().isBlank()
                 ? List.of(lead.getWebsiteInfo()) : List.of();
 
+        log.info("🤖 [{}] [AI] Generating follow-up #{} for {} ({})...", profile.getKey(),
+                level, row.getCompanyName(), row.getToEmail());
         String body = ollama.generateFollowup(row.getCompanyName(), companyInfo, history, level);
         if (body == null || body.isBlank()) {
+            log.info("⏭️ [{}] [AI] Follow-up #{} skipped for {} — empty generation.",
+                    profile.getKey(), level, row.getToEmail());
             return false;
         }
         String subject = reSubject(row.getSubject()); // always a reply-style subject
         SafetyGates.Gate gate = gates.validateGeneratedEmail(subject, body, row.getCompanyName());
         if (!gate.valid()) {
-            log.info("[{}] follow-up gate failed ({}) for {}", profile.getKey(), gate.reason(), row.getToEmail());
+            log.info("⏭️ [{}] [VALIDATE] Follow-up #{} failed safety gate ({}) for {}.",
+                    profile.getKey(), level, gate.reason(), row.getToEmail());
             return false;
         }
+        log.info("✉️ [{}] [GMAIL] Sending follow-up #{} → To: {} | Subject: {}", profile.getKey(),
+                level, row.getToEmail(), subject);
 
         // Reply threaded onto the last message we sent (initial or previous follow-up).
         GmailSender.SendResult res = sender.send(profile, row.getToEmail(), subject, body, row.getMessageId());
@@ -169,8 +176,8 @@ public class FollowupService {
         state.setSentToday(state.getSentToday() + 1);
         state.setFollowupsSentToday(state.getFollowupsSentToday() + 1);
         bounce.save(state);
-        log.info("[{}] sent AI follow-up #{} -> {} ({})",
-                profile.getKey(), level, row.getToEmail(), row.getCompanyName());
+        log.info("✅ [{}] [GMAIL] Follow-up #{} sent to {} ({}) — msgId={}",
+                profile.getKey(), level, row.getToEmail(), row.getCompanyName(), res.messageId());
         logService.recordToStream(profile.getKey(), "sent", String.format(
                 "FOLLOWUP #%d to=%s company=\"%s\" subject=\"%s\" msgId=%s",
                 level, row.getToEmail(), safe(row.getCompanyName()), safe(subject), res.messageId()));

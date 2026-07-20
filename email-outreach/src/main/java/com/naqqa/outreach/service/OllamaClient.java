@@ -80,9 +80,7 @@ public class OllamaClient {
                         Map.of("role", "system", "content", FOLLOWUP_SYSTEM_PROMPT),
                         Map.of("role", "user", "content", userMsg)));
 
-        RestClient client = ollamaClient();
-        JsonNode res = throttle.execute(() -> client.post().uri("/api/chat").contentType(MediaType.APPLICATION_JSON)
-                .body(body).retrieve().body(JsonNode.class));
+        JsonNode res = chat(body);
         String content = res == null ? "{}" : res.path("message").path("content").asText("{}");
         try {
             String out = mapper.readTree(content).path("emailBody").asText("");
@@ -275,11 +273,7 @@ public class OllamaClient {
                         Map.of("role", "assistant", "content", FEWSHOT_ASSISTANT),
                         Map.of("role", "user", "content", userMsg)));
 
-        RestClient client = ollamaClient();
-        // Global chat-lock + cooldown across both profiles (protects the local model).
-        JsonNode res = throttle.execute(() -> client.post().uri("/api/chat").contentType(MediaType.APPLICATION_JSON)
-                .body(body).retrieve().body(JsonNode.class));
-
+        JsonNode res = chat(body);
         String content = res == null ? "{}" : res.path("message").path("content").asText("{}");
         try {
             JsonNode j = mapper.readTree(content);
@@ -292,6 +286,32 @@ public class OllamaClient {
         } catch (Exception e) {
             log.warn("Ollama returned unparseable content: {}", e.getMessage());
             return new GeneratedEmail(false, "parse_error", "en", "", "");
+        }
+    }
+
+    /**
+     * POST to Ollama {@code /api/chat} and parse the JSON body OURSELVES from raw bytes. Ollama behind
+     * the Caddy proxy returns {@code Content-Type: application/octet-stream}, which Spring's RestClient
+     * can't convert to a JsonNode ("Error while extracting response ... content type octet-stream") —
+     * so we read {@code byte[]} (always convertible) and run it through Jackson regardless of the header.
+     */
+    private JsonNode chat(Map<String, Object> body) {
+        RestClient client = ollamaClient();
+        // Global chat-lock + cooldown across both profiles (protects the local model).
+        byte[] raw = throttle.execute(() -> client.post().uri("/api/chat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body).retrieve().body(byte[].class));
+        if (raw == null || raw.length == 0) {
+            log.warn("🤖 [AI] Ollama returned an empty body.");
+            return null;
+        }
+        log.info("🤖 [AI] Ollama response received ({} bytes).", raw.length);
+        try {
+            return mapper.readTree(raw);
+        } catch (Exception e) {
+            log.warn("Ollama response not valid JSON ({} bytes): {}", raw.length, e.getMessage());
+            return null;
         }
     }
 
