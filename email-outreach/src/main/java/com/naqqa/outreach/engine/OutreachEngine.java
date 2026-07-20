@@ -167,10 +167,11 @@ public class OutreachEngine {
         log.info("🔍 [{}] [AI] Company-name confidence for \"{}\": {}", profile.getKey(),
                 lead.getName(), confidence);
 
-        log.info("🤖 [{}] [AI] Generating email for {} ({})...", profile.getKey(),
-                lead.getName(), props.getOllamaModel());
+        String firstName = firstNameFromEmail(email);
+        log.info("🤖 [{}] [AI] Generating email for {} (recipient: {}, {})...", profile.getKey(),
+                lead.getName(), firstName == null ? "no name" : firstName, props.getOllamaModel());
         OllamaClient.GeneratedEmail gen = ollama.generate(lead.getName(), lead.getIndustry(),
-                lead.getCountryCode(), companyInfo, null, null, email, confidence);
+                lead.getCountryCode(), companyInfo, firstName, null, email, confidence);
         log.info("✅ [{}] [AI] Parsed — shouldSend={} | language={} | subject={}", profile.getKey(),
                 gen.shouldSend(), nz(gen.language()), nz(gen.subject()));
         if (!gen.shouldSend()) {
@@ -233,6 +234,41 @@ public class OutreachEngine {
     /** Null/blank → "N/A" for readable log lines (matches the old script). */
     private String nz(String v) {
         return v == null || v.isBlank() ? "N/A" : v;
+    }
+
+    /** Role/functional mailbox prefixes we must NEVER turn into a person's name. */
+    private static final java.util.Set<String> ROLE_PREFIXES = java.util.Set.of(
+            "info", "sales", "hello", "hi", "help", "support", "admin", "office", "team", "hr",
+            "contact", "press", "marketing", "jobs", "careers", "career", "noreply", "no-reply",
+            "mail", "email", "enquiries", "enquiry", "inquiries", "service", "services", "billing",
+            "accounts", "account", "finance", "legal", "privacy", "security", "webmaster",
+            "postmaster", "newsletter", "media", "pr", "partners", "partnership", "business", "dev",
+            "developers", "it", "tech", "general", "company", "orders", "order", "booking", "reception");
+
+    /**
+     * Best-effort first name from the email local-part, used to personalise the greeting
+     * ("Hello, Regis,"). CONSERVATIVE on purpose: only when the local-part is a clear
+     * {@code firstname.lastname}-style pattern (a separator + an alphabetic first segment ≥2 chars)
+     * and not a role mailbox. Otherwise returns null and the AI writes a plain "Hello,".
+     */
+    private String firstNameFromEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return null;
+        }
+        String local = email.substring(0, at).toLowerCase().trim();
+        String[] parts = local.split("[._+\\-]+");
+        if (parts.length < 2) {
+            return null; // single token (jsmith / anormann / info) → too ambiguous, stay generic
+        }
+        String first = parts[0].replaceAll("[^a-z]", "");
+        if (first.length() < 2 || first.length() > 20 || ROLE_PREFIXES.contains(first)) {
+            return null;
+        }
+        return Character.toUpperCase(first.charAt(0)) + first.substring(1);
     }
 
     /** First ~100 chars of a body on one line, for the "Body: …" log preview. */
