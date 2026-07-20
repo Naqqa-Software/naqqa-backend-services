@@ -38,8 +38,10 @@ public class GmailSender {
         String normBody = body.trim()
                 .replaceAll("\\r\\n", "\n").replaceAll("\\r", "\n")
                 .replaceAll("\\t", "  ").replaceAll("[^\\S\\n]{2,}", " ");
-        String sig = profile.getSignature() == null ? "" : profile.getSignature();
-        String footer = props.getUnsubscribeFooter() == null ? "" : props.getUnsubscribeFooter();
+        // Signature/footer come from .env; if they carry LITERAL "\n" (not converted by the properties
+        // loader) they'd print as raw backslash-n in the email. Convert those escapes to real newlines.
+        String sig = unescape(profile.getSignature());
+        String footer = unescape(props.getUnsubscribeFooter());
         String fullBody = normBody + sig + footer;
 
         Session session = session(profile);
@@ -66,6 +68,18 @@ public class GmailSender {
             transport.sendMessage(msg, msg.getAllRecipients());
         }
         return new SendResult(messageId);
+    }
+
+    /**
+     * Turn LITERAL escape sequences into real characters, so a signature/footer stored in .env with
+     * "\n" (backslash-n, not an actual newline) renders correctly. Idempotent for already-correct
+     * values (there's nothing to replace when the string holds real newlines).
+     */
+    private String unescape(String s) {
+        if (s == null || s.isBlank()) {
+            return "";
+        }
+        return s.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\r", "\n").replace("\\t", "  ");
     }
 
     private InternetAddress from(OutreachProfileEntity p) throws UnsupportedEncodingException {
