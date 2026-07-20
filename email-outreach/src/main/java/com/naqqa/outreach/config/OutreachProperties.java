@@ -105,6 +105,9 @@ public class OutreachProperties {
     /** On app startup, deep-scan + AI-classify inbox replies over the last N days (0 = disabled). */
     private int startupScanDays = 50;
 
+    /** How many unprocessed inbox replies to send to the AI classifier per call (batched). */
+    private int aiClassifyBatchSize = 5;
+
     /** Directory for the per-profile daily log files (also mirrored to the {@code outreach_logs} collection). */
     private String logDir = "logs/outreach";
 

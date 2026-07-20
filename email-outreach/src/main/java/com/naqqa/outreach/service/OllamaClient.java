@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
@@ -95,9 +96,14 @@ public class OllamaClient {
     private final OllamaThrottle throttle;
     private final ObjectMapper mapper = new ObjectMapper();
 
+    /** One inbound email to classify (subject + body). */
+    public record ReplyInput(String subject, String body) {
+    }
+
     private static final String CLASSIFY_SYSTEM_PROMPT = """
-            You classify ONE inbound email that arrived in reply to our cold B2B outreach. Pick the
-            single best category and return ONLY JSON: { "category": "UNSUBSCRIBE" | "BOUNCE" | "OTHER" }.
+            You classify inbound emails that arrived in reply to our cold B2B outreach. For EACH
+            numbered email decide ONE category. Return ONLY JSON with one entry per input, SAME order:
+            { "results": [ { "i": 1, "category": "UNSUBSCRIBE" }, { "i": 2, "category": "OTHER" } ] }.
 
             - UNSUBSCRIBE: the person explicitly asks to stop being contacted — unsubscribe, remove me,
               do not email/contact me, opt out, stop emailing, take me off your list.
@@ -110,30 +116,54 @@ public class OllamaClient {
             """;
 
     /**
-     * Classify an inbound reply as UNSUBSCRIBE / BOUNCE / OTHER for auto-status. Defaults to "OTHER"
-     * on any failure (safe — a genuine reply just goes to manual triage, never wrongly bounced).
+     * Classify a BATCH of inbound replies in ONE model call — returns a category
+     * (UNSUBSCRIBE / BOUNCE / OTHER) per input, aligned by index. Any entry that can't be parsed
+     * defaults to "OTHER" (safe — a genuine reply just goes to manual triage, never wrongly acted on).
      */
-    public String classifyReply(String subject, String body) {
-        String userMsg = "Classify this inbound email.\n\n"
-                + "Subject: " + nz(subject) + "\n\n"
-                + "Body:\n" + (body == null ? "" : body) + "\n\n"
-                + "Return JSON only: {\"category\": \"UNSUBSCRIBE\" | \"BOUNCE\" | \"OTHER\"}.";
+    public List<String> classifyReplies(List<ReplyInput> items) {
+        List<String> out = new ArrayList<>();
+        if (items == null || items.isEmpty()) {
+            return out;
+        }
+        StringBuilder user = new StringBuilder("Classify these ").append(items.size()).append(" emails.\n\n");
+        for (int i = 0; i < items.size(); i++) {
+            ReplyInput it = items.get(i);
+            user.append("Email ").append(i + 1).append(":\n")
+                    .append("Subject: ").append(nz(it.subject())).append("\n")
+                    .append("Body:\n").append(it.body() == null ? "" : it.body()).append("\n\n");
+        }
+        user.append("Return JSON only: {\"results\":[{\"i\":1,\"category\":\"UNSUBSCRIBE|BOUNCE|OTHER\"}, ...]} ")
+                .append("with exactly ").append(items.size()).append(" entries in order.");
+
         Map<String, Object> req = Map.of(
                 "model", props.getOllamaModel(),
                 "stream", false,
                 "format", "json",
                 "messages", List.of(
                         Map.of("role", "system", "content", CLASSIFY_SYSTEM_PROMPT),
-                        Map.of("role", "user", "content", userMsg)));
+                        Map.of("role", "user", "content", user.toString())));
+
+        String[] cats = new String[items.size()];
+        java.util.Arrays.fill(cats, "OTHER");
         JsonNode res = chat(req);
-        String content = res == null ? "{}" : res.path("message").path("content").asText("{}");
-        try {
-            String c = mapper.readTree(content).path("category").asText("OTHER").trim().toUpperCase();
-            return ("UNSUBSCRIBE".equals(c) || "BOUNCE".equals(c)) ? c : "OTHER";
-        } catch (Exception e) {
-            log.warn("🤖 [AI] reply classification unparseable: {}", e.getMessage());
-            return "OTHER";
+        if (res != null) {
+            try {
+                JsonNode content = mapper.readTree(res.path("message").path("content").asText("{}"));
+                for (JsonNode r : content.path("results")) {
+                    int idx = r.path("i").asInt(0) - 1;
+                    String c = r.path("category").asText("OTHER").trim().toUpperCase();
+                    if (idx >= 0 && idx < cats.length && ("UNSUBSCRIBE".equals(c) || "BOUNCE".equals(c))) {
+                        cats[idx] = c;
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("🤖 [AI] batch classification unparseable: {}", e.getMessage());
+            }
         }
+        for (String c : cats) {
+            out.add(c);
+        }
+        return out;
     }
 
     private static final String SYSTEM_PROMPT = """

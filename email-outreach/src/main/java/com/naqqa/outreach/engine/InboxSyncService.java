@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -51,22 +52,27 @@ public class InboxSyncService {
 
     private void syncSince(OutreachProfileEntity profile, long sinceMillis) {
         List<ImapReader.Inbound> inbound = imap.readRecent(profile, sinceMillis);
+        log.info("📥 [{}] inbox scan: {} message(s) in window.", profile.getKey(), inbound.size());
         if (inbound.isEmpty()) {
             return;
         }
         OutreachAccountStateEntity state = bounce.state(profile.getKey());
         boolean stateDirty = false;
 
+        // Phase 1: triage each UNPROCESSED message. Obvious bounces + keyword unsubscribes are handled
+        // immediately; already-classified matches just backfill text; everything else that matched a
+        // still-open thread is QUEUED for AI batch classification.
+        List<Pending> pending = new ArrayList<>();
         for (ImapReader.Inbound m : inbound) {
             if (state.getProcessedUids().contains(m.uid())) {
-                continue; // already handled in a prior sync — don't re-classify (saves Ollama calls)
+                continue; // already processed in a prior sync — never sent to the AI again
             }
             String hay = (m.fromEmail() + " " + m.subject()).toLowerCase();
             boolean isBounce = OutreachConstants.BOUNCE_PATTERNS.stream().anyMatch(hay::contains);
             boolean transient_ = OutreachConstants.TRANSIENT_PATTERNS.stream()
                     .anyMatch(p -> m.subject().toLowerCase().contains(p));
 
-            // 1. Obvious automated bounce (mailer-daemon keywords) → BOUNCED, no AI needed.
+            // Obvious automated bounce (mailer-daemon keywords) → BOUNCED, no AI needed.
             if (isBounce && !transient_) {
                 markBouncedByBody(m.subject(), m.bodyPreview());
                 markProcessed(state, m.uid());
@@ -74,31 +80,53 @@ public class InboxSyncService {
                 continue;
             }
 
-            // 2. Match to one of our sent threads; ignore unrelated mail.
             SentEmailEntity matched = matchThread(m);
             if (matched == null) {
-                continue;
+                continue; // unrelated mail — leave unprocessed
             }
-
-            if (matched.getStatus() == SendStatus.SENT) {
-                // UNCLASSIFIED reply → keyword unsubscribe fast-path, else ask Ollama to classify it
-                // (UNSUBSCRIBE / BOUNCE / OTHER). Positive/negative "OTHER" replies → RESPONDED for
-                // the admin to triage manually.
-                String category = (containsUnsub(m.subject()) || containsUnsub(m.bodyPreview()))
-                        ? "UNSUBSCRIBE"
-                        : ollama.classifyReply(m.subject(), m.bodyPreview());
-                classify(profile, matched, m, category);
-            } else {
+            if (matched.getStatus() != SendStatus.SENT) {
                 // Already classified — just backfill the reply text if missing (no AI, no status change).
                 stopSequence(matched.getThreadKey(), matched.getStatus() == SendStatus.UNSUBSCRIBED,
                         m.subject(), m.bodyPreview());
+                markProcessed(state, m.uid());
+                stateDirty = true;
+                continue;
             }
-            markProcessed(state, m.uid());
-            stateDirty = true;
+            if (containsUnsub(m.subject()) || containsUnsub(m.bodyPreview())) {
+                classify(profile, matched, m, "UNSUBSCRIBE"); // clear keyword unsubscribe, no AI
+                markProcessed(state, m.uid());
+                stateDirty = true;
+                continue;
+            }
+            pending.add(new Pending(m, matched)); // ambiguous → needs the AI classifier
         }
+
+        // Phase 2: classify the queued replies with Ollama in BATCHES (default 5 per call).
+        if (!pending.isEmpty()) {
+            int batch = Math.max(1, props.getAiClassifyBatchSize());
+            log.info("🔎 [{}] AI-classifying {} unprocessed repl{} in batches of {}...",
+                    profile.getKey(), pending.size(), pending.size() == 1 ? "y" : "ies", batch);
+            for (int start = 0; start < pending.size(); start += batch) {
+                List<Pending> chunk = pending.subList(start, Math.min(start + batch, pending.size()));
+                List<OllamaClient.ReplyInput> inputs = chunk.stream()
+                        .map(p -> new OllamaClient.ReplyInput(p.m().subject(), p.m().bodyPreview())).toList();
+                List<String> cats = ollama.classifyReplies(inputs);
+                for (int j = 0; j < chunk.size(); j++) {
+                    Pending p = chunk.get(j);
+                    classify(profile, p.matched(), p.m(), j < cats.size() ? cats.get(j) : "OTHER");
+                    markProcessed(state, p.m().uid());
+                }
+                stateDirty = true;
+            }
+        }
+
         if (stateDirty) {
             bounce.save(state);
         }
+    }
+
+    /** A matched, still-open reply queued for AI batch classification. */
+    private record Pending(ImapReader.Inbound m, SentEmailEntity matched) {
     }
 
     private void markProcessed(OutreachAccountStateEntity state, long uid) {
