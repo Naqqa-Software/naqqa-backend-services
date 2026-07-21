@@ -1,0 +1,59 @@
+[
+  {
+    "title": "Software Development",
+    "url": "/services#software-development",
+    "description": "We build scalable web, mobile, SaaS and enterprise software tailored to real business needs — from MVPs to complex internal platforms.",
+    "features": [
+      "Custom Web & Mobile Applications",
+      "SaaS, CRM, ERP and Business Platforms",
+      "Angular, React, Node.js, Spring Boot",
+      "API Design & Third-Party Integrations",
+      "Cloud-Ready Backend Architecture",
+      "UI/UX, QA, Testing and DevOps"
+    ],
+    "topics": ["software development", "web development", "mobile app", "saas", "mvp", "api", "devops", "angular", "react", "nodejs"]
+  },
+  {
+    "title": "IT Outsourcing",
+    "url": "/services#outsourcing",
+    "description": "Extend your team with skilled engineers from Moldova and Romania. Reduce hiring costs, scale faster, and work with a nearshore team in a European timezone.",
+    "features": [
+      "Dedicated Development Teams",
+      "Staff Augmentation",
+      "Frontend, Backend, Mobile, QA and DevOps",
+      "Nearshore European Collaboration",
+      "Lower Costs Compared to Western Europe",
+      "Stable Teams and Clear Communication"
+    ],
+    "topics": ["it outsourcing", "nearshoring", "staff augmentation", "dedicated team", "eastern europe", "moldova", "hire developers"]
+  },
+  {
+    "title": "AI-Powered Development",
+    "url": "/services#ai-powered-development",
+    "description": "We use AI to accelerate software delivery and help businesses automate workflows, integrate AI tools, and build smarter digital products.",
+    "features": [
+      "AI Business Automation",
+      "AI Assistants and Chatbots",
+      "Document and Data Processing",
+      "AI Integration with Existing Systems",
+      "AI-Assisted Software Development",
+      "Secure AI Implementation"
+    ],
+    "topics": ["ai development", "ai automation", "chatbot", "ai integration", "machine learning", "ai software"]
+  },
+  {
+    "title": "Dedicated Product Teams",
+    "url": "/services#dedicated-product-teams",
+    "description": "Get a long-term engineering team focused on your roadmap, product quality, and continuous delivery — without building a full in-house department.",
+    "features": [
+      "Product-Focused Developers",
+      "Agile Sprint Delivery",
+      "QA, DevOps and Technical Lead Support",
+      "Weekly Demos and Transparent Progress",
+      "Long-Term Code Ownership",
+      "Flexible Team Scaling"
+    ],
+    "topics": ["dedicated product team", "agile team", "product development", "continuous delivery", "engineering team", "outsourced product team"]
+  }
+]
+

@@ -1,0 +1,20 @@
+{
+  "internalPages": [
+    { "url": "/", "label": "Home" },
+    { "url": "/services", "label": "Services" },
+    { "url": "/services#software-development", "label": "Software Development" },
+    { "url": "/services#outsourcing", "label": "IT Outsourcing" },
+    { "url": "/services#ai-powered-development", "label": "AI-Powered Development" },
+    { "url": "/services#dedicated-product-teams", "label": "Dedicated Product Teams" },
+    { "url": "/blog", "label": "Blog" },
+    { "url": "/about", "label": "About Naqqa" },
+    { "url": "/contact", "label": "Contact" },
+    { "url": "/contact#contact-form", "label": "Get in Touch" }
+  ],
+  "external": [
+    { "url": "https://wa.me/37360880078", "label": "WhatsApp" },
+    { "url": "mailto:office@naqqasoftware.com", "label": "Email" },
+    { "url": "tel:+37360880078", "label": "Phone" }
+  ]
+}
+

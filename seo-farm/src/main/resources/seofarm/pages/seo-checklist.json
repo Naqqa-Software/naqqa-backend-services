@@ -1,0 +1,207 @@
+{
+  "seoChecklist": {
+    "1_whatGoogleIndexesFirst": {
+      "section": "What Google indexes first",
+      "priority": "Critical",
+      "requirements": {
+        "titleTag": "50-60 chars, primary keyword near the start",
+        "metaDescription": "150-160 chars, keyword + CTA",
+        "canonicalUrl": "Set to prevent duplicates",
+        "openGraph": "og:title, og:description, og:image (1200×630), og:url, og:type",
+        "twitterCard": "summary_large_image, title, description, image",
+        "languageAttribute": "on <html> (e.g., lang='en')",
+        "viewportMeta": "for responsive rendering",
+        "favicon": "apple-touch-icon",
+        "charsetMeta": "<meta charset='utf-8'>"
+      }
+    },
+    "2_urlStructure": {
+      "section": "Clean, readable, keyword-forward",
+      "priority": "High",
+      "requirements": {
+        "shortSlug": "under 60 chars",
+        "primaryKeyword": "in the slug",
+        "hyphens": "only — never underscores",
+        "logicalHierarchy": "/services/thing/, /blog/slug/",
+        "noStopWords": "('the', 'a', 'of') unless necessary"
+      }
+    },
+    "3_headings": {
+      "section": "Structure for skimmers & bots",
+      "priority": "High",
+      "requirements": {
+        "exactlyOneH1": "per page, contains primary keyword",
+        "logicalH2H3": "hierarchy — skip levels",
+        "h2UseKeywords": "use supporting keywords + questions from the cluster",
+        "noKeywordStuffing": "write naturally"
+      }
+    },
+    "4_copyAndBody": {
+      "section": "Answer the query, fast",
+      "priority": "Critical",
+      "requirements": {
+        "primaryKeywordFirst100": "in the first 100 words",
+        "directAnswer": "to the query in paragraph 1",
+        "lengthMatchesSERP": "matches SERP average (within 20% of top-3)",
+        "shortParagraphs": "3-4 sentences",
+        "readability": "8th-10th grade level",
+        "activeVoice": "preferred",
+        "boldKeyPhrases": "sparingly",
+        "bulletsAndLists": "where appropriate"
+      }
+    },
+    "5_faqSection": {
+      "section": "Every blog post",
+      "priority": "High",
+      "requirements": {
+        "questions": "4-8 questions from SEMRush Questions tab + 'People Also Ask'",
+        "directAnswers": "2-4 sentences each",
+        "faqSchema": "JSON-LD applied"
+      }
+    },
+    "6_images": {
+      "section": "Every image is a ranking signal",
+      "priority": "High",
+      "requirements": {
+        "altText": "describes image + keyword where natural",
+        "filenames": "descriptive, hyphens (e.g., emergency-plumber-toronto.jpg)",
+        "webP": "compressed under 200 KB",
+        "widthHeight": "attributes specified — prevents CLS",
+        "lazyLoading": "loading='lazy' (or below-fold)",
+        "responsiveSrcset": "where needed",
+        "featuredHeroImage": "for social sharing"
+      }
+    },
+    "7_internalLinks": {
+      "section": "Pass authority across the site",
+      "priority": "High",
+      "requirements": {
+        "count": "3-5 internal links per post",
+        "targets": "Link to related blog posts and relevant service pages",
+        "anchorText": "Descriptive anchor text — never 'click here' or 'read more'",
+        "placement": "Contextually placed in body copy",
+        "breadcrumbs": "on every page"
+      }
+    },
+    "8_externalLinks": {
+      "section": "Cite authority, don't hoard it",
+      "priority": "Medium",
+      "requirements": {
+        "count": "2-3 external links to authoritative sources (.gov, .edu, major industry)",
+        "relevance": "Relevant to the topic",
+        "openInNewTab": "Open in new tab with rel='noopener'",
+        "sponsored": "rel='nofollow' for sponsored links"
+      }
+    },
+    "9_schemaMarkup": {
+      "section": "JSON-LD in <head>",
+      "priority": "Critical",
+      "requirements": {
+        "article": "Article schema on blog posts",
+        "localBusiness": "LocalBusiness schema — most specific subtype (Plumber, Dentist, etc.)",
+        "service": "Service schema on service pages",
+        "faq": "FAQ schema wherever FAQ section exists",
+        "breadcrumbList": "BreadcrumbList schema on every page",
+        "organization": "Organization schema site-wide",
+        "authorPerson": "Author/Person schema for bylines"
+      }
+    },
+    "10_eeat": {
+      "section": "Experience · Expertise · Authority · Trust",
+      "priority": "Critical",
+      "requirements": {
+        "authorByline": "with name on every blog post",
+        "authorBio": "with credentials (CXO, certifications)",
+        "authorPage": "Link to author's dedicated page",
+        "publishedDate": "displayed",
+        "lastUpdatedDate": "when refreshed",
+        "realContent": "Real stories, numbers, opinions from the business voice file",
+        "citeSources": "Cite authoritative sources",
+        "aboutPage": "with full company credentials",
+        "contactPage": "real address, phone, hours"
+      }
+    },
+    "11_accessibility": {
+      "section": "A11y signals = SEO signals",
+      "priority": "High",
+      "requirements": {
+        "semanticHTML5": "<header>, <nav>, <main>, <article>, <footer>",
+        "ariaLabels": "on interactive elements when needed",
+        "colorContrast": "meets WCAG AA (4.5:1 body text)",
+        "focusIndicators": "visible on interactive elements",
+        "altText": "on all images (empty alt='' for decorative)",
+        "descriptiveLinkText": "Descriptive link text",
+        "skipToContent": "link for keyboard users"
+      }
+    },
+    "12_mobileFirst": {
+      "section": "Mobile-first indexing",
+      "priority": "Critical",
+      "requirements": {
+        "responsiveLayout": "Responsive layout (Tailwind handles this)",
+        "touchTargets": "minimum 48×48 px",
+        "bodyFont": "minimum 16 px",
+        "noHorizontalScroll": "at any viewport",
+        "noIntrusiveInterstitials": "No intrusive interstitials"
+      }
+    },
+    "13_socialSharing": {
+      "section": "Shareable card",
+      "priority": "Medium",
+      "requirements": {
+        "ogImage": "optimized — 1200×630, under 1 MB",
+        "twitterCardImage": "1200×600",
+        "compellingDescription": "og:description — different from meta if valuable"
+      }
+    },
+    "14_conversionElements": {
+      "section": "Capture the lead (SERVICE PAGES ONLY)",
+      "priority": "High",
+      "requirements": {
+        "primaryCTA": "above the fold",
+        "phoneNumber": "with click-to-call {tel:}",
+        "multipleCTAs": "throughout the page",
+        "trustSignals": "reviews, ratings, licenses, years",
+        "testimonials": "with names (photos where possible)",
+        "serviceAreaCoverage": "listed",
+        "businessHours": "displayed",
+        "physicalAddress": "with embedded map"
+      }
+    },
+    "15_longFormContent": {
+      "section": "1500+ word posts (1500+ WORDS)",
+      "priority": "Critical",
+      "requirements": {
+        "wordCount": "1500+ word posts",
+        "tableOfContents": "with anchor links at the top",
+        "jumpLinks": "for each H2",
+        "backToTop": "button"
+      }
+    }
+  },
+  "implementation": {
+    "blogGenerator": {
+      "implemented": [
+        "1_whatGoogleIndexesFirst",
+        "2_urlStructure",
+        "3_headings",
+        "4_copyAndBody",
+        "5_faqSection",
+        "6_images",
+        "7_internalLinks",
+        "8_externalLinks",
+        "9_schemaMarkup",
+        "10_eeat",
+        "11_accessibility",
+        "12_mobileFirst",
+        "13_socialSharing",
+        "15_longFormContent"
+      ],
+      "forWebapp": [
+        "14_conversionElements"
+      ]
+    }
+  }
+}
+
+
