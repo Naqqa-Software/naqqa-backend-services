@@ -3,17 +3,16 @@ package com.naqqa.seofarm.config;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.List;
 
 /**
- * Config for the SEO Farm module (Java port of the seo-farm-bot). Blogs are stored in the separate
- * {@code naqqa-server} app (naqqa.net) and reached over HTTP with the webhook key; keyword research
- * uses SerpAPI, images use Pexels, and generation uses the shared Anthropic client ({@code anthropic.api.*}).
+ * Config for the naqqa-seo-farm library. Registered by {@link SeoFarmAutoConfiguration}'s
+ * {@code @EnableConfigurationProperties} — NOT a {@code @Component} (that would double-register it
+ * once the host component-scans {@code com.naqqa.seofarm}). Keyword research uses SerpAPI, images use
+ * Pexels, and generation uses the host's Anthropic client ({@code anthropic.api.*}).
  */
-@Component
 @ConfigurationProperties(prefix = "naqqa.seofarm")
 @Getter
 @Setter
