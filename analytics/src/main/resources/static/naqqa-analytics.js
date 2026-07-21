@@ -48,12 +48,13 @@
     return v;
   }
   function sessionId() {
+    // localStorage (shared across tabs) so multiple tabs = ONE session (GA-style), 30-min window.
     var now = Date.now(), TTL = 30 * 60 * 1000;
     try {
-      var s = JSON.parse(sessionStorage.getItem("nqa_sid") || "null");
+      var s = JSON.parse(localStorage.getItem("nqa_sid") || "null");
       if (!s || now - s.t > TTL) s = { id: uid(), t: now };
       s.t = now;
-      sessionStorage.setItem("nqa_sid", JSON.stringify(s));
+      localStorage.setItem("nqa_sid", JSON.stringify(s));
       return s.id;
     } catch (e) { return uid(); }
   }

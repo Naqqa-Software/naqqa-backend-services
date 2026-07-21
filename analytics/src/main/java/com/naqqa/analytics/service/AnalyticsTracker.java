@@ -37,13 +37,22 @@ public class AnalyticsTracker {
     public void trackView(String property, String entityType, String entityId, String path,
                           String title, HttpServletRequest req) {
         ingest.trackServerView(property, entityType, entityId, path, title,
-                clientIp(req), req.getHeader("User-Agent"), req.getHeader("Referer"));
+                clientIp(req), req.getHeader("User-Agent"), req.getHeader("Referer"),
+                primaryLanguage(req.getHeader("Accept-Language")));
     }
 
     /** Fully manual (no servlet context — e.g. background jobs, gateways, other transports). */
     public void trackView(String property, String entityType, String entityId, String path, String title,
                           String ip, String userAgent, String referrer) {
-        ingest.trackServerView(property, entityType, entityId, path, title, ip, userAgent, referrer);
+        ingest.trackServerView(property, entityType, entityId, path, title, ip, userAgent, referrer, null);
+    }
+
+    /** "en-US,en;q=0.9" → "en-US". */
+    private String primaryLanguage(String acceptLanguage) {
+        if (acceptLanguage == null || acceptLanguage.isBlank()) {
+            return null;
+        }
+        return acceptLanguage.split(",")[0].split(";")[0].trim();
     }
 
     /** Full control: hand the enriched pipeline a raw beacon-style hit. */

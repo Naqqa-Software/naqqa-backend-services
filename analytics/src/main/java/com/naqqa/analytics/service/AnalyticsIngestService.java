@@ -68,7 +68,7 @@ public class AnalyticsIngestService {
     /** Server-side view (e.g. a blog fetched through the public API). */
     @Async
     public void trackServerView(String property, String entityType, String entityId, String path,
-                                String title, String ip, String userAgent, String referrer) {
+                                String title, String ip, String userAgent, String referrer, String language) {
         if (!props.isEnabled() || isBlank(property)) {
             return;
         }
@@ -76,6 +76,7 @@ public class AnalyticsIngestService {
             AnalyticsEventEntity e = base(property, entityType, entityId, path, title, ip, userAgent, referrer);
             e.setEventType("pageview");
             e.setSource("server");
+            e.setLanguage(language);
             applyIdentity(e, hashVisitor(ip, userAgent), null);
             events.save(e);
         } catch (Exception ex) {

@@ -289,6 +289,9 @@ public class AnalyticsQueryService {
         if (q.entityId() != null && !q.entityId().isBlank()) {
             c = c.and("entityId").is(q.entityId());
         }
+        if (q.path() != null && !q.path().isBlank()) {
+            c = c.and("path").is(q.path());
+        }
         if (q.from() != null || q.to() != null) {
             Criteria ts = Criteria.where("timestamp");
             if (q.from() != null) {

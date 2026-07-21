@@ -34,20 +34,22 @@ public class AnalyticsQueryController {
     public Overview overview(@RequestParam String property,
                              @RequestParam(required = false) String entityType,
                              @RequestParam(required = false) String entityId,
+                             @RequestParam(required = false) String path,
                              @RequestParam(required = false) String from,
                              @RequestParam(required = false) String to,
                              @RequestParam(required = false, defaultValue = "DAY") String granularity) {
-        return query.overview(build(property, entityType, entityId, from, to, granularity));
+        return query.overview(build(property, entityType, entityId, path, from, to, granularity));
     }
 
     @GetMapping("/timeseries")
     public List<TimePoint> timeseries(@RequestParam String property,
                                       @RequestParam(required = false) String entityType,
                                       @RequestParam(required = false) String entityId,
+                                      @RequestParam(required = false) String path,
                                       @RequestParam(required = false) String from,
                                       @RequestParam(required = false) String to,
                                       @RequestParam(required = false, defaultValue = "DAY") String granularity) {
-        return query.series(build(property, entityType, entityId, from, to, granularity));
+        return query.series(build(property, entityType, entityId, path, from, to, granularity));
     }
 
     @GetMapping("/top-entities")
@@ -56,7 +58,7 @@ public class AnalyticsQueryController {
                                         @RequestParam(required = false) String from,
                                         @RequestParam(required = false) String to,
                                         @RequestParam(required = false, defaultValue = "20") int limit) {
-        return query.topEntities(build(property, entityType, null, from, to, "DAY"), limit);
+        return query.topEntities(build(property, entityType, null, null, from, to, "DAY"), limit);
     }
 
     @GetMapping("/events")
@@ -66,7 +68,7 @@ public class AnalyticsQueryController {
                                   @RequestParam(required = false) String from,
                                   @RequestParam(required = false) String to,
                                   @RequestParam(required = false, defaultValue = "50") int limit) {
-        return query.events(build(property, entityType, entityId, from, to, "DAY"), limit);
+        return query.events(build(property, entityType, entityId, null, from, to, "DAY"), limit);
     }
 
     @GetMapping("/realtime")
@@ -93,7 +95,7 @@ public class AnalyticsQueryController {
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────
-    private AnalyticsQuery build(String property, String entityType, String entityId,
+    private AnalyticsQuery build(String property, String entityType, String entityId, String path,
                                  String from, String to, String granularity) {
         Instant fromI = parse(from, Instant.now().minus(30, ChronoUnit.DAYS));
         Instant toI = parse(to, Instant.now());
@@ -103,7 +105,7 @@ public class AnalyticsQueryController {
         } catch (Exception e) {
             g = AnalyticsQuery.Granularity.DAY;
         }
-        return new AnalyticsQuery(property, entityType, entityId, fromI, toI, g);
+        return new AnalyticsQuery(property, entityType, entityId, path, fromI, toI, g);
     }
 
     private Instant parse(String v, Instant fallback) {
