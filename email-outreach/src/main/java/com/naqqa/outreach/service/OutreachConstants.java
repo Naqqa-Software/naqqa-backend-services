@@ -68,6 +68,30 @@ public final class OutreachConstants {
     public static final List<String> TRANSIENT_PATTERNS = List.of(
             "delay", "delayed", "delivery delay", "still trying", "will retry");
 
+    /** Obvious placeholder / dummy local-parts (form placeholders, docs) — never a real person. */
+    public static final Set<String> PLACEHOLDER_LOCALS = Set.of(
+            "example", "exemple", "ejemplo", "beispiel", "esempio",
+            "test", "testing", "tester", "prueba", "demo", "demouser",
+            "sample", "samples", "muestra", "placeholder",
+            "user", "users", "username", "guest",
+            "name", "yourname", "firstname", "lastname", "fullname", "myname", "surname",
+            "email", "youremail", "emailaddress", "mymail", "youmail", "emailhere",
+            "domain", "yourdomain", "yourcompany", "companyname",
+            "foo", "bar", "baz", "foobar", "abc", "xyz", "aaa", "asdf", "qwerty",
+            "someone", "somebody", "anybody", "anyone", "johndoe", "janedoe",
+            "nobody", "anonymous", "anon", "dummy", "fake", "invalid", "changeme", "none");
+
+    /** Placeholder / junk domains that appear in scraped HTML but are never real recipients. */
+    public static final Set<String> PLACEHOLDER_DOMAINS = Set.of(
+            "example.com", "example.org", "example.net", "example.edu", "example.co",
+            "domain.com", "yourdomain.com", "mydomain.com", "test.com", "test.org",
+            "yourcompany.com", "sentry.io", "sentry.wixpress.com", "wixpress.com");
+
+    /** File extensions a scraped "domain" may end with (a sprite/asset, not a real email host). */
+    public static final Set<String> ASSET_EXTENSIONS = Set.of(
+            "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "css", "js",
+            "json", "xml", "pdf", "zip", "mp4", "woff", "woff2", "ttf", "eot");
+
     /** Free-mail / personal domains that are never valid B2B targets. */
     public static final Set<String> PERSONAL_DOMAINS = Set.of(
             "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "yahoo.fr",

@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class EmailValidator {
 
-    /** {valid, reason, email}. reason ∈ empty|invalid_format|personal_email|generic_email|no_mx_record|ok. */
+    /** {valid, reason, email}. reason ∈ empty|invalid_format|placeholder_email|personal_email|generic_email|no_mx_record|ok. */
     public record Result(boolean valid, String reason, String email) {
     }
 
@@ -44,6 +44,13 @@ public class EmailValidator {
             return new Result(false, "personal_email", email);
         }
         String localAlpha = local.replaceAll("[^a-z]", "");
+        // Dummy/placeholder emails scraped from form placeholders, docs or asset URLs (e.g.
+        // example@zensar.com, you@yourdomain.com, user@2x.png) — real domain, fake mailbox.
+        if (OutreachConstants.PLACEHOLDER_LOCALS.contains(localAlpha)
+                || OutreachConstants.PLACEHOLDER_DOMAINS.contains(domain)
+                || isAssetDomain(domain)) {
+            return new Result(false, "placeholder_email", email);
+        }
         if (OutreachConstants.GENERIC_PREFIXES.contains(localAlpha)) {
             return new Result(false, "generic_email", email);
         }
@@ -51,6 +58,12 @@ public class EmailValidator {
             return new Result(false, "no_mx_record", email);
         }
         return new Result(true, "ok", email);
+    }
+
+    /** A scraped "domain" that is really a static-asset filename (sprite/image/script), not a mail host. */
+    private boolean isAssetDomain(String domain) {
+        int dot = domain.lastIndexOf('.');
+        return dot > 0 && OutreachConstants.ASSET_EXTENSIONS.contains(domain.substring(dot + 1));
     }
 
     /** cleanEmail(): strip mailto:, url-decode, drop ?#, remove whitespace, trim junk, lowercase. */
