@@ -94,6 +94,12 @@ public class AnalyticsQueryController {
         return query.entityTypes(property);
     }
 
+    @GetMapping("/paths")
+    public List<String> paths(@RequestParam(required = false) String property,
+                              @RequestParam(required = false) String entityType) {
+        return query.paths(property, entityType);
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────────
     private AnalyticsQuery build(String property, String entityType, String entityId, String path,
                                  String from, String to, String granularity) {

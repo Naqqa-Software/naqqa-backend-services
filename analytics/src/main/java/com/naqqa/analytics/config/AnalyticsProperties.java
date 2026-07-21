@@ -23,6 +23,13 @@ public class AnalyticsProperties {
     private String geoDbPath = "";
 
     /**
+     * When no local .mmdb is available, use a free HTTP geo API (ipwho.is, cached per IP) so
+     * country/city still work in prod. Sends visitor IPs to that third party — set false to keep IPs
+     * fully local (then geo needs the .mmdb).
+     */
+    private boolean geoFallbackEnabled = true;
+
+    /**
      * Secret salt used to hash raw IP+UA into a stable, non-reversible visitorId when the client
      * doesn't supply one (privacy: raw IP is never stored as an identifier). Keep STABLE.
      */

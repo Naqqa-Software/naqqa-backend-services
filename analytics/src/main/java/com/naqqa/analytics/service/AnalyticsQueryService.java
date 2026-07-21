@@ -280,6 +280,18 @@ public class AnalyticsQueryService {
         return mongo.findDistinct(q, "entityType", COLL, String.class);
     }
 
+    /** Distinct URL paths seen for a property (for the per-page filter — every visited page/slug). */
+    public List<String> paths(String property, String entityType) {
+        Criteria c = new Criteria();
+        if (property != null && !property.isBlank()) {
+            c = c.and("property").is(property);
+        }
+        if (entityType != null && !entityType.isBlank()) {
+            c = c.and("entityType").is(entityType);
+        }
+        return mongo.findDistinct(Query.query(c), "path", COLL, String.class);
+    }
+
     // ── Criteria helpers ──────────────────────────────────────────────────────────
     private Criteria base(AnalyticsQuery q) {
         Criteria c = Criteria.where("property").is(q.property());
