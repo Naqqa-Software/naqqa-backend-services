@@ -42,8 +42,12 @@ public class OllamaClient {
             - Plain text only. No HTML, links, attachments, signature, sender name, or sign-off.
             - Starts with "Hello," (or "Hello, [FirstName]," only if a clear first name is known).
             - Max 90 words, 2-4 short paragraphs.
+            - OPTIONAL (only in ~1 of 3 follow-ups, understated, never salesy): remind them of ONE
+              differentiator not stressed before — either that our developers work WHITE-LABEL under
+              their own brand as an extension of their team, OR that Eastern-European rates run
+              roughly ~30% below typical Western budgets. Never a headline, never "save X%".
 
-            Never use: guarantee, proven, world-class, save money, boost, revolutionary, cutting-edge,
+            Never use: guarantee, proven, world-class, boost, revolutionary, cutting-edge,
             game-changer, leverage, touch base, circle back, at your convenience, brief chat, dear sir,
             dear madam. Do not invent facts. Only allowed services above.
 
@@ -221,7 +225,8 @@ public class OllamaClient {
             TONE:
             - Professional, formal, natural.
             - No hype. No buzzwords. No marketing cliches.
-            - No promises. No guarantees. No ROI, savings, speed, or price claims.
+            - No guarantees, no ROI/speed promises. ONE measured, factual cost-advantage mention is
+              allowed (see DIFFERENTIATORS) — understated, never salesy.
             - Do not invent facts.
             - Reference only one detail clearly supported by company data.
 
@@ -231,11 +236,24 @@ public class OllamaClient {
             - dedicated teams
             - team extension
             - IT staffing
+            - white-label dedicated developers / teams (they work under YOUR brand and process,
+              as an extension of your own team)
 
             FORBIDDEN SERVICES:
             Never mention or imply: custom software development, end-to-end delivery, consulting,
             system integration, implementation, technical support, QA, DevOps, UI/UX design,
             product development, managed services.
+
+            DIFFERENTIATORS (weave in naturally where the offer is made — never a bullet list,
+            never in every email, keep it understated and human):
+            - White-label: our developers work under YOUR brand, inside your own process, tools and
+              delivery — a true extension of your team, invisible to your end clients.
+            - Cost: Eastern-European rates typically run ~20-30% below Western-European / US budgets
+              for equivalent seniority. You MAY reference this cost advantage AT MOST ONCE, phrased
+              factually and understated (e.g. "at Eastern-European rates, roughly ~30% below typical
+              Western budgets" or "trim engineering costs by up to ~30%"). Never a headline, never a
+              guarantee, never "save X%".
+            Use AT MOST ONE differentiator per email (white-label OR cost, not both, not every time).
 
             GREETING:
             Paragraph 1 only.
@@ -261,7 +279,9 @@ public class OllamaClient {
                 Vary using openerVariant: collaboration, company-detail-first, team-extension, staffing-partner, engineering-capacity.
             P3: Introduce our background. Mention that we are an IT Park-resident company from Eastern Europe,
                 with people in the Republic of Moldova and Romania. Vary the angle naturally.
-            P4: Present the service offer as a proposal. Use only allowed services. Vary phrasing based on styleVariant.
+            P4: Present the service offer as a proposal. Use only allowed services. Where it fits
+                naturally, weave in ONE differentiator (white-label OR the ~30% cost advantage — not
+                both, and not in every email) so it reads human, not salesy. Vary phrasing based on styleVariant.
             P5: CTA. Invite a reply or further conversation. Do not ask to schedule/book a meeting.
                 Do not say "at your convenience" or "brief chat". Vary using ctaVariant.
 
@@ -275,7 +295,7 @@ public class OllamaClient {
 
             HARD BANS:
             Never use: guarantee, guaranteed, proven, world-class, top-tier, industry-leading, best in class,
-            save money, reduce costs, boost, revolutionary, cutting-edge, game-changer, disruptive,
+            boost, revolutionary, cutting-edge, game-changer, disruptive,
             potential partnership, synergies, seamlessly, impressed by, at your convenience, brief chat,
             I am excited, I am thrilled, touch base, circle back, move the needle, leverage, bandwidth,
             pain points, unlock, transform, empower, elevate, robust, tailored solutions, reach out,

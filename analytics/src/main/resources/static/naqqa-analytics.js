@@ -103,25 +103,29 @@
 
   // ── engagement (time-on-page) ────────────────────────────────────────────────
   var visibleMs = 0, lastTick = Date.now(), current = null, sentEngagement = false;
-  function accrue() {
+  // Count time only while the page is visible AND focused (blur/tab-switch pauses it).
+  function isActive() { return document.visibilityState === "visible" && document.hasFocus(); }
+  var active = isActive();
+  function tick() {
     var now = Date.now();
-    if (document.visibilityState === "visible") visibleMs += now - lastTick;
+    if (active) visibleMs += now - lastTick;
     lastTick = now;
   }
+  function onActivityChange() { tick(); active = isActive(); }
   function flush() {
-    accrue();
+    tick();
     if (sentEngagement || visibleMs < 1000 || !current) return;
     sentEngagement = true;
     var e = baseEvent(current);
     e.eventType = "engagement";
-    e.durationMs = Math.round(visibleMs);
+    e.durationMs = Math.min(Math.round(visibleMs), 1800000); // cap 30 min
     send(e);
   }
 
   function pageview(over) {
     // finalize previous page's engagement (SPA nav) then start fresh.
     flush();
-    visibleMs = 0; lastTick = Date.now(); sentEngagement = false;
+    visibleMs = 0; lastTick = Date.now(); active = isActive(); sentEngagement = false;
     current = over || {};
     var e = baseEvent(current);
     e.eventType = "pageview";
@@ -129,9 +133,11 @@
   }
 
   document.addEventListener("visibilitychange", function () {
-    accrue();
+    onActivityChange();
     if (document.visibilityState === "hidden") flush();
   });
+  window.addEventListener("focus", onActivityChange);
+  window.addEventListener("blur", onActivityChange);
   window.addEventListener("pagehide", flush);
   window.addEventListener("beforeunload", flush);
 
