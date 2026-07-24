@@ -3,6 +3,8 @@ package com.naqqa.outreach.service;
 import com.naqqa.outreach.entity.OutreachAccountStateEntity;
 import com.naqqa.outreach.repository.OutreachAccountStateRepository;
 import lombok.RequiredArgsConstructor;
+import org.bson.Document;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Date;
 
 /**
  * Bounce protection driven by REAL data — it reads bounces straight from the {@code
@@ -33,9 +36,14 @@ public class BounceTracker {
     public record BounceRules(String action, String reason, double limitMultiplier) {
     }
 
-    /** Read-only snapshot for the deliverability dashboard (never mutates state). */
+    /**
+     * Read-only snapshot for the deliverability dashboard (never mutates state). {@code recoversAt} is
+     * when the throttle should clear: the exact pause end for a 24h pause, or — for a rate-driven
+     * stop/reduce/freeze — the estimate at which the oldest in-window bounce ages out of the 7-day window
+     * (holding sends steady). Null when {@code action} is "continue".
+     */
     public record Deliverability(long sent7d, long bounced7d, double ratePct, String action, String reason,
-                                 double limitMultiplier, Instant pausedUntil) {
+                                 double limitMultiplier, Instant pausedUntil, Instant recoversAt) {
     }
 
     private final OutreachAccountStateRepository stateRepo;
@@ -109,20 +117,29 @@ public class BounceTracker {
 
         if (pausedUntil != null && now.isBefore(pausedUntil)) {
             long mins = ChronoUnit.MINUTES.between(now, pausedUntil);
-            return new Deliverability(sent, bounced, rate, "pause", "Paused for " + mins + " more min", 0.0, pausedUntil);
+            return new Deliverability(sent, bounced, rate, "pause", "Paused for " + mins + " more min", 0.0, pausedUntil, pausedUntil);
+        }
+        // For a rate-driven throttle, the state eases once the OLDEST in-window bounce ages out (its
+        // send drops past the 7-day window). Estimate only — assumes no further bounces.
+        Instant easesAt = null;
+        if (bounced > 0 && rate > RATE_FREEZE) {
+            Instant oldest = oldestBounceSentAt(profileKey, sentFrom);
+            if (oldest != null) {
+                easesAt = oldest.plus(WINDOW_DAYS, ChronoUnit.DAYS);
+            }
         }
         if (sent >= MIN_SAMPLE) {
             if (rate > RATE_STOP) {
                 return new Deliverability(sent, bounced, rate, "stop",
-                        String.format("Bounce rate %.1f%% > 5%%", rate), 0.0, null);
+                        String.format("Bounce rate %.1f%% > 5%%", rate), 0.0, null, easesAt);
             }
             if (rate > RATE_REDUCE) {
                 return new Deliverability(sent, bounced, rate, "reduce",
-                        String.format("Bounce rate %.1f%% > 3%%", rate), 0.5, null);
+                        String.format("Bounce rate %.1f%% > 3%%", rate), 0.5, null, easesAt);
             }
             if (rate > RATE_FREEZE) {
                 return new Deliverability(sent, bounced, rate, "freeze",
-                        String.format("Bounce rate %.1f%% > 2%%", rate), 1.0, null);
+                        String.format("Bounce rate %.1f%% > 2%%", rate), 1.0, null, easesAt);
             }
         }
         long recentBounces = mongo.count(new Query(new Criteria().andOperator(
@@ -131,12 +148,24 @@ public class BounceTracker {
                 Criteria.where("sentAt").gte(sentFrom),
                 Criteria.where("bouncedAt").gte(now.minus(24, ChronoUnit.HOURS)))), "outreach_sent_emails");
         if (recentBounces >= 2) {
-            return new Deliverability(sent, bounced, rate, "pause", "2 recent hard bounces", 0.0, null);
+            return new Deliverability(sent, bounced, rate, "pause", "2 recent hard bounces", 0.0, null, now.plus(24, ChronoUnit.HOURS));
         }
         if (recentBounces == 1) {
-            return new Deliverability(sent, bounced, rate, "freeze", "1 recent hard bounce", 1.0, null);
+            return new Deliverability(sent, bounced, rate, "freeze", "1 recent hard bounce", 1.0, null, now.plus(24, ChronoUnit.HOURS));
         }
-        return new Deliverability(sent, bounced, rate, "continue", "OK", 1.0, null);
+        return new Deliverability(sent, bounced, rate, "continue", "OK", 1.0, null, null);
+    }
+
+    /** The earliest {@code sentAt} among still-in-window bounced sends (drives the recovery estimate). */
+    private Instant oldestBounceSentAt(String profileKey, Instant sentFrom) {
+        Query q = new Query(new Criteria().andOperator(
+                Criteria.where("profileKey").is(profileKey),
+                Criteria.where("status").is("BOUNCED"),
+                Criteria.where("sentAt").gte(sentFrom)))
+                .with(Sort.by(Sort.Direction.ASC, "sentAt")).limit(1);
+        q.fields().include("sentAt");
+        Document d = mongo.findOne(q, Document.class, "outreach_sent_emails");
+        return d != null && d.get("sentAt") instanceof Date dt ? dt.toInstant() : null;
     }
 
     private long count(String profileKey, Criteria criteria) {

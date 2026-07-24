@@ -64,7 +64,7 @@ public final class OutreachDtos {
     public record ProfileDeliverability(
             String profileKey, String fromEmail, boolean enabled,
             long sent7d, long bounced7d, double bounceRatePct,
-            String state, String reason, Instant pausedUntil,
+            String state, String reason, Instant pausedUntil, Instant recoversAt,
             int dailyCap, int sentToday) {
     }
 

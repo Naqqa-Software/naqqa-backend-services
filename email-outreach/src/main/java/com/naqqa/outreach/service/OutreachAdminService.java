@@ -163,7 +163,8 @@ public class OutreachAdminService {
             int sentToday = st != null && today.equals(st.getCounterDate()) ? st.getSentToday() : 0;
             double ratePct = Math.round(d.ratePct() * 10.0) / 10.0;
             out.add(new ProfileDeliverability(p.getKey(), p.getFromEmail(), p.isEnabled(),
-                    d.sent7d(), d.bounced7d(), ratePct, d.action(), d.reason(), d.pausedUntil(), cap, sentToday));
+                    d.sent7d(), d.bounced7d(), ratePct, d.action(), d.reason(), d.pausedUntil(), d.recoversAt(),
+                    cap, sentToday));
         }
         return out;
     }
