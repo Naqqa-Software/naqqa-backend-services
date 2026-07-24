@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -35,7 +36,12 @@ public class SeoFarmScheduler {
         catchUp("cron");
     }
 
-    /** On boot, generate any active site that hasn't produced today's blog yet. */
+    /**
+     * On boot, generate any active site that hasn't produced today's blog yet. Ordered FIRST among startup
+     * listeners (well ahead of the company-sources CDX harvester at {@code @Order(20)}), and since this runs
+     * synchronously the day's blog is fully generated before the long harvester sweep starts competing.
+     */
+    @Order(0)
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
         catchUp("startup");
