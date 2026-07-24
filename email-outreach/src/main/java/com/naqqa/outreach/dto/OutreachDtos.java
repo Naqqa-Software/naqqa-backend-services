@@ -56,6 +56,18 @@ public final class OutreachDtos {
             List<StatBucket> byStep, List<TimePoint> overTime) {
     }
 
+    /**
+     * Per-sender deliverability snapshot for the Emails tab — the live numbers the bounce throttle acts
+     * on: 7-day sent/bounced + rate, the resulting {@code state} (continue|freeze|reduce|pause|stop) and
+     * today's effective cap vs how many have gone out. Explains at a glance why a sender isn't sending.
+     */
+    public record ProfileDeliverability(
+            String profileKey, String fromEmail, boolean enabled,
+            long sent7d, long bounced7d, double bounceRatePct,
+            String state, String reason, Instant pausedUntil,
+            int dailyCap, int sentToday) {
+    }
+
     private OutreachDtos() {
     }
 }

@@ -1,5 +1,6 @@
 package com.naqqa.outreach.controller;
 
+import com.naqqa.outreach.dto.OutreachDtos.ProfileDeliverability;
 import com.naqqa.outreach.dto.OutreachDtos.ProfileUpsert;
 import com.naqqa.outreach.dto.OutreachDtos.ProfileView;
 import com.naqqa.outreach.dto.OutreachDtos.OutreachStats;
@@ -67,6 +68,13 @@ public class OutreachController {
     @PreAuthorize("hasAuthority('outreach:read')")
     public List<ProfileView> profiles() {
         return admin.listProfiles();
+    }
+
+    /** Per-sender deliverability (7-day sent/bounced + rate, throttle state, today's cap vs sent). */
+    @GetMapping("/deliverability")
+    @PreAuthorize("hasAuthority('outreach:read')")
+    public List<ProfileDeliverability> deliverability() {
+        return admin.deliverability();
     }
 
     @PutMapping("/profiles/{key}")

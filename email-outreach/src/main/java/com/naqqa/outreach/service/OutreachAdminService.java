@@ -1,5 +1,6 @@
 package com.naqqa.outreach.service;
 
+import com.naqqa.outreach.dto.OutreachDtos.ProfileDeliverability;
 import com.naqqa.outreach.dto.OutreachDtos.ProfileUpsert;
 import com.naqqa.outreach.dto.OutreachDtos.ProfileView;
 import com.naqqa.outreach.dto.OutreachDtos.OutreachStats;
@@ -8,9 +9,11 @@ import com.naqqa.outreach.dto.OutreachDtos.SentEmailUpdate;
 import com.naqqa.outreach.dto.OutreachDtos.SettingsView;
 import com.naqqa.outreach.dto.OutreachDtos.StatBucket;
 import com.naqqa.outreach.dto.OutreachDtos.TimePoint;
+import com.naqqa.outreach.entity.OutreachAccountStateEntity;
 import com.naqqa.outreach.entity.OutreachProfileEntity;
 import com.naqqa.outreach.entity.SendStatus;
 import com.naqqa.outreach.entity.SentEmailEntity;
+import com.naqqa.outreach.repository.OutreachAccountStateRepository;
 import com.naqqa.outreach.repository.OutreachProfileRepository;
 import com.naqqa.outreach.repository.SentEmailRepository;
 import com.naqqa.outreach.scheduler.OutreachRunner;
@@ -48,6 +51,9 @@ public class OutreachAdminService {
     private final OutreachSettingsService settings;
     private final LeadService leads;
     private final SecretCipher cipher;
+    private final BounceTracker bounce;
+    private final DailyLimitService limits;
+    private final OutreachAccountStateRepository stateRepo;
 
     /** Server-side filtered/paged "Emails sent" list (same envelope shape as the other grids). */
     public Map<String, Object> sentEmails(String profileKey, String email, String company, String status,
@@ -138,6 +144,28 @@ public class OutreachAdminService {
 
     public List<ProfileView> listProfiles() {
         return profiles.findAll().stream().map(this::toView).toList();
+    }
+
+    /**
+     * Per-sender deliverability for the Emails tab: 7-day sent/bounced + bounce rate, the live throttle
+     * state (from {@link BounceTracker}) and today's effective cap vs sent-so-far — i.e. exactly why a
+     * sender is or isn't sending. Read-only (no state mutation).
+     */
+    public List<ProfileDeliverability> deliverability() {
+        String today = OutreachTime.todayKey();
+        List<ProfileDeliverability> out = new ArrayList<>();
+        for (OutreachProfileEntity p : profiles.findAll()) {
+            BounceTracker.Deliverability d = bounce.deliverability(p.getKey());
+            int base = limits.dailyLimit(p);
+            int cap = base <= 0 || d.limitMultiplier() <= 0
+                    ? 0 : Math.max(1, (int) Math.floor(base * d.limitMultiplier()));
+            OutreachAccountStateEntity st = stateRepo.findByProfileKey(p.getKey()).orElse(null);
+            int sentToday = st != null && today.equals(st.getCounterDate()) ? st.getSentToday() : 0;
+            double ratePct = Math.round(d.ratePct() * 10.0) / 10.0;
+            out.add(new ProfileDeliverability(p.getKey(), p.getFromEmail(), p.isEnabled(),
+                    d.sent7d(), d.bounced7d(), ratePct, d.action(), d.reason(), d.pausedUntil(), cap, sentToday));
+        }
+        return out;
     }
 
     public ProfileView upsertProfile(String key, ProfileUpsert req) {
