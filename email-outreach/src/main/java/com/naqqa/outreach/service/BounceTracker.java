@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Bounce protection driven by REAL data — it reads bounces straight from the {@code
@@ -119,15 +120,11 @@ public class BounceTracker {
             long mins = ChronoUnit.MINUTES.between(now, pausedUntil);
             return new Deliverability(sent, bounced, rate, "pause", "Paused for " + mins + " more min", 0.0, pausedUntil, pausedUntil);
         }
-        // For a rate-driven throttle, the state eases once the OLDEST in-window bounce ages out (its
-        // send drops past the 7-day window). Estimate only — assumes no further bounces.
-        Instant easesAt = null;
-        if (bounced > 0 && rate > RATE_FREEZE) {
-            Instant oldest = oldestBounceSentAt(profileKey, sentFrom);
-            if (oldest != null) {
-                easesAt = oldest.plus(WINDOW_DAYS, ChronoUnit.DAYS);
-            }
-        }
+        // For a rate-driven throttle, the state eases once ENOUGH of the oldest in-window bounces age out
+        // (their sends drop past the 7-day window) to bring the rate back under this state's threshold.
+        // Estimate only — assumes sends stay steady and no further bounces.
+        double threshold = rate > RATE_STOP ? RATE_STOP : (rate > RATE_REDUCE ? RATE_REDUCE : RATE_FREEZE);
+        Instant easesAt = rate > RATE_FREEZE ? recoveryEstimate(profileKey, sentFrom, sent, bounced, threshold) : null;
         if (sent >= MIN_SAMPLE) {
             if (rate > RATE_STOP) {
                 return new Deliverability(sent, bounced, rate, "stop",
@@ -156,16 +153,29 @@ public class BounceTracker {
         return new Deliverability(sent, bounced, rate, "continue", "OK", 1.0, null, null);
     }
 
-    /** The earliest {@code sentAt} among still-in-window bounced sends (drives the recovery estimate). */
-    private Instant oldestBounceSentAt(String profileKey, Instant sentFrom) {
+    /**
+     * Estimated time this rate-driven throttle eases: {@code dropCount} = how many of the OLDEST bounces
+     * must age out for {@code (bounced-dropCount)/sent} to reach {@code thresholdPct}; the recovery is that
+     * bounce's {@code sentAt} + 7 days (when it leaves the window). Assumes sends steady, no new bounces.
+     */
+    private Instant recoveryEstimate(String profileKey, Instant sentFrom, long sent, long bounced, double thresholdPct) {
+        if (bounced <= 0 || sent <= 0) {
+            return null;
+        }
+        int dropCount = (int) Math.max(1, Math.ceil(bounced - thresholdPct * sent / 100.0));
         Query q = new Query(new Criteria().andOperator(
                 Criteria.where("profileKey").is(profileKey),
                 Criteria.where("status").is("BOUNCED"),
                 Criteria.where("sentAt").gte(sentFrom)))
-                .with(Sort.by(Sort.Direction.ASC, "sentAt")).limit(1);
+                .with(Sort.by(Sort.Direction.ASC, "sentAt")).limit(dropCount);
         q.fields().include("sentAt");
-        Document d = mongo.findOne(q, Document.class, "outreach_sent_emails");
-        return d != null && d.get("sentAt") instanceof Date dt ? dt.toInstant() : null;
+        List<Document> ds = mongo.find(q, Document.class, "outreach_sent_emails");
+        if (ds.isEmpty()) {
+            return null;
+        }
+        // The LAST of the oldest `dropCount` bounces is the one whose ageing-out finally clears the threshold.
+        Object v = ds.get(ds.size() - 1).get("sentAt");
+        return v instanceof Date dt ? dt.toInstant().plus(WINDOW_DAYS, ChronoUnit.DAYS) : null;
     }
 
     private long count(String profileKey, Criteria criteria) {
