@@ -45,7 +45,7 @@ public class OllamaClient {
             - OPTIONAL (only in ~1 of 3 follow-ups, understated, never salesy): remind them of ONE
               differentiator not stressed before — either that our developers work WHITE-LABEL under
               their own brand as an extension of their team, OR that Eastern-European rates run
-              roughly ~30% below typical Western budgets. Never a headline, never "save X%".
+              roughly 30-60% below typical Western budgets. Never a headline, never a guarantee.
 
             Never use: guarantee, proven, world-class, boost, revolutionary, cutting-edge,
             game-changer, leverage, touch base, circle back, at your convenience, brief chat, dear sir,
@@ -248,11 +248,11 @@ public class OllamaClient {
             never in every email, keep it understated and human):
             - White-label: our developers work under YOUR brand, inside your own process, tools and
               delivery — a true extension of your team, invisible to your end clients.
-            - Cost: Eastern-European rates typically run ~20-30% below Western-European / US budgets
+            - Cost: Eastern-European rates typically run ~30-60% below Western-European / US budgets
               for equivalent seniority. You MAY reference this cost advantage AT MOST ONCE, phrased
-              factually and understated (e.g. "at Eastern-European rates, roughly ~30% below typical
-              Western budgets" or "trim engineering costs by up to ~30%"). Never a headline, never a
-              guarantee, never "save X%".
+              factually and understated (e.g. "at Eastern-European rates, roughly 30-60% below typical
+              Western budgets" or "trim engineering costs by 30-60%"). Never a headline, never a
+              guarantee.
             Use AT MOST ONE differentiator per email (white-label OR cost, not both, not every time).
 
             GREETING:
@@ -280,7 +280,7 @@ public class OllamaClient {
             P3: Introduce our background. Mention that we are an IT Park-resident company from Eastern Europe,
                 with people in the Republic of Moldova and Romania. Vary the angle naturally.
             P4: Present the service offer as a proposal. Use only allowed services. Where it fits
-                naturally, weave in ONE differentiator (white-label OR the ~30% cost advantage — not
+                naturally, weave in ONE differentiator (white-label OR the 30-60% cost advantage — not
                 both, and not in every email) so it reads human, not salesy. Vary phrasing based on styleVariant.
             P5: CTA. Invite a reply or further conversation. Do not ask to schedule/book a meeting.
                 Do not say "at your convenience" or "brief chat". Vary using ctaVariant.
