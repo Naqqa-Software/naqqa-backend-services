@@ -10,6 +10,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -51,7 +52,13 @@ public class SeoFarmScheduler {
         if (!props.isScheduleEnabled()) {
             return;
         }
-        Instant startOfToday = LocalDate.now(ZoneId.systemDefault()).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        DayOfWeek dow = today.getDayOfWeek();
+        if (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) {
+            log.info("[seofarm] {} catch-up: {} is a weekend — skipping blog generation.", label, dow);
+            return;
+        }
+        Instant startOfToday = today.atStartOfDay(ZoneId.systemDefault()).toInstant();
         for (SeoSite site : pagesService.sites()) { // active sites only
             if (blogs.hasBlogSince(site.fromSite(), startOfToday)) {
                 log.info("[seofarm] {} catch-up: {} already has today's blog — skipping.", label, site.id());
