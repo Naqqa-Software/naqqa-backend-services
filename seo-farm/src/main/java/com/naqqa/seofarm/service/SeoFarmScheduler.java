@@ -14,6 +14,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 
 /**
  * Daily blog-generation catch-up. Runs at the {@code schedule-cron} (default 21:00 / 9 PM) AND on
@@ -58,25 +59,20 @@ public class SeoFarmScheduler {
             log.info("[seofarm] {} catch-up: {} is a weekend — skipping blog generation.", label, dow);
             return;
         }
-        Instant startOfToday = today.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        // Timezone-independent "max 1 per day" guard: skip a site that produced a blog within the cooldown
+        // window. Survives restarts (the check is against the DB) and avoids the UTC-vs-local midnight edge
+        // that previously let a late-evening blog + a next-morning blog both land on the operator's "today".
+        Instant cooldownStart = Instant.now().minus(Math.max(1, props.getMinHoursBetweenBlogs()), ChronoUnit.HOURS);
         for (SeoSite site : pagesService.sites()) { // active sites only
-            if (blogs.hasBlogSince(site.fromSite(), startOfToday)) {
-                log.info("[seofarm] {} catch-up: {} already has today's blog — skipping.", label, site.id());
+            if (blogs.hasBlogSince(site.fromSite(), cooldownStart)) {
+                log.info("[seofarm] {} catch-up: {} already has a blog within the last {}h — skipping.",
+                        label, site.id(), props.getMinHoursBetweenBlogs());
                 continue;
             }
-            int made = 0;
-            for (int i = 0; i < Math.max(1, props.getDailyLimitPerSite()); i++) {
-                var result = generation.generateForSite(site, label);
-                log.info("[seofarm] {} generation for {}: {} ({})", label, site.id(), result.status(),
-                        "PUBLISHED".equals(result.status()) ? result.slug() : result.error());
-                if (!"PUBLISHED".equals(result.status())) {
-                    break; // no keywords / error — stop this site
-                }
-                made++;
-            }
-            if (made == 0) {
-                log.info("[seofarm] {} catch-up: {} produced no blog this run.", label, site.id());
-            }
+            // Exactly ONE blog per site per run (and per cooldown window) — never double up.
+            var result = generation.generateForSite(site, label);
+            log.info("[seofarm] {} generation for {}: {} ({})", label, site.id(), result.status(),
+                    "PUBLISHED".equals(result.status()) ? result.slug() : result.error());
         }
     }
 }

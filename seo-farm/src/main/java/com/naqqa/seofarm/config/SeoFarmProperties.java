@@ -45,6 +45,12 @@ public class SeoFarmProperties {
     private String scheduleCron = "0 0 10 * * *";
     /** Max blogs auto-generated per site per scheduler run. */
     private int dailyLimitPerSite = 1;
+    /**
+     * Minimum hours between auto-generated blogs for a site — a timezone-independent "max 1 per day" guard
+     * that survives restarts (each boot's catch-up + the cron are all blocked if a blog was produced within
+     * this window). Default 20h so a once-daily cron still fires but same-day restarts never double up.
+     */
+    private int minHoursBetweenBlogs = 20;
     /** Days between keyword re-extraction per site. */
     private int keywordRefreshDays = 7;
 
