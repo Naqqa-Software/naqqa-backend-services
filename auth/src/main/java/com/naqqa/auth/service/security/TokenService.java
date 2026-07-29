@@ -44,13 +44,18 @@ public class TokenService {
             throw new IllegalStateException("Cannot generate token: User has no active role selected.");
         }
 
-        // 1. Get Authorities from the ACTIVE Role only
-        Stream<String> activeRoleAuths = activeRole.getAuthorities()
+        // 1. Get Authorities from ALL of the user's Roles (MERGED) — not just the active one, so a user with
+        // several roles has the union of their permissions (the active role is still used only for the UI
+        // 'role' claim / context below). This is what makes multi-role access additive.
+        Stream<String> roleAuths = user.getRoles()
                 .stream()
+                .filter(java.util.Objects::nonNull)
+                .map(RoleEntity::getAuthorities)
+                .filter(java.util.Objects::nonNull)
+                .flatMap(Collection::stream)
                 .map(AuthorityEntity::getName);
 
         // 2. Get Authorities from ALL SubRoles assigned to the user
-        // Note: These stay with the user regardless of which main Role they switch to
         Stream<String> subRoleAuths = user.getSubRoles()
                 .stream()
                 .map(SubRoleEntity::getAuthorities)
@@ -58,7 +63,7 @@ public class TokenService {
                 .map(AuthorityEntity::getName);
 
         // 3. Flatten into a single distinct Set
-        Set<String> flattenedAuthorities = Stream.concat(activeRoleAuths, subRoleAuths)
+        Set<String> flattenedAuthorities = Stream.concat(roleAuths, subRoleAuths)
                 .collect(Collectors.toSet());
 
         // Construct a simple role claim for the UI

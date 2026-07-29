@@ -189,8 +189,10 @@ public class DefaultAuthService implements AuthService {
         CookieUtils.setCookie(response, CookieUtils.ACCESS_TOKEN_COOKIE, accessToken, 15 * 60);
         CookieUtils.setCookie(response, CookieUtils.REFRESH_TOKEN_COOKIE, refreshToken, 30 * 24 * 60 * 60);
 
+        // Authorities are the MERGED union of ALL the user's roles (+ sub-roles), not just the active role,
+        // so a multi-role user has the combined permissions of every role they hold. Mirrors TokenService.
         Set<String> authorities = java.util.stream.Stream.concat(
-                activeRole.getAuthorities().stream().map(com.naqqa.auth.entity.authorities.AuthorityEntity::getName),
+                user.getRoles().stream().flatMap(r -> r.getAuthorities().stream()).map(com.naqqa.auth.entity.authorities.AuthorityEntity::getName),
                 user.getSubRoles().stream().flatMap(sr -> sr.getAuthorities().stream()).map(com.naqqa.auth.entity.authorities.AuthorityEntity::getName)
         ).collect(java.util.stream.Collectors.toSet());
 
