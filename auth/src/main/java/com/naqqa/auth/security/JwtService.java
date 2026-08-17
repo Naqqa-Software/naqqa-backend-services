@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import java.security.Key;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Service
@@ -52,6 +53,10 @@ public class JwtService {
 
     public String generateRefreshToken(String username) {
         return Jwts.builder()
+                // Unique token id (jti): iat/exp are only second-resolution, so without this two
+                // logins for the same user within the same second produce a byte-identical token
+                // and collide on the refresh_tokens UNIQUE(token) constraint (login returns 500).
+                .setId(UUID.randomUUID().toString())
                 .setSubject(username)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 30)) // 30 days

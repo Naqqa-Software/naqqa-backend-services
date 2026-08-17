@@ -170,6 +170,24 @@ public class FileStorageService {
         LOGGER.info("Database record deleted for file ID: {}", fileId);
     }
 
+    /**
+     * Checks whether the underlying object actually exists in the storage bucket.
+     * Signing a URL does not verify existence, so this is needed to detect records
+     * that point to objects which are missing (e.g. uploaded to an old bucket).
+     * Returns {@code true} on transient errors to avoid deleting valid records.
+     */
+    public boolean existsInStorage(FileEntity file) {
+        if (file == null || file.getFileName() == null) return false;
+        try {
+            BlobId blobId = BlobId.of(props.getBucketName(), file.getFileName());
+            Blob blob = storage.get(blobId);
+            return blob != null && blob.exists();
+        } catch (Exception e) {
+            LOGGER.warn("Failed to check existence of file {} in GCS: {}", file.getFileName(), e.getMessage());
+            return true;
+        }
+    }
+
     public String getFileUrl(FileEntity file, FileAccessEnum access) {
         int expiryMinutes = (access == FileAccessEnum.PRIVATE) ? 60 : 60 * 24 * 7;
         return generateSignedUrl(file.getFileName(), expiryMinutes);

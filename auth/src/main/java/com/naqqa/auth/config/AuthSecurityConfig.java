@@ -20,6 +20,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
+import org.springframework.security.config.oauth2.client.CommonOAuth2Provider;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -100,6 +107,36 @@ public class AuthSecurityConfig {
     @ConditionalOnMissingBean(AuthenticationManager.class)
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ClientRegistrationRepository.class)
+    public ClientRegistrationRepository clientRegistrationRepository() {
+        if (!isSocialLoginEnabled()) {
+            return null;
+        }
+
+        List<ClientRegistration> registrations = new ArrayList<>();
+
+        if (socialLoginProperties.getGoogle().isEnabled() && socialLoginProperties.getGoogle().getClientId() != null) {
+            registrations.add(CommonOAuth2Provider.GOOGLE.getBuilder("google")
+                    .clientId(socialLoginProperties.getGoogle().getClientId())
+                    .clientSecret(socialLoginProperties.getGoogle().getClientSecret())
+                    .build());
+        }
+
+        if (socialLoginProperties.getFacebook().isEnabled() && socialLoginProperties.getFacebook().getClientId() != null) {
+            registrations.add(CommonOAuth2Provider.FACEBOOK.getBuilder("facebook")
+                    .clientId(socialLoginProperties.getFacebook().getClientId())
+                    .clientSecret(socialLoginProperties.getFacebook().getClientSecret())
+                    .build());
+        }
+
+        if (registrations.isEmpty()) {
+            return null;
+        }
+
+        return new InMemoryClientRegistrationRepository(registrations);
     }
 
     private boolean isSocialLoginEnabled() {

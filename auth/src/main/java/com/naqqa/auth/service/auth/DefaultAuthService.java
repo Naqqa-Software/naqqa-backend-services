@@ -180,6 +180,8 @@ public class DefaultAuthService implements AuthService {
         String accessToken = tokenService.generateAccessToken(user, activeRole);
         String refreshToken = tokenService.generateRefreshToken(user);
 
+        refreshTokenRepository.deleteByUserAndDeviceId(user, deviceId);
+
         RefreshTokenEntity refreshTokenEntity = RefreshTokenEntity.builder()
                 .token(refreshToken)
                 .user(user)

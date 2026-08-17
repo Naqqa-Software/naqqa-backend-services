@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -25,9 +26,33 @@ public class DefaultSocialAuthService implements SocialAuthService {
         String name = oauth2User.getAttribute("name");
         String socialId = oauth2User.getName();
 
-        return userRepository.findByEmail(email)
+        if (email == null || email.isBlank()) {
+            email = socialId + "@" + registrationId.toLowerCase() + ".placeholder.com";
+        }
+
+        String finalEmail = email;
+
+        Optional<UserEntity> existingBySocialId = findBySocialId(registrationId, socialId);
+        if (existingBySocialId.isPresent()) {
+            return existingBySocialId.get();
+        }
+
+        return userRepository.findByEmail(finalEmail)
                 .map(user -> linkSocialProfile(user, registrationId, socialId))
-                .orElseGet(() -> createUser(email, name, registrationId, socialId));
+                .orElseGet(() -> createUser(finalEmail, name, registrationId, socialId));
+    }
+
+    private Optional<UserEntity> findBySocialId(String registrationId, String socialId) {
+        switch (registrationId.toLowerCase()) {
+            case "google":
+                return userRepository.findByGoogleId(socialId);
+            case "facebook":
+                return userRepository.findByFacebookId(socialId);
+            case "apple":
+                return userRepository.findByAppleId(socialId);
+            default:
+                return Optional.empty();
+        }
     }
 
     private UserEntity linkSocialProfile(UserEntity user, String registrationId, String socialId) {
