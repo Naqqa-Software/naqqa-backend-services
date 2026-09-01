@@ -20,6 +20,19 @@ import java.util.Set;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class UserEntity {
 
+    /**
+     * Placeholder stored in {@link #password} for accounts that have no local password —
+     * today, those created by a social sign-in ({@code DefaultSocialAuthService}).
+     *
+     * <p>The column is {@code NOT NULL} and schemas are evolved with {@code ddl-auto=update},
+     * which will not drop that constraint on existing databases, so "no password" is spelled
+     * as a sentinel rather than as {@code null}. The value is deliberately not a valid BCrypt
+     * hash, so {@code PasswordEncoder.matches} can never accept any input against it — but
+     * callers should test {@link #hasUsablePassword()} instead of relying on that, both to say
+     * what they mean and to avoid BCrypt's "does not look like BCrypt" warning on every try.
+     */
+    public static final String NO_PASSWORD = "{NO_PASSWORD}";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Include
@@ -65,4 +78,15 @@ public class UserEntity {
     private String googleId;
     private String facebookId;
     private String appleId;
+
+    /**
+     * Whether this account can be signed into with a password at all. False for a social-only
+     * account until it sets one (password reset, or an in-session "set password" screen).
+     *
+     * <p>Intentionally not named {@code isX}/{@code getX}: Jackson must not pick this up as a
+     * serialized property.
+     */
+    public boolean hasUsablePassword() {
+        return password != null && !NO_PASSWORD.equals(password);
+    }
 }

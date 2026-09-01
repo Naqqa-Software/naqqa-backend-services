@@ -125,7 +125,10 @@ public class DefaultAuthService implements AuthService {
             throw new WrongCredentialsException();
         }
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        // A social-only account has no password to check; fail as plain wrong credentials so the
+        // response gives away nothing about which providers the address is registered with.
+        if (!user.hasUsablePassword()
+                || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new WrongCredentialsException();
         }
 
@@ -286,7 +289,9 @@ public class DefaultAuthService implements AuthService {
         UserEntity user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new InternalServerErrorException(Errors.INTERNAL_ERROR));
 
-        if (passwordEncoder.matches(request.password(), user.getPassword())) {
+        // Skipped for a social-only account: there is no previous password to be the same as,
+        // and this is the path by which such an account gains its first one.
+        if (user.hasUsablePassword() && passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new SamePasswordException();
         }
 

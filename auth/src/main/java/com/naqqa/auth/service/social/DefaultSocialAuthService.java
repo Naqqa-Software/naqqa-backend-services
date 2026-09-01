@@ -9,8 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
-
 @Service
 @RequiredArgsConstructor
 public class DefaultSocialAuthService implements SocialAuthService {
@@ -49,7 +47,10 @@ public class DefaultSocialAuthService implements SocialAuthService {
         UserEntity user = new UserEntity();
         user.setEmail(email);
         user.setFullName(name);
-        user.setPassword(UUID.randomUUID().toString()); // Set a random password for social users
+        // No local password: the provider is the only credential until the user sets one.
+        // (Storing a random UUID here left a plaintext, password-shaped value in the column and
+        // made the account indistinguishable from a password account to every other caller.)
+        user.setPassword(UserEntity.NO_PASSWORD);
         user.setEnabled(true);
 
         RoleEntity defaultRole = roleRepository.findByName(roleProvider.getDefaultRole())
