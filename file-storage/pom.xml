@@ -14,7 +14,7 @@
 
     <groupId>com.naqqa</groupId>
     <artifactId>naqqa-file-storage</artifactId>
-    <version>0.0.21</version>
+    <version>0.0.23</version>
     <packaging>jar</packaging>
 
     <name>Naqqa File Storage</name>
@@ -91,6 +91,20 @@
         <dependency>
             <groupId>jakarta.persistence</groupId>
             <artifactId>jakarta.persistence-api</artifactId>
+        </dependency>
+
+        <!-- MVC + servlet API are needed only by the optional HLS streaming endpoint.
+             Scope "provided": any Spring Boot web application already supplies them, and a
+             consumer that does not use the HLS feature is not forced to pull them in. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>

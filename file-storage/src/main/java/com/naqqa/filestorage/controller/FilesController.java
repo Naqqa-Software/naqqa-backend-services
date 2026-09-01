@@ -10,11 +10,13 @@ import com.naqqa.filestorage.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
@@ -25,6 +27,24 @@ public class FilesController {
 
     private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * The caller's user id.
+     *
+     * <p>{@code Long.valueOf(getName())} on its own turns a non-numeric principal — any application
+     * whose subject is a username or UUID — into a NumberFormatException and a 500. Failing as
+     * "unauthenticated" is both the truthful answer and the safe one.
+     */
+    private Long requesterId(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new AccessDeniedException("Unauthenticated");
+        }
+        try {
+            return Long.valueOf(authentication.getName());
+        } catch (NumberFormatException e) {
+            throw new AccessDeniedException("Principal is not a numeric user id");
+        }
+    }
 
     private boolean isAdmin(Authentication authentication) {
         if (authentication == null) return false;
@@ -67,7 +87,7 @@ public class FilesController {
             @RequestParam(value = "dir", defaultValue = "general") String directory,
             Authentication authentication) {
 
-        Long ownerId = Long.valueOf(authentication.getName());
+        Long ownerId = requesterId(authentication);
         FileEntity savedFile = fileStorageService.uploadFile(file, directory, ownerId);
         return new ResponseEntity<>(savedFile, HttpStatus.CREATED);
     }
@@ -78,7 +98,7 @@ public class FilesController {
             @RequestParam(value = "dir", defaultValue = "general") String directory,
             Authentication authentication) {
 
-        Long ownerId = Long.valueOf(authentication.getName());
+        Long ownerId = requesterId(authentication);
         List<FileEntity> uploadedFiles = Arrays.stream(files)
                 .map(file -> fileStorageService.uploadFile(file, directory, ownerId))
                 .collect(Collectors.toList());
@@ -98,7 +118,7 @@ public class FilesController {
             @RequestParam(defaultValue = "courses/videos") String dir,
             Authentication authentication) {
 
-        Long ownerId = Long.valueOf(authentication.getName());
+        Long ownerId = requesterId(authentication);
         InitiateUploadResponse response = fileStorageService.startResumableSession(dir, fileName, contentType, ownerId);
         return ResponseEntity.ok(response);
     }
@@ -112,7 +132,7 @@ public class FilesController {
             Authentication authentication) {
         boolean isAdmin = isAdmin(authentication);
 
-        Long requesterId = Long.valueOf(authentication.getName());
+        Long requesterId = requesterId(authentication);
         FileEntity entity = fileStorageService.finalizeUpload(request.getFileId(), request.getSize(), requesterId, isAdmin);
         return ResponseEntity.ok(entity);
     }
@@ -127,11 +147,11 @@ public class FilesController {
 
         boolean isAdmin = isAdmin(authentication);
 
-        Long requesterId = Long.valueOf(authentication.getName());
+        Long requesterId = requesterId(authentication);
         FileEntity fileEntity = fileStorageService.getFileById(id);
 
         // Security check: Only owner or admin can get the URL
-        if (!isAdmin && !fileEntity.getOwnerId().equals(requesterId)) {
+        if (!isAdmin && !Objects.equals(fileEntity.getOwnerId(), requesterId)) {
             return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }
 
@@ -143,7 +163,7 @@ public class FilesController {
     public ResponseEntity<Void> deleteFile(
             @PathVariable Long id,
             Authentication authentication) {
-        Long ownerId = Long.valueOf(authentication.getName());
+        Long ownerId = requesterId(authentication);
 
         boolean isAdmin = isAdmin(authentication);
 
