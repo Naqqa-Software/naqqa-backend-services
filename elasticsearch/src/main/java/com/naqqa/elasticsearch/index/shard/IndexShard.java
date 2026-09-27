@@ -85,6 +85,30 @@ public final class IndexShard implements Closeable {
         return engine.noOp(new NoOpOperation(reason));
     }
 
+    public IndexResult indexAtSeqNo(IndexOperation op, long seqNo, long primaryTerm) throws IOException {
+        return engine.indexAtSeqNo(op, seqNo, primaryTerm);
+    }
+
+    public DeleteResult deleteAtSeqNo(DeleteOperation op, long seqNo, long primaryTerm) throws IOException {
+        return engine.deleteAtSeqNo(op, seqNo, primaryTerm);
+    }
+
+    public NoOpResult noOpAtSeqNo(String reason, long seqNo, long primaryTerm) throws IOException {
+        return engine.noOpAtSeqNo(new NoOpOperation(reason), seqNo, primaryTerm);
+    }
+
+    public boolean hasProcessedSeqNo(long seqNo) {
+        return engine.hasProcessedSeqNo(seqNo);
+    }
+
+    public long localCheckpoint() {
+        return engine.localCheckpoint();
+    }
+
+    public long maxSeqNo() {
+        return engine.maxSeqNo();
+    }
+
     public GetResult get(String id) throws IOException {
         return engine.get(id);
     }
@@ -107,6 +131,10 @@ public final class IndexShard implements Closeable {
 
     public EngineStats stats() {
         return engine.stats();
+    }
+
+    public com.naqqa.elasticsearch.index.translog.Translog.Snapshot newTranslogSnapshot(long fromSeqNo) throws IOException {
+        return engine.newTranslogSnapshot(fromSeqNo);
     }
 
     public int docCount() {

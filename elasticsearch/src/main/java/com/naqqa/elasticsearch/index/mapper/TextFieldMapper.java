@@ -19,6 +19,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final boolean norms;
     private final Analyzer analyzer;
     private final Analyzer searchAnalyzer;
+    private int termVectorFlags;
 
     private TextFieldMapper(String simpleName, String fullPath, JsonObject node, boolean indexed, boolean stored,
                              boolean norms, Analyzer analyzer, Analyzer searchAnalyzer) {
@@ -39,6 +40,7 @@ public final class TextFieldMapper extends FieldMapper {
         Analyzer analyzer = analyzerName != null ? ctx.analyzers().get(analyzerName) : ctx.analyzers().defaultAnalyzer();
         Analyzer searchAnalyzer = searchAnalyzerName != null ? ctx.analyzers().get(searchAnalyzerName) : ctx.analyzers().defaultSearchAnalyzer();
         TextFieldMapper mapper = new TextFieldMapper(name, fullPath, node, indexed, stored, norms, analyzer, searchAnalyzer);
+        mapper.termVectorFlags = parseTermVector(fullPath, node.getString("term_vector", "no"));
         mapper.multiFields.putAll(parseMultiFields(fullPath, node, ctx, depth));
         return mapper;
     }
@@ -46,6 +48,22 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     public String typeName() {
         return TYPE;
+    }
+
+    static int parseTermVector(String fullPath, String value) {
+        return switch (value) {
+            case "no" -> 0;
+            case "yes" -> IndexableField.TERM_VECTORS;
+            case "with_positions", "with_positions_payloads" -> IndexableField.TERM_VECTORS | IndexableField.TERM_VECTOR_POSITIONS;
+            case "with_offsets" -> IndexableField.TERM_VECTORS | IndexableField.TERM_VECTOR_OFFSETS;
+            case "with_positions_offsets", "with_positions_offsets_payloads" ->
+                IndexableField.TERM_VECTORS | IndexableField.TERM_VECTOR_POSITIONS | IndexableField.TERM_VECTOR_OFFSETS;
+            default -> throw new IllegalArgumentException("Unknown value [" + value + "] for field [term_vector] of field [" + fullPath + "]");
+        };
+    }
+
+    public int termVectorFlags() {
+        return termVectorFlags;
     }
 
     public Analyzer searchAnalyzer() {
@@ -75,7 +93,7 @@ public final class TextFieldMapper extends FieldMapper {
         String text = stringValue(value);
         if (indexed) {
             List<IndexedTerm> terms = tokenize(analyzer, fullPath, text);
-            context.addIndexableField(IndexableField.indexedText(fullPath, terms, norms));
+            context.addIndexableField(IndexableField.indexedText(fullPath, terms, norms, termVectorFlags));
         }
         if (stored) {
             context.addIndexableField(IndexableField.stored(fullPath, text.getBytes(StandardCharsets.UTF_8)));

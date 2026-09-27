@@ -23,13 +23,20 @@ public final class ReindexAction {
     private final TransportIndexAction indexAction;
     private final BulkByScrollExecutor executor;
     private final TaskManager taskManager;
+    private final ByQuerySearchHooks.QueryConverter queryConverter;
     private final ThrottleRegistry throttleRegistry;
 
     public ReindexAction(RelocationAwareRouter router, SearchCoordinator searchCoordinator, TaskManager taskManager,
                           ThrottleRegistry throttleRegistry) {
+        this(router, ByQuerySearchHooks.defaults(searchCoordinator), taskManager, throttleRegistry);
+    }
+
+    public ReindexAction(RelocationAwareRouter router, ByQuerySearchHooks hooks, TaskManager taskManager,
+                          ThrottleRegistry throttleRegistry) {
+        this.queryConverter = hooks.queryConverter();
         this.router = router;
         this.indexAction = new TransportIndexAction(router);
-        this.executor = new BulkByScrollExecutor(searchCoordinator, () -> router.clusterStateSupplier().getClusterState().getRoutingTable());
+        this.executor = new BulkByScrollExecutor(hooks.searcher(), () -> router.clusterStateSupplier().getClusterState().getRoutingTable());
         this.taskManager = taskManager;
         this.throttleRegistry = throttleRegistry;
     }
@@ -46,7 +53,7 @@ public final class ReindexAction {
         String resolvedSourceIndex = sourceResolution.index();
         IndexNameResolver.Resolution destResolution = router.resolveIndex(destIndex);
         String resolvedDestIndex = destResolution.index();
-        Query query = QueryClauseConverter.convert(sourceQueryClause);
+        Query query = queryConverter.convert(resolvedSourceIndex, sourceQueryClause);
 
         Task task = taskManager.register("transport", ACTION_NAME,
             "reindex [" + resolvedSourceIndex + "] -> [" + resolvedDestIndex + "]", true, null);

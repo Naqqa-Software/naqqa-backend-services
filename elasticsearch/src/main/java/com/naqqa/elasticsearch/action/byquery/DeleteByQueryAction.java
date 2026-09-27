@@ -20,13 +20,20 @@ public final class DeleteByQueryAction {
     private final TransportDeleteAction deleteAction;
     private final BulkByScrollExecutor executor;
     private final TaskManager taskManager;
+    private final ByQuerySearchHooks.QueryConverter queryConverter;
     private final ThrottleRegistry throttleRegistry;
 
     public DeleteByQueryAction(RelocationAwareRouter router, SearchCoordinator searchCoordinator,
                                 TaskManager taskManager, ThrottleRegistry throttleRegistry) {
+        this(router, ByQuerySearchHooks.defaults(searchCoordinator), taskManager, throttleRegistry);
+    }
+
+    public DeleteByQueryAction(RelocationAwareRouter router, ByQuerySearchHooks hooks,
+                                TaskManager taskManager, ThrottleRegistry throttleRegistry) {
+        this.queryConverter = hooks.queryConverter();
         this.router = router;
         this.deleteAction = new TransportDeleteAction(router);
-        this.executor = new BulkByScrollExecutor(searchCoordinator, () -> router.clusterStateSupplier().getClusterState().getRoutingTable());
+        this.executor = new BulkByScrollExecutor(hooks.searcher(), () -> router.clusterStateSupplier().getClusterState().getRoutingTable());
         this.taskManager = taskManager;
         this.throttleRegistry = throttleRegistry;
     }
@@ -34,7 +41,7 @@ public final class DeleteByQueryAction {
     public BulkByScrollResponse execute(String index, Map<String, Object> queryClause, ByQueryOptions options) throws IOException {
         IndexNameResolver.Resolution resolution = router.resolveIndex(index);
         String resolvedIndex = resolution.index();
-        Query query = QueryClauseConverter.convert(queryClause);
+        Query query = queryConverter.convert(resolvedIndex, queryClause);
 
         Task task = taskManager.register("transport", ACTION_NAME, "delete-by-query [" + resolvedIndex + "]", true, null);
         ThrottleController throttle = new ThrottleController(options.requestsPerSecond());

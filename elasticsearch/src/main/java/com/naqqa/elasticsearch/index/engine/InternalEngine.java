@@ -52,6 +52,7 @@ public final class InternalEngine extends Engine {
     private final Object refreshMutex = new Object();
     private final Object viewLock = new Object();
     private final Object mergeMutex = new Object();
+    private final Object explicitSeqNoMutex = new Object();
 
     private volatile List<SegmentReader> currentReaders;
     private volatile SegmentInfos lastCommit;
@@ -309,6 +310,124 @@ public final class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean hasProcessedSeqNo(long seqNo) {
+        return localCheckpointTracker.hasProcessed(seqNo);
+    }
+
+    @Override
+    public long localCheckpoint() {
+        return localCheckpointTracker.getCheckpoint();
+    }
+
+    @Override
+    public long maxSeqNo() {
+        return localCheckpointTracker.getMaxSeqNo();
+    }
+
+    private static EngineException invalidExplicitSeqNo(long seqNo, long primaryTerm) {
+        if (seqNo < 0) {
+            return new EngineException("invalid explicit seq_no [" + seqNo + "]");
+        }
+        if (primaryTerm <= SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+            return new EngineException("invalid explicit primary_term [" + primaryTerm + "] for seq_no [" + seqNo + "]");
+        }
+        return null;
+    }
+
+    private static boolean isStaleForDoc(CurrentDocInfo cur, long seqNo) {
+        return cur.seqNo() >= 0 && cur.seqNo() > seqNo;
+    }
+
+    private static long explicitVersion(long requested, CurrentDocInfo cur) {
+        if (requested >= 0) {
+            return requested;
+        }
+        return cur.exists() ? cur.version() + 1 : 1;
+    }
+
+    @Override
+    public IndexResult indexAtSeqNo(IndexOperation op, long seqNo, long primaryTerm) throws IOException {
+        ensureOpen();
+        EngineException invalid = invalidExplicitSeqNo(seqNo, primaryTerm);
+        if (invalid != null) {
+            return IndexResult.failure(invalid);
+        }
+        if (mapperService.documentMapper() == null) {
+            return IndexResult.failure(new EngineException("no mapping defined for index [" + mapperService.indexName() + "]"));
+        }
+        String id = op.id();
+        synchronized (explicitSeqNoMutex) {
+            CurrentDocInfo cur = lookupCurrent(id);
+            if (localCheckpointTracker.hasProcessed(seqNo)) {
+                long version = op.version() >= 0 ? op.version() : cur.version();
+                return IndexResult.success(seqNo, primaryTerm, version, false);
+            }
+            long newVersion = explicitVersion(op.version(), cur);
+            byte[] sourceBytes = JsonWriter.toJsonBytes(JsonValue.wrap(op.source()), false);
+            if (isStaleForDoc(cur, seqNo)) {
+                translog.add(new Operation.Index(id, seqNo, primaryTerm, newVersion, BytesReference.of(sourceBytes), op.routing()));
+                localCheckpointTracker.markSeqNoAsProcessed(seqNo);
+                maybeFlushBySize();
+                return IndexResult.success(seqNo, primaryTerm, newVersion, false);
+            }
+            ParsedDocument parsed = mapperService.parse(id, op.routing(), op.source());
+            Translog.Location loc = translog.add(new Operation.Index(id, seqNo, primaryTerm, newVersion, BytesReference.of(sourceBytes), op.routing()));
+            versionMap.putUnderLock(id, VersionValue.index(newVersion, seqNo, primaryTerm, loc));
+            docBuffer.put(id, BufferedDoc.indexed(id, seqNo, primaryTerm, newVersion, parsed));
+            localCheckpointTracker.markSeqNoAsProcessed(seqNo);
+            maybeFlushBySize();
+            return IndexResult.success(seqNo, primaryTerm, newVersion, !cur.exists());
+        }
+    }
+
+    @Override
+    public DeleteResult deleteAtSeqNo(DeleteOperation op, long seqNo, long primaryTerm) throws IOException {
+        ensureOpen();
+        EngineException invalid = invalidExplicitSeqNo(seqNo, primaryTerm);
+        if (invalid != null) {
+            return DeleteResult.failure(invalid);
+        }
+        String id = op.id();
+        synchronized (explicitSeqNoMutex) {
+            CurrentDocInfo cur = lookupCurrent(id);
+            if (localCheckpointTracker.hasProcessed(seqNo)) {
+                long version = op.version() >= 0 ? op.version() : cur.version();
+                return DeleteResult.success(seqNo, primaryTerm, version, false);
+            }
+            long newVersion = explicitVersion(op.version(), cur);
+            if (isStaleForDoc(cur, seqNo)) {
+                translog.add(new Operation.Delete(id, seqNo, primaryTerm, newVersion));
+                localCheckpointTracker.markSeqNoAsProcessed(seqNo);
+                maybeFlushBySize();
+                return DeleteResult.success(seqNo, primaryTerm, newVersion, false);
+            }
+            Translog.Location loc = translog.add(new Operation.Delete(id, seqNo, primaryTerm, newVersion));
+            versionMap.putUnderLock(id, VersionValue.tombstone(newVersion, seqNo, primaryTerm, loc));
+            docBuffer.put(id, BufferedDoc.tombstone(id, seqNo, primaryTerm, newVersion));
+            localCheckpointTracker.markSeqNoAsProcessed(seqNo);
+            maybeFlushBySize();
+            return DeleteResult.success(seqNo, primaryTerm, newVersion, cur.exists());
+        }
+    }
+
+    @Override
+    public NoOpResult noOpAtSeqNo(NoOpOperation op, long seqNo, long primaryTerm) throws IOException {
+        ensureOpen();
+        EngineException invalid = invalidExplicitSeqNo(seqNo, primaryTerm);
+        if (invalid != null) {
+            return NoOpResult.failure(invalid);
+        }
+        synchronized (explicitSeqNoMutex) {
+            if (localCheckpointTracker.hasProcessed(seqNo)) {
+                return NoOpResult.success(seqNo, primaryTerm);
+            }
+            translog.add(new Operation.NoOp(seqNo, primaryTerm, op.reason()));
+            localCheckpointTracker.markSeqNoAsProcessed(seqNo);
+            return NoOpResult.success(seqNo, primaryTerm);
+        }
+    }
+
+    @Override
     public GetResult get(String id) throws IOException {
         ensureOpen();
         BufferedDoc bd = docBuffer.get(id);
@@ -560,6 +679,12 @@ public final class InternalEngine extends Engine {
         }
         return new EngineStats(numDocs, numDeleted, view.size(), translog.sizeInBytes(), translogOps,
             localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getCheckpoint());
+    }
+
+    @Override
+    public Translog.Snapshot newTranslogSnapshot(long fromSeqNo) {
+        ensureOpen();
+        return translog.newSnapshot(Math.max(fromSeqNo, 0L));
     }
 
     @Override

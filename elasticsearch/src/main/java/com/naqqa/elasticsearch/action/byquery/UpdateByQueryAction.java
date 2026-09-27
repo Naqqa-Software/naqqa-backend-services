@@ -24,12 +24,19 @@ public final class UpdateByQueryAction {
     private final RelocationAwareRouter router;
     private final BulkByScrollExecutor executor;
     private final TaskManager taskManager;
+    private final ByQuerySearchHooks.QueryConverter queryConverter;
     private final ThrottleRegistry throttleRegistry;
 
     public UpdateByQueryAction(RelocationAwareRouter router, SearchCoordinator searchCoordinator,
                                 TaskManager taskManager, ThrottleRegistry throttleRegistry) {
+        this(router, ByQuerySearchHooks.defaults(searchCoordinator), taskManager, throttleRegistry);
+    }
+
+    public UpdateByQueryAction(RelocationAwareRouter router, ByQuerySearchHooks hooks,
+                                TaskManager taskManager, ThrottleRegistry throttleRegistry) {
+        this.queryConverter = hooks.queryConverter();
         this.router = router;
-        this.executor = new BulkByScrollExecutor(searchCoordinator, () -> router.clusterStateSupplier().getClusterState().getRoutingTable());
+        this.executor = new BulkByScrollExecutor(hooks.searcher(), () -> router.clusterStateSupplier().getClusterState().getRoutingTable());
         this.taskManager = taskManager;
         this.throttleRegistry = throttleRegistry;
     }
@@ -39,7 +46,7 @@ public final class UpdateByQueryAction {
         UnaryOperator<Map<String, Object>> transform = scriptOrNoop != null ? scriptOrNoop : UnaryOperator.identity();
         IndexNameResolver.Resolution resolution = router.resolveIndex(index);
         String resolvedIndex = resolution.index();
-        Query query = QueryClauseConverter.convert(queryClause);
+        Query query = queryConverter.convert(resolvedIndex, queryClause);
 
         AtomicLong retriesAccumulated = new AtomicLong();
         long[] perDocAttempts = new long[1];

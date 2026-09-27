@@ -25,6 +25,10 @@ final class TcpTransport {
     private volatile ServerSocketChannel serverChannel;
     private volatile Thread selectorThread;
     private volatile boolean running;
+    final java.util.concurrent.atomic.LongAdder rxCount = new java.util.concurrent.atomic.LongAdder();
+    final java.util.concurrent.atomic.LongAdder rxBytes = new java.util.concurrent.atomic.LongAdder();
+    final java.util.concurrent.atomic.LongAdder txCount = new java.util.concurrent.atomic.LongAdder();
+    final java.util.concurrent.atomic.LongAdder txBytes = new java.util.concurrent.atomic.LongAdder();
 
     TcpTransport(TransportMessageListener listener, Executor dispatchExecutor) {
         this.listener = listener;
@@ -110,6 +114,8 @@ final class TcpTransport {
 
     void sendBytes(TcpChannel channel, byte[] frame) {
         try {
+            txCount.increment();
+            txBytes.add(frame.length);
             channel.enqueueWrite(frame);
         } catch (Exception e) {
             channel.close(e);
@@ -228,6 +234,8 @@ final class TcpTransport {
         Runnable task = () -> {
             try {
                 MessageCodec.DecodedMessage message = MessageCodec.decodeBody(body);
+                rxCount.increment();
+                rxBytes.add(body.length);
                 listener.onMessage(channel, message.requestId(), message.status(), message.version(), message.action(), message.payload());
             } catch (Exception e) {
                 System.err.println("transport: failed to decode inbound message: " + e);

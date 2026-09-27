@@ -67,6 +67,30 @@ public final class TransportService extends AbstractLifecycleComponent {
         return pingsReceived.get();
     }
 
+    public long rxCount() {
+        TcpTransport t = transport;
+        return t == null ? 0L : t.rxCount.sum();
+    }
+
+    public long rxSizeInBytes() {
+        TcpTransport t = transport;
+        return t == null ? 0L : t.rxBytes.sum();
+    }
+
+    public long txCount() {
+        TcpTransport t = transport;
+        return t == null ? 0L : t.txCount.sum();
+    }
+
+    public long txSizeInBytes() {
+        TcpTransport t = transport;
+        return t == null ? 0L : t.txBytes.sum();
+    }
+
+    public int openConnectionCount() {
+        return openConnections.size();
+    }
+
     public <T extends TransportRequest> void registerRequestHandler(String action, Writeable.Reader<T> requestReader, TransportRequestHandler<T> handler) {
         requestHandlers.put(action, new RequestHandlerRegistry<>(action, requestReader, handler));
     }

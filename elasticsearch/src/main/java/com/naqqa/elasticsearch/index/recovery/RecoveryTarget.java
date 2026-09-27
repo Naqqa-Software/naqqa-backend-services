@@ -6,6 +6,7 @@ import com.naqqa.elasticsearch.index.engine.DeleteOperation;
 import com.naqqa.elasticsearch.index.engine.DeleteResult;
 import com.naqqa.elasticsearch.index.engine.IndexOperation;
 import com.naqqa.elasticsearch.index.engine.IndexResult;
+import com.naqqa.elasticsearch.index.engine.NoOpResult;
 import com.naqqa.elasticsearch.index.mapper.MapperService;
 import com.naqqa.elasticsearch.index.seqno.SequenceNumbers;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
@@ -98,21 +99,27 @@ public final class RecoveryTarget {
             state.setStage(RecoveryState.Stage.TRANSLOG);
             state.setTranslogOpsTotal(Math.max(0, startResponse.sourceMaxSeqNo() - startResponse.sourceCheckpoint()));
 
-            long fromSeqNo = shard.stats().localCheckpoint() + 1;
+            long fromSeqNo = shard.localCheckpoint() + 1;
             int round = 0;
             boolean caughtUp = false;
             int idleStreak = 0;
             while (round < maxRounds) {
                 RecoveryTranslogResponse translogResponse = sendSync(transportService, sourceConnection, RecoveryActions.TRANSLOG_OPS,
                     new RecoveryTranslogRequest(recoveryId, fromSeqNo, maxOpsPerRound), RecoveryTranslogResponse::new);
-                if (!translogResponse.operations().isEmpty()) {
-                    for (Operation op : translogResponse.operations()) {
-                        replay(shard, op);
-                        fromSeqNo = op.seqNo() + 1;
+                int applied = 0;
+                for (Operation op : translogResponse.operations()) {
+                    if (replay(shard, op)) {
+                        applied++;
                         state.addTranslogOpsRecovered(1);
                     }
+                    fromSeqNo = Math.max(fromSeqNo, op.seqNo() + 1);
+                }
+                if (translogResponse.operations().isEmpty() && shard.localCheckpoint() < shard.maxSeqNo()) {
+                    fromSeqNo = shard.localCheckpoint() + 1;
+                }
+                if (applied > 0) {
                     idleStreak = 0;
-                } else if (fromSeqNo > translogResponse.sourceCheckpoint()) {
+                } else if (shard.localCheckpoint() >= translogResponse.sourceCheckpoint()) {
                     idleStreak++;
                     if (idleStreak >= IDLE_STREAK_TO_FINALIZE) {
                         caughtUp = true;
@@ -122,7 +129,7 @@ public final class RecoveryTarget {
                     idleStreak = 0;
                 }
                 round++;
-                if (translogResponse.operations().isEmpty()) {
+                if (applied == 0) {
                     try {
                         Thread.sleep(pollDelayMillis);
                     } catch (InterruptedException e) {
@@ -171,7 +178,10 @@ public final class RecoveryTarget {
         state.incrementFilesRecovered();
     }
 
-    private static void replay(IndexShard shard, Operation op) throws IOException {
+    static boolean replay(IndexShard shard, Operation op) throws IOException {
+        if (shard.hasProcessedSeqNo(op.seqNo())) {
+            return false;
+        }
         switch (op.opType()) {
             case INDEX -> {
                 Operation.Index idx = (Operation.Index) op;
@@ -179,25 +189,31 @@ public final class RecoveryTarget {
                 Map<String, Object> source = (Map<String, Object>) JsonValue.parse(idx.source().toBytesArray()).toJava();
                 IndexOperation indexOp = new IndexOperation(idx.id(), idx.routing(), source, idx.version(), VersionType.EXTERNAL_GTE,
                     SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-                IndexResult result = shard.index(indexOp);
+                IndexResult result = shard.indexAtSeqNo(indexOp, idx.seqNo(), idx.primaryTerm());
                 if (!result.success()) {
-                    throw new IOException("failed to replay index op for id [" + idx.id() + "]", result.failure());
+                    throw new IOException("failed to replay index op for id [" + idx.id() + "] at seq_no [" + idx.seqNo() + "]",
+                        result.failure());
                 }
             }
             case DELETE -> {
                 Operation.Delete del = (Operation.Delete) op;
                 DeleteOperation deleteOp = new DeleteOperation(del.id(), del.version(), VersionType.EXTERNAL_GTE,
                     SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-                DeleteResult result = shard.delete(deleteOp);
+                DeleteResult result = shard.deleteAtSeqNo(deleteOp, del.seqNo(), del.primaryTerm());
                 if (!result.success()) {
-                    throw new IOException("failed to replay delete op for id [" + del.id() + "]", result.failure());
+                    throw new IOException("failed to replay delete op for id [" + del.id() + "] at seq_no [" + del.seqNo() + "]",
+                        result.failure());
                 }
             }
             case NO_OP -> {
                 Operation.NoOp noOp = (Operation.NoOp) op;
-                shard.noOp(noOp.reason());
+                NoOpResult result = shard.noOpAtSeqNo(noOp.reason(), noOp.seqNo(), noOp.primaryTerm());
+                if (!result.success()) {
+                    throw new IOException("failed to replay no-op at seq_no [" + noOp.seqNo() + "]", result.failure());
+                }
             }
         }
+        return true;
     }
 
     private static long readLocalCheckpoint(Directory directory) throws IOException {

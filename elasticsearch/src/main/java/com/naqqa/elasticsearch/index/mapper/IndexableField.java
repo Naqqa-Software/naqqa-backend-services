@@ -25,6 +25,11 @@ public final class IndexableField {
     private final String vectorElementType;
     private final int vectorDims;
     private final String vectorSimilarity;
+    private int termVectorFlags;
+
+    public static final int TERM_VECTORS = 1;
+    public static final int TERM_VECTOR_POSITIONS = 2;
+    public static final int TERM_VECTOR_OFFSETS = 4;
 
     private IndexableField(String name, Kind kind, boolean indexed, boolean stored, boolean docValues, boolean points, boolean norms,
                             List<IndexedTerm> terms, List<byte[]> sortedSetValues, long numericValue, byte[] binaryValue,
@@ -52,6 +57,20 @@ public final class IndexableField {
     public static IndexableField indexedText(String name, List<IndexedTerm> terms, boolean norms) {
         return new IndexableField(name, Kind.INDEXED_TEXT, true, false, false, false, norms,
             List.copyOf(terms), null, 0, null, null, null, null, null, 0, null);
+    }
+
+    public static IndexableField indexedText(String name, List<IndexedTerm> terms, boolean norms, int termVectorFlags) {
+        IndexableField f = indexedText(name, terms, norms);
+        f.termVectorFlags = termVectorFlags == 0 ? 0 : (termVectorFlags | TERM_VECTORS);
+        return f;
+    }
+
+    public int termVectorFlags() {
+        return termVectorFlags;
+    }
+
+    public boolean storeTermVectors() {
+        return (termVectorFlags & TERM_VECTORS) != 0;
     }
 
     public static IndexableField sortedSetDocValues(String name, List<byte[]> values) {

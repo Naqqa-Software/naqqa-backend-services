@@ -63,22 +63,27 @@ public final class ConcurrentPhase2RecoveryTest {
         sourceHandler.registerHandlers(sourceTransport);
         Connection connectionToSource = targetTransport.connectToNode(sourceTransport.localNode(), ConnectionProfile.buildDefault());
 
+        RecoveryState state = new RecoveryState(RecoveryState.Type.PEER, sourceTransport.localNode(), targetTransport.localNode());
+
         Thread writer = new Thread(() -> {
             try {
-                Thread.sleep(120);
+                long deadline = System.nanoTime() + 10_000_000_000L;
+                while (state.stage() != RecoveryState.Stage.TRANSLOG && state.stage() != RecoveryState.Stage.DONE
+                    && System.nanoTime() < deadline) {
+                    Thread.sleep(1);
+                }
                 for (int i = 3; i < 6; i++) {
                     String id = "doc-" + i;
                     Map<String, Object> source = Map.of("title", "v" + i);
                     IndexResult result = sourceShard.index(id, source);
                     opsSource.record(toWireOp(result, id, null, source));
-                    Thread.sleep(80);
+                    Thread.sleep(10);
                 }
             } catch (Exception ignored) {
             }
         });
         writer.start();
 
-        RecoveryState state = new RecoveryState(RecoveryState.Type.PEER, sourceTransport.localNode(), targetTransport.localNode());
         IndexShard targetShard = RecoveryTarget.recover(targetPath, targetMapper, targetTranslogConfig, targetTransport, connectionToSource, state,
             RecoveryTarget.DEFAULT_CHUNK_SIZE, 100, 40, 30L);
         writer.join();

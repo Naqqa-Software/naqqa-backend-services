@@ -285,6 +285,21 @@ public final class DocumentRestHandlers {
         RestUtils.sendJson(channel, request, 200, Map.of("docs", responseDocs));
     }
 
+    private static final List<String> BY_QUERY_PARAMS = List.of("refresh", "conflicts", "max_docs", "scroll_size",
+        "requests_per_second", "wait_for_completion", "timeout", "routing", "slices", "preference", "scroll",
+        "wait_for_active_shards", "pipeline", "q", "df", "default_operator");
+
+    private static Map<String, String> byQueryParams(RestRequest request) {
+        Map<String, String> params = new java.util.LinkedHashMap<>();
+        for (String name : BY_QUERY_PARAMS) {
+            String value = request.param(name);
+            if (value != null) {
+                params.put(name, value);
+            }
+        }
+        return params;
+    }
+
     public void deleteByQuery(RestRequest request, RestChannel channel) {
         String index = request.param("index");
         if (!RestUtils.requireIndex(index)) {
@@ -292,7 +307,7 @@ public final class DocumentRestHandlers {
         }
         RestUtils.requireContent(request);
         Map<String, Object> body = RestUtils.parseBody(request);
-        Map<String, Object> result = RestUtils.await(service.deleteByQuery(index, body, Map.of()));
+        Map<String, Object> result = RestUtils.await(service.deleteByQuery(index, body, byQueryParams(request)));
         RestUtils.sendJson(channel, request, 200, result);
     }
 
@@ -302,7 +317,7 @@ public final class DocumentRestHandlers {
             throw new IllegalArgumentException("index is required");
         }
         Map<String, Object> body = request.hasContent() ? RestUtils.parseBody(request) : Map.of();
-        Map<String, Object> result = RestUtils.await(service.updateByQuery(index, body, Map.of()));
+        Map<String, Object> result = RestUtils.await(service.updateByQuery(index, body, byQueryParams(request)));
         RestUtils.sendJson(channel, request, 200, result);
     }
 

@@ -138,16 +138,20 @@ public final class SegmentReaderLeafAdapter implements LeafReader {
         long sumDocFreq = 0;
         long sumTotalTermFreq = 0;
         FixedBitSet seen = new FixedBitSet(Math.max(segmentReader.maxDoc(), 1));
+        com.naqqa.elasticsearch.codec.fieldinfos.FieldInfo fieldInfo = segmentReader.fieldInfo(field);
+        int postingsFlags = fieldInfo != null ? fieldInfo.indexOptions() : PostingsFlags.FREQS;
         if (te != null) {
             byte[] t;
             while ((t = te.next()) != null) {
                 numTerms++;
                 sumDocFreq += te.docFreq();
                 sumTotalTermFreq += te.totalTermFreq();
-                PostingsEnum postings = te.postings(PostingsFlags.DOCS_ONLY);
+                PostingsEnum postings = te.postings(postingsFlags);
                 int doc;
                 while ((doc = postings.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    seen.set(doc);
+                    if (doc < segmentReader.maxDoc() && segmentReader.isLive(doc)) {
+                        seen.set(doc);
+                    }
                 }
             }
         }

@@ -10,10 +10,24 @@ public final class Router {
     private record RegisteredRoute(RestMethod method, PathPattern pattern, RestHandler handler) {
     }
 
+    @FunctionalInterface
+    public interface RouteDecorator {
+        RestHandler decorate(RestMethod method, String pathPattern, RestHandler handler);
+    }
+
     private final List<RegisteredRoute> routes = new ArrayList<>();
+    private final RouteDecorator decorator;
+
+    public Router() {
+        this((method, pathPattern, handler) -> handler);
+    }
+
+    public Router(RouteDecorator decorator) {
+        this.decorator = decorator;
+    }
 
     public void register(RestMethod method, String pathPattern, RestHandler handler) {
-        routes.add(new RegisteredRoute(method, PathPattern.compile(pathPattern), handler));
+        routes.add(new RegisteredRoute(method, PathPattern.compile(pathPattern), decorator.decorate(method, pathPattern, handler)));
     }
 
     public RouteResult route(RestMethod method, String path) {

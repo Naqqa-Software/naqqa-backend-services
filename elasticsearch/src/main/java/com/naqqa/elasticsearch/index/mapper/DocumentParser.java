@@ -109,6 +109,8 @@ final class DocumentParser {
             }
             context.startNestedDocument();
             parseObject(nested, childFullPath, jv.asObject(), context, parserCtx, root, depth + 1, inheritedDynamic);
+            context.currentDocument().add(IndexableField.indexedText(NestedObjectMapper.NESTED_PATH_FIELD,
+                java.util.List.of(new IndexedTerm(childFullPath, 0, 0, childFullPath.length())), false));
             context.endNestedDocument();
             return;
         }

@@ -38,10 +38,10 @@ public final class ReplicationOperation {
         if (!result.success()) {
             return result;
         }
-        group.recordPrimaryCheckpoint(result.seqNo());
+        group.recordPrimaryCheckpoint(primary.indexShard().localCheckpoint());
         byte[] sourceBytes = JsonWriter.toJsonBytes(JsonValue.wrap(op.source()), false);
-        ReplicationRequest request = ReplicationRequest.index(group.shardId(), primary.primaryContext().currentTerm(),
-            op.id(), op.routing(), sourceBytes);
+        ReplicationRequest request = ReplicationRequest.indexAtSeqNo(group.shardId(), primary.primaryContext().currentTerm(),
+            op.id(), op.routing(), sourceBytes, result.seqNo(), result.primaryTerm(), result.version());
         replicateToReplicas(primary, request);
         return result;
     }
@@ -52,8 +52,9 @@ public final class ReplicationOperation {
         if (!result.success()) {
             return result;
         }
-        group.recordPrimaryCheckpoint(result.seqNo());
-        ReplicationRequest request = ReplicationRequest.delete(group.shardId(), primary.primaryContext().currentTerm(), op.id());
+        group.recordPrimaryCheckpoint(primary.indexShard().localCheckpoint());
+        ReplicationRequest request = ReplicationRequest.deleteAtSeqNo(group.shardId(), primary.primaryContext().currentTerm(), op.id(),
+            result.seqNo(), result.primaryTerm(), result.version());
         replicateToReplicas(primary, request);
         return result;
     }
@@ -64,8 +65,9 @@ public final class ReplicationOperation {
         if (!result.success()) {
             return result;
         }
-        group.recordPrimaryCheckpoint(result.seqNo());
-        ReplicationRequest request = ReplicationRequest.noOp(group.shardId(), primary.primaryContext().currentTerm(), op.reason());
+        group.recordPrimaryCheckpoint(primary.indexShard().localCheckpoint());
+        ReplicationRequest request = ReplicationRequest.noOpAtSeqNo(group.shardId(), primary.primaryContext().currentTerm(), op.reason(),
+            result.seqNo(), result.primaryTerm());
         replicateToReplicas(primary, request);
         return result;
     }
@@ -112,7 +114,7 @@ public final class ReplicationOperation {
         TransportResponseHandler<ReplicationResponse> handler = new TransportResponseHandler<ReplicationResponse>() {
             @Override
             public void handleResponse(ReplicationResponse response) {
-                group.recordReplicaCheckpoint(replica.allocationId(), response.seqNo());
+                group.recordReplicaCheckpoint(replica.allocationId(), response.localCheckpoint());
                 onReplicaResponded(true, acked, responded, total, required, done);
             }
 

@@ -10,8 +10,10 @@ import com.naqqa.elasticsearch.index.engine.IndexResult;
 import com.naqqa.elasticsearch.index.engine.NoOpOperation;
 import com.naqqa.elasticsearch.index.engine.NoOpResult;
 import com.naqqa.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import com.naqqa.elasticsearch.index.seqno.SequenceNumbers;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
 import com.naqqa.elasticsearch.index.translog.Operation;
+import com.naqqa.elasticsearch.index.translog.VersionType;
 import com.naqqa.elasticsearch.transport.Connection;
 import com.naqqa.elasticsearch.transport.ConnectionProfile;
 import com.naqqa.elasticsearch.transport.TransportChannel;
@@ -205,6 +207,9 @@ public final class ReplicationGroup {
     }
 
     static ReplicationResponse applyLocally(IndexShard shard, ReplicationRequest request) throws IOException {
+        if (request.hasExplicitSeqNo()) {
+            return applyAtSeqNo(shard, request);
+        }
         switch (request.opType()) {
             case INDEX: {
                 Map<String, Object> sourceMap = decodeSource(request.source());
@@ -212,21 +217,56 @@ public final class ReplicationGroup {
                 if (!result.success()) {
                     throw asIOException(result.failure());
                 }
-                return new ReplicationResponse(result.seqNo(), result.primaryTerm(), result.version());
+                return new ReplicationResponse(result.seqNo(), result.primaryTerm(), result.version(), shard.localCheckpoint());
             }
             case DELETE: {
                 DeleteResult result = shard.delete(DeleteOperation.of(request.id()));
                 if (!result.success()) {
                     throw asIOException(result.failure());
                 }
-                return new ReplicationResponse(result.seqNo(), result.primaryTerm(), result.version());
+                return new ReplicationResponse(result.seqNo(), result.primaryTerm(), result.version(), shard.localCheckpoint());
             }
             case NOOP: {
                 NoOpResult result = shard.noOp(request.reason());
                 if (!result.success()) {
                     throw asIOException(result.failure());
                 }
-                return new ReplicationResponse(result.seqNo(), result.primaryTerm(), 0L);
+                return new ReplicationResponse(result.seqNo(), result.primaryTerm(), 0L, shard.localCheckpoint());
+            }
+            default:
+                throw new IOException("unsupported replication op type [" + request.opType() + "]");
+        }
+    }
+
+    static ReplicationResponse applyAtSeqNo(IndexShard shard, ReplicationRequest request) throws IOException {
+        long seqNo = request.seqNo();
+        long opTerm = request.opPrimaryTerm();
+        switch (request.opType()) {
+            case INDEX: {
+                Map<String, Object> sourceMap = decodeSource(request.source());
+                IndexOperation op = new IndexOperation(request.id(), request.routing(), sourceMap, request.version(),
+                    VersionType.EXTERNAL, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+                IndexResult result = shard.indexAtSeqNo(op, seqNo, opTerm);
+                if (!result.success()) {
+                    throw asIOException(result.failure());
+                }
+                return new ReplicationResponse(result.seqNo(), result.primaryTerm(), result.version(), shard.localCheckpoint());
+            }
+            case DELETE: {
+                DeleteOperation op = new DeleteOperation(request.id(), request.version(), VersionType.EXTERNAL,
+                    SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+                DeleteResult result = shard.deleteAtSeqNo(op, seqNo, opTerm);
+                if (!result.success()) {
+                    throw asIOException(result.failure());
+                }
+                return new ReplicationResponse(result.seqNo(), result.primaryTerm(), result.version(), shard.localCheckpoint());
+            }
+            case NOOP: {
+                NoOpResult result = shard.noOpAtSeqNo(request.reason(), seqNo, opTerm);
+                if (!result.success()) {
+                    throw asIOException(result.failure());
+                }
+                return new ReplicationResponse(result.seqNo(), result.primaryTerm(), 0L, shard.localCheckpoint());
             }
             default:
                 throw new IOException("unsupported replication op type [" + request.opType() + "]");
@@ -328,7 +368,7 @@ public final class ReplicationGroup {
             });
         try {
             ReplicationResponse response = future.get(replicaTimeoutMillis * 2L, TimeUnit.MILLISECONDS);
-            checkpointTracker.updateLocalCheckpoint(replica.allocationId(), response.seqNo());
+            checkpointTracker.updateLocalCheckpoint(replica.allocationId(), response.localCheckpoint());
         } catch (ExecutionException | InterruptedException | TimeoutException e) {
             Throwable cause = e instanceof ExecutionException ? e.getCause() : e;
             Exception failure = cause instanceof Exception ex ? ex : new RuntimeException(cause);
@@ -341,15 +381,16 @@ public final class ReplicationGroup {
         switch (op.opType()) {
             case INDEX: {
                 Operation.Index idx = (Operation.Index) op;
-                return ReplicationRequest.index(shardId, newTerm, idx.id(), idx.routing(), idx.source().toBytesArray());
+                return ReplicationRequest.indexAtSeqNo(shardId, newTerm, idx.id(), idx.routing(), idx.source().toBytesArray(),
+                    idx.seqNo(), idx.primaryTerm(), idx.version());
             }
             case DELETE: {
                 Operation.Delete del = (Operation.Delete) op;
-                return ReplicationRequest.delete(shardId, newTerm, del.id());
+                return ReplicationRequest.deleteAtSeqNo(shardId, newTerm, del.id(), del.seqNo(), del.primaryTerm(), del.version());
             }
             case NO_OP: {
                 Operation.NoOp noOp = (Operation.NoOp) op;
-                return ReplicationRequest.noOp(shardId, newTerm, noOp.reason());
+                return ReplicationRequest.noOpAtSeqNo(shardId, newTerm, noOp.reason(), noOp.seqNo(), noOp.primaryTerm());
             }
             default:
                 throw new IllegalStateException("unhandled translog op type [" + op.opType() + "]");

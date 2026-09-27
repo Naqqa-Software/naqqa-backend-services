@@ -43,11 +43,15 @@ final class BulkByScrollExecutor {
         }
     }
 
-    private final SearchCoordinator searchCoordinator;
+    private final ByQuerySearchHooks.Searcher searcher;
     private final Supplier<RoutingTable> routingTableSupplier;
 
     BulkByScrollExecutor(SearchCoordinator searchCoordinator, Supplier<RoutingTable> routingTableSupplier) {
-        this.searchCoordinator = searchCoordinator;
+        this(searchCoordinator::search, routingTableSupplier);
+    }
+
+    BulkByScrollExecutor(ByQuerySearchHooks.Searcher searcher, Supplier<RoutingTable> routingTableSupplier) {
+        this.searcher = searcher;
         this.routingTableSupplier = routingTableSupplier;
     }
 
@@ -95,7 +99,7 @@ final class BulkByScrollExecutor {
             if (options.preference() != null) {
                 request.preference(options.preference());
             }
-            SearchResponse response = searchCoordinator.search(routingTableSupplier.get(), request);
+            SearchResponse response = searcher.search(routingTableSupplier.get(), request);
             if (!sawTotal) {
                 total = response.totalHits().value();
                 sawTotal = true;

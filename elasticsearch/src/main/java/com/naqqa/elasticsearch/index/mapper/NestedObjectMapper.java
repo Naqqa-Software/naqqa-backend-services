@@ -6,6 +6,8 @@ import java.util.Map;
 
 public final class NestedObjectMapper extends ObjectMapper {
 
+    public static final String NESTED_PATH_FIELD = "_nested_path";
+
     private final boolean includeInParent;
     private final boolean includeInRoot;
 

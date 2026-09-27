@@ -35,10 +35,15 @@ public final class ByQueryActionService {
 
     public ByQueryActionService(RelocationAwareRouter router, SearchCoordinator searchCoordinator, TaskManager taskManager,
                                  ScriptService scriptService) {
+        this(router, ByQuerySearchHooks.defaults(searchCoordinator), taskManager, scriptService);
+    }
+
+    public ByQueryActionService(RelocationAwareRouter router, ByQuerySearchHooks hooks, TaskManager taskManager,
+                                 ScriptService scriptService) {
         ThrottleRegistry throttleRegistry = new ThrottleRegistry();
-        this.deleteByQueryAction = new DeleteByQueryAction(router, searchCoordinator, taskManager, throttleRegistry);
-        this.updateByQueryAction = new UpdateByQueryAction(router, searchCoordinator, taskManager, throttleRegistry);
-        this.reindexAction = new ReindexAction(router, searchCoordinator, taskManager, throttleRegistry);
+        this.deleteByQueryAction = new DeleteByQueryAction(router, hooks, taskManager, throttleRegistry);
+        this.updateByQueryAction = new UpdateByQueryAction(router, hooks, taskManager, throttleRegistry);
+        this.reindexAction = new ReindexAction(router, hooks, taskManager, throttleRegistry);
         this.termVectorsAction = new TermVectorsAction(router);
         this.multiTermVectorsAction = new MultiTermVectorsAction(router);
         this.rethrottleAction = new RethrottleAction(taskManager, throttleRegistry);
