@@ -117,7 +117,9 @@ public final class LocalSearchExecutor {
         List<EngineSearchContext> contexts = new ArrayList<>();
         List<ShardId> order = new ArrayList<>(searchers.keySet());
         long totalValue = 0;
-        TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
+        boolean anyGreaterOrEqual = false;
+        long trackTotalHitsUpTo = request.trackTotalHitsUpTo();
+        int threshold = TotalHits.collectorThreshold(trackTotalHitsUpTo);
         List<SearchResponse.Failure> failures = new ArrayList<>();
         {
             for (int ordinal = 0; ordinal < order.size(); ordinal++) {
@@ -133,12 +135,13 @@ public final class LocalSearchExecutor {
                         AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), null, aggsClause,
                             new MultiBucketConsumer(request.maxBuckets()), fieldTypes);
                         shardAggs.add(result.aggregations);
-                        totalHits = new TotalHits(result.matchedDocCount, TotalHits.Relation.EQUAL_TO);
+                        totalHits = new TotalHits(result.matchedDocCount, TotalHits.relationFor(result.matchedDocCount, trackTotalHitsUpTo));
                     } else {
-                        totalHits = new TotalHits(searcher.count(request.query()), TotalHits.Relation.EQUAL_TO);
+                        long rawCount = searcher.count(request.query());
+                        totalHits = new TotalHits(rawCount, TotalHits.relationFor(rawCount, trackTotalHitsUpTo));
                     }
                 } else if (request.sort() != null) {
-                    ShardFieldCollector collector = new ShardFieldCollector(request.sort(), topN);
+                    ShardFieldCollector collector = new ShardFieldCollector(request.sort(), topN, trackTotalHitsUpTo);
                     if (aggsClause != null) {
                         AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause,
                             new MultiBucketConsumer(request.maxBuckets()), fieldTypes);
@@ -151,7 +154,7 @@ public final class LocalSearchExecutor {
                         all.add(new ShardHit(shardId, ordinal, hit.doc(), hit.score(), hit.values()));
                     }
                 } else {
-                    TopScoreDocCollector collector = TopScoreDocCollector.create(topN);
+                    TopScoreDocCollector collector = TopScoreDocCollector.create(topN, threshold);
                     if (aggsClause != null) {
                         AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause,
                             new MultiBucketConsumer(request.maxBuckets()), fieldTypes);
@@ -167,7 +170,7 @@ public final class LocalSearchExecutor {
                 }
                 totalValue += totalHits.value();
                 if (totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
-                    relation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+                    anyGreaterOrEqual = true;
                 }
             }
             Sort sort = request.sort();
@@ -188,7 +191,8 @@ public final class LocalSearchExecutor {
             int total = order.size();
             SearchResponse.Shards shardStats = new SearchResponse.Shards(total, total - failures.size(), failures.size(), 0);
             long took = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-            return new SearchResponse(hits, new TotalHits(totalValue, relation), took, shardStats, failures, false, aggregations);
+            TotalHits mergedTotalHits = trackTotalHitsUpTo < 0 ? null : TotalHits.merge(totalValue, anyGreaterOrEqual, trackTotalHitsUpTo);
+            return new SearchResponse(hits, mergedTotalHits, took, shardStats, failures, false, aggregations);
         }
     }
 

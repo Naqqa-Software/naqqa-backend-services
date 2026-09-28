@@ -26,6 +26,11 @@ public final class TransportIndexAction {
 
     public DocumentActionService.IndexResult execute(DocumentActionService.IndexRequest request,
                                                        WaitForActiveShards waitForActiveShards) throws IOException {
+        return execute(request, waitForActiveShards, true);
+    }
+
+    public DocumentActionService.IndexResult execute(DocumentActionService.IndexRequest request,
+                                                       WaitForActiveShards waitForActiveShards, boolean fsyncTranslog) throws IOException {
         String id = request.id() != null ? request.id() : UUIDs.base64TimeBasedUUID();
         IndexNameResolver.Resolution resolution = router.resolveIndex(request.index());
         String index = resolution.index();
@@ -42,7 +47,7 @@ public final class TransportIndexAction {
                 }
             }
             IndexOperation op = buildOperation(id, routing, request);
-            IndexResult indexResult = group.replicateIndex(op, waitForActiveShards);
+            IndexResult indexResult = group.replicateIndex(op, waitForActiveShards, fsyncTranslog);
             if (indexResult.success()) {
                 RefreshCoordinator.apply(policy, group.primary().indexShard());
             }

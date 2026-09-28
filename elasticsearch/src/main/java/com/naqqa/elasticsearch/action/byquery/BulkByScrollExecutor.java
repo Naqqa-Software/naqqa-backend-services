@@ -123,10 +123,12 @@ final class BulkByScrollExecutor {
             }
             batches++;
             boolean abortedByConflict = false;
+            int actionable = 0;
             for (SearchResponse.Hit hit : hits) {
                 HandlerResult result = handler.handle(hit);
                 if (result.versionConflict()) {
                     versionConflicts++;
+                    actionable++;
                     if (options.abortOnConflict()) {
                         abortedByConflict = true;
                         break;
@@ -134,16 +136,15 @@ final class BulkByScrollExecutor {
                     continue;
                 }
                 switch (result.kind()) {
-                    case UPDATED -> updated++;
-                    case CREATED -> created++;
-                    case DELETED -> deleted++;
-                    case NOOP -> noops++;
-                    case SKIPPED -> {
-                        // not owned by this node; a broadcast to the owning node handles it
-                    }
+                    case UPDATED -> { updated++; actionable++; }
+                    case CREATED -> { created++; actionable++; }
+                    case DELETED -> { deleted++; actionable++; }
+                    case NOOP -> { noops++; actionable++; }
+                    case SKIPPED -> { }
                     case FAILED -> {
                         Map<String, Object> failure = Map.of("index", index, "reason", String.valueOf(result.failureReason()));
                         failures.add(failure);
+                        actionable++;
                     }
                 }
             }
@@ -159,6 +160,9 @@ final class BulkByScrollExecutor {
                 break;
             }
             if (!restartFromZeroEachBatch && consumed >= total) {
+                break;
+            }
+            if (restartFromZeroEachBatch && actionable == 0) {
                 break;
             }
         }

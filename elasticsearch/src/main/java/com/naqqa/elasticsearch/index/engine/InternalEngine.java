@@ -20,6 +20,7 @@ import com.naqqa.elasticsearch.index.seqno.LocalCheckpointTracker;
 import com.naqqa.elasticsearch.index.seqno.SequenceNumbers;
 import com.naqqa.elasticsearch.index.translog.LiveVersionMap;
 import com.naqqa.elasticsearch.index.translog.Operation;
+import com.naqqa.elasticsearch.index.translog.Releasable;
 import com.naqqa.elasticsearch.index.translog.Translog;
 import com.naqqa.elasticsearch.index.translog.VersionType;
 import com.naqqa.elasticsearch.index.translog.VersionValue;
@@ -28,9 +29,12 @@ import com.naqqa.elasticsearch.store.Lock;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,12 +55,14 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
     private final TieredMergePolicy mergePolicy;
     private final AtomicLong segmentCounter;
     private final IndexingMemoryController memoryController;
+    private final IndexFileDeleter fileDeleter;
 
     private final Object refreshMutex = new Object();
     private final Object viewLock = new Object();
     private final Object mergeMutex = new Object();
     private final Object explicitSeqNoMutex = new Object();
     private final ReentrantReadWriteLock bufferTransitionLock = new ReentrantReadWriteLock();
+    private final java.util.Set<String> syncedSegments = new java.util.HashSet<>();
 
     private volatile List<SegmentReader> currentReaders;
     private volatile List<SegmentReader> pendingReaders = List.of();
@@ -69,7 +75,8 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
     private ScheduledExecutorService refreshScheduler;
 
     private InternalEngine(EngineConfig config, Directory directory, Lock writeLock, SegmentInfos lastCommit,
-                            List<SegmentReader> initialReaders, LocalCheckpointTracker tracker, Translog translog) {
+                            List<SegmentReader> initialReaders, LocalCheckpointTracker tracker, Translog translog,
+                            IndexFileDeleter fileDeleter) {
         super(config);
         this.directory = directory;
         this.writeLock = writeLock;
@@ -78,6 +85,7 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         this.currentReaders = List.copyOf(initialReaders);
         this.localCheckpointTracker = tracker;
         this.translog = translog;
+        this.fileDeleter = fileDeleter;
         this.lastFlushCheckpoint = tracker.getCheckpoint();
         this.mergePolicy = new TieredMergePolicy(config.maxMergeAtOnce(), config.segmentsPerTier(), config.maxDeletedPctAllowed());
         this.segmentCounter = new AtomicLong(scanMaxSegmentOrdinal(directory) + 1);
@@ -101,11 +109,23 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         for (SegmentCommitInfo sci : lastCommit.segments()) {
             readers.add(SegmentReader.open(directory, sci));
         }
+        IndexFileDeleter fileDeleter = new IndexFileDeleter(directory);
+        Set<String> initialCommitFiles = new HashSet<>();
+        for (SegmentReader r : readers) {
+            initialCommitFiles.addAll(r.allFiles());
+        }
+        String initialCommitFileName = lastCommit.generation() > 0
+            ? SegmentInfos.fileNameForGeneration(lastCommit.generation()) : null;
+        fileDeleter.seedInitialCommit(initialCommitFileName, initialCommitFiles,
+            new HashSet<>(Arrays.asList(directory.listAll())));
+        for (SegmentReader r : readers) {
+            fileDeleter.incRefReader(r.staticFiles());
+        }
         long localCheckpoint = parseLongOr(lastCommit.userData().get("local_checkpoint"), SequenceNumbers.NO_OPS_PERFORMED);
         long maxSeqNo = parseLongOr(lastCommit.userData().get("max_seq_no"), SequenceNumbers.NO_OPS_PERFORMED);
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(localCheckpoint, maxSeqNo);
         Translog translog = Translog.open(config.translogConfig().translogPath(), config.translogConfig());
-        InternalEngine engine = new InternalEngine(config, directory, writeLock, lastCommit, readers, tracker, translog);
+        InternalEngine engine = new InternalEngine(config, directory, writeLock, lastCommit, readers, tracker, translog, fileDeleter);
         engine.memoryController.register(engine);
         engine.recoverFromTranslog();
         engine.startBackgroundRefresh();
@@ -254,7 +274,9 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
 
     private StoredDocCodec.Decoded findStoredDoc(List<SegmentReader> segments, String id) throws IOException {
         for (SegmentReader r : segments) {
-            r.incRef();
+            if (!r.tryIncRef()) {
+                continue;
+            }
             try {
                 Integer docId = r.findLiveDocForId(SegmentWriter.ID_FIELD, id);
                 if (docId != null) {
@@ -269,6 +291,11 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
 
     @Override
     public IndexResult index(IndexOperation op) throws IOException {
+        return index(op, true);
+    }
+
+    @Override
+    public IndexResult index(IndexOperation op, boolean fsyncTranslog) throws IOException {
         ensureOpen();
         if (mapperService.documentMapper() == null) {
             return IndexResult.failure(new EngineException("no mapping defined for index [" + mapperService.indexName() + "]"));
@@ -299,7 +326,7 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         long primaryTerm = engineConfig.primaryTerm();
         ParsedDocument parsed = mapperService.parse(id, op.routing(), op.source());
         byte[] sourceBytes = JsonWriter.toJsonBytes(JsonValue.wrap(op.source()), false);
-        Translog.Location loc = translog.add(new Operation.Index(id, seqNo, primaryTerm, newVersion, BytesReference.of(sourceBytes), op.routing()));
+        Translog.Location loc = translog.add(new Operation.Index(id, seqNo, primaryTerm, newVersion, BytesReference.of(sourceBytes), op.routing()), fsyncTranslog);
         bufferPut(id, VersionValue.index(newVersion, seqNo, primaryTerm, loc), BufferedDoc.indexed(id, seqNo, primaryTerm, newVersion, parsed));
         localCheckpointTracker.markSeqNoAsProcessed(seqNo);
         afterBufferMutation();
@@ -308,6 +335,11 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
 
     @Override
     public DeleteResult delete(DeleteOperation op) throws IOException {
+        return delete(op, true);
+    }
+
+    @Override
+    public DeleteResult delete(DeleteOperation op, boolean fsyncTranslog) throws IOException {
         ensureOpen();
         String id = op.id();
         CurrentDocInfo cur = lookupCurrent(id);
@@ -327,11 +359,17 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         }
         long seqNo = localCheckpointTracker.generateSeqNo();
         long primaryTerm = engineConfig.primaryTerm();
-        Translog.Location loc = translog.add(new Operation.Delete(id, seqNo, primaryTerm, newVersion));
+        Translog.Location loc = translog.add(new Operation.Delete(id, seqNo, primaryTerm, newVersion), fsyncTranslog);
         bufferPut(id, VersionValue.tombstone(newVersion, seqNo, primaryTerm, loc), BufferedDoc.tombstone(id, seqNo, primaryTerm, newVersion));
         localCheckpointTracker.markSeqNoAsProcessed(seqNo);
         afterBufferMutation();
         return DeleteResult.success(seqNo, primaryTerm, newVersion, cur.exists());
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        ensureOpen();
+        translog.sync();
     }
 
     @Override
@@ -528,6 +566,11 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         return pendingReaders.size();
     }
 
+    @Override
+    public Releasable acquireLastCommitRef() {
+        return fileDeleter.holdLastCommit();
+    }
+
     private RefreshResult doWriteBuffer(boolean makeSearchable) throws IOException {
         synchronized (refreshMutex) {
             Map<String, BufferedDoc> toFlush;
@@ -547,6 +590,9 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
                     bufferTransitionLock.writeLock().unlock();
                 }
                 boolean promoted = makeSearchable && promotePendingReaders();
+                if (promoted) {
+                    scheduleMaybeMerge();
+                }
                 return new RefreshResult(promoted, currentReaders.size());
             }
             List<BufferedDoc> liveDocsToWrite = new ArrayList<>();
@@ -560,6 +606,7 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
                 String segName = nextSegmentName();
                 SegmentWriter.write(directory, segName, liveDocsToWrite);
                 newReader = SegmentReader.open(directory, new SegmentCommitInfo(segName, 0, 0));
+                fileDeleter.incRefReader(newReader.staticFiles());
             }
             synchronized (viewLock) {
                 markDeletedAcrossWriterSegments(toFlush.keySet());
@@ -639,33 +686,77 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
             List<SegmentReader> view;
             synchronized (viewLock) {
                 view = currentReaders;
-            }
-            boolean anyDirty = false;
-            for (SegmentReader sr : view) {
-                if (sr.isDirty()) {
-                    anyDirty = true;
-                    break;
+                for (SegmentReader sr : view) {
+                    sr.incRef();
                 }
             }
-            boolean needsFlush = force || r.refreshed() || checkpoint != lastFlushCheckpoint || anyDirty;
-            if (!needsFlush) {
-                return new FlushResult(false, lastCommit.generation());
+            try {
+                boolean anyDirty = false;
+                for (SegmentReader sr : view) {
+                    if (sr.isDirty()) {
+                        anyDirty = true;
+                        break;
+                    }
+                }
+                boolean needsFlush = force || r.refreshed() || checkpoint != lastFlushCheckpoint || anyDirty;
+                if (!needsFlush) {
+                    return new FlushResult(false, lastCommit.generation());
+                }
+                List<SegmentCommitInfo> commitInfos = new ArrayList<>();
+                for (SegmentReader sr : view) {
+                    commitInfos.add(sr.persistIfDirty(directory));
+                }
+                syncSegmentFiles(view);
+                Map<String, String> userData = new LinkedHashMap<>();
+                userData.put("local_checkpoint", Long.toString(checkpoint));
+                userData.put("max_seq_no", Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                userData.put("translog_uuid", translog.getTranslogUUID());
+                SegmentInfos newInfos = new SegmentInfos(lastCommit.generation(), commitInfos, userData);
+                lastCommit = newInfos.commit(directory);
+                Set<String> commitFiles = new HashSet<>();
+                for (SegmentReader sr : view) {
+                    commitFiles.addAll(sr.allFiles());
+                }
+                fileDeleter.onNewCommit(SegmentInfos.fileNameForGeneration(lastCommit.generation()), commitFiles);
+                lastFlushCheckpoint = checkpoint;
+                translog.rollGeneration();
+                translog.trimUnreferencedReaders(lastFlushCheckpoint + 1);
+                return new FlushResult(true, lastCommit.generation());
+            } finally {
+                for (SegmentReader sr : view) {
+                    sr.decRef();
+                }
             }
-            List<SegmentCommitInfo> commitInfos = new ArrayList<>();
-            for (SegmentReader sr : view) {
-                commitInfos.add(sr.persistIfDirty(directory));
-            }
-            Map<String, String> userData = new LinkedHashMap<>();
-            userData.put("local_checkpoint", Long.toString(checkpoint));
-            userData.put("max_seq_no", Long.toString(localCheckpointTracker.getMaxSeqNo()));
-            userData.put("translog_uuid", translog.getTranslogUUID());
-            SegmentInfos newInfos = new SegmentInfos(lastCommit.generation(), commitInfos, userData);
-            lastCommit = newInfos.commit(directory);
-            lastFlushCheckpoint = checkpoint;
-            translog.rollGeneration();
-            translog.trimUnreferencedReaders(lastFlushCheckpoint + 1);
-            return new FlushResult(true, lastCommit.generation());
         }
+    }
+
+    private void syncSegmentFiles(List<SegmentReader> view) throws IOException {
+        List<String> toSync = new ArrayList<>();
+        List<String> segments = new ArrayList<>();
+        for (SegmentReader sr : view) {
+            if (syncedSegments.contains(sr.name())) {
+                continue;
+            }
+            segments.add(sr.name());
+            for (String file : sr.allFiles()) {
+                if (directory.fileExists(file)) {
+                    toSync.add(file);
+                }
+            }
+        }
+        if (!toSync.isEmpty()) {
+            directory.sync(toSync);
+        }
+        syncedSegments.addAll(segments);
+        syncedSegments.retainAll(namesOf(view));
+    }
+
+    private static java.util.Set<String> namesOf(List<SegmentReader> view) {
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (SegmentReader sr : view) {
+            names.add(sr.name());
+        }
+        return names;
     }
 
     private void scheduleMaybeMerge() {
@@ -673,35 +764,41 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
             return;
         }
         if (mergeScheduled.compareAndSet(false, true)) {
-            mergeExecutor.submit(() -> {
-                try {
-                    maybeMergeOnce();
-                } catch (Exception ignored) {
-                } finally {
-                    mergeScheduled.set(false);
-                }
-            });
+            try {
+                mergeExecutor.submit(() -> {
+                    try {
+                        maybeMergeOnce();
+                    } catch (Exception ignored) {
+                    } finally {
+                        mergeScheduled.set(false);
+                    }
+                });
+            } catch (java.util.concurrent.RejectedExecutionException ignored) {
+                mergeScheduled.set(false);
+            }
         }
     }
 
     private void maybeMergeOnce() throws IOException {
         synchronized (mergeMutex) {
-            List<SegmentReader> viewSnapshot;
-            synchronized (viewLock) {
-                viewSnapshot = currentReaders;
-            }
-            List<SegmentReader> batch = mergePolicy.findMerge(viewSnapshot);
-            if (batch == null) {
-                return;
-            }
-            for (SegmentReader r : batch) {
-                r.incRef();
-            }
-            try {
-                doMerge(batch);
-            } finally {
+            while (!closed) {
+                List<SegmentReader> viewSnapshot;
+                synchronized (viewLock) {
+                    viewSnapshot = currentReaders;
+                }
+                List<SegmentReader> batch = mergePolicy.findMerge(viewSnapshot);
+                if (batch == null) {
+                    return;
+                }
                 for (SegmentReader r : batch) {
-                    r.decRef();
+                    r.incRef();
+                }
+                try {
+                    doMerge(batch);
+                } finally {
+                    for (SegmentReader r : batch) {
+                        r.decRef();
+                    }
                 }
             }
         }
@@ -713,7 +810,7 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         refresh("force_merge");
         int before = currentReaders.size();
         synchronized (mergeMutex) {
-            while (true) {
+            while (!closed) {
                 List<SegmentReader> viewSnapshot;
                 synchronized (viewLock) {
                     viewSnapshot = currentReaders;
@@ -745,22 +842,14 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         String segName = nextSegmentName();
         SegmentMerger.merge(directory, segName, candidates);
         SegmentReader merged = SegmentReader.open(directory, new SegmentCommitInfo(segName, 0, 0));
+        fileDeleter.incRefReader(merged.staticFiles());
         synchronized (viewLock) {
             List<SegmentReader> newView = new ArrayList<>(currentReaders);
             newView.removeAll(candidates);
             newView.add(merged);
             currentReaders = List.copyOf(newView);
             for (SegmentReader old : candidates) {
-                old.scheduleDeletionWhenUnreferenced(() -> deleteSegmentFiles(old));
-            }
-        }
-    }
-
-    private void deleteSegmentFiles(SegmentReader r) {
-        for (String f : r.allFiles()) {
-            try {
-                directory.deleteFile(f);
-            } catch (IOException ignored) {
+                old.scheduleDeletionWhenUnreferenced(() -> fileDeleter.decRefReader(old.staticFiles()));
             }
         }
     }
@@ -813,23 +902,31 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        synchronized (viewLock) {
-            for (SegmentReader r : currentReaders) {
-                try {
-                    r.decRef();
-                } catch (IOException ignored) {
+        synchronized (mergeMutex) {
+            synchronized (viewLock) {
+                for (SegmentReader r : currentReaders) {
+                    try {
+                        r.decRef();
+                    } catch (IOException ignored) {
+                    }
                 }
-            }
-            currentReaders = List.of();
-            for (SegmentReader r : pendingReaders) {
-                try {
-                    r.decRef();
-                } catch (IOException ignored) {
+                currentReaders = List.of();
+                for (SegmentReader r : pendingReaders) {
+                    try {
+                        r.decRef();
+                    } catch (IOException ignored) {
+                    }
                 }
+                pendingReaders = List.of();
             }
-            pendingReaders = List.of();
         }
         translog.close();
+        if (directory instanceof com.naqqa.elasticsearch.store.FSDirectory fs) {
+            try {
+                fs.deletePendingFiles();
+            } catch (IOException ignored) {
+            }
+        }
         if (writeLock != null) {
             writeLock.close();
         }

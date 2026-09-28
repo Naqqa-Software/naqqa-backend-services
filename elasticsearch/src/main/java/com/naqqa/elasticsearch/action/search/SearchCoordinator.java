@@ -166,7 +166,7 @@ public final class SearchCoordinator {
             ShardRouting copy = chosenCopy.get(shardId);
             ShardSearchService.ShardQueryRequest req = new ShardSearchService.ShardQueryRequest(
                 shardId, request.query(), request.sort(), request.from(), request.size(), dfsCollStats, dfsTermStats,
-                request.aggs(), request.maxBuckets());
+                request.aggs(), request.maxBuckets(), request.trackTotalHitsUpTo());
             queryFutures.put(shardId, sendRequest(copy, ShardSearchService.ACTION_QUERY, req, request.timeoutMillis()));
         }
 
@@ -252,7 +252,18 @@ public final class SearchCoordinator {
             }
         }
 
-        int successful = queryResults.size();
+        Set<ShardId> failedShards = new java.util.HashSet<>();
+        for (SearchResponse.Failure f : failures) {
+            if (f.shardId() != null) {
+                failedShards.add(f.shardId());
+            }
+        }
+        int successful = 0;
+        for (ShardId shardId : queryResults.keySet()) {
+            if (!failedShards.contains(shardId)) {
+                successful++;
+            }
+        }
         int failed = failures.size();
         int total = shardIds.size();
         SearchResponse.Shards shardStats = new SearchResponse.Shards(total, successful, failed, skipped.size());
@@ -308,12 +319,12 @@ public final class SearchCoordinator {
             }
         };
         long totalValue = 0;
-        TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
+        boolean anyGreaterOrEqual = false;
         for (Map.Entry<ShardId, ShardSearchService.ShardQueryResponse> e : queryResults.entrySet()) {
             ShardSearchService.ShardQueryResponse resp = e.getValue();
             totalValue += resp.totalHits().value();
             if (resp.totalHits().relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
-                relation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+                anyGreaterOrEqual = true;
             }
             for (ShardSearchService.ShardQueryResponse.Hit hit : resp.hits()) {
                 if (windowSize > 0) {
@@ -327,7 +338,9 @@ public final class SearchCoordinator {
         for (int i = request.from(); i < arr.length && page.size() < request.size(); i++) {
             page.add(arr[i]);
         }
-        return new MergedHits(page, new TotalHits(totalValue, relation));
+        long trackTotalHitsUpTo = request.trackTotalHitsUpTo();
+        TotalHits merged = trackTotalHitsUpTo < 0 ? null : TotalHits.merge(totalValue, anyGreaterOrEqual, trackTotalHitsUpTo);
+        return new MergedHits(page, merged);
     }
 
     private static int compare(MergedHit a, MergedHit b, Sort sort) {

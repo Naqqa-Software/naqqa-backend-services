@@ -33,6 +33,7 @@ import com.naqqa.elasticsearch.cluster.state.ClusterBlocks;
 import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.cluster.state.IndexMetadata;
 import com.naqqa.elasticsearch.cluster.state.Metadata;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.transport.Connection;
 import com.naqqa.elasticsearch.transport.TransportService;
 
@@ -54,6 +55,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.UnaryOperator;
 
 public final class ClusterStateManager implements AutoCloseable, ClusterStateListener {
+
+    private static final ESLogger LOG = ESLogger.getLogger(ClusterStateManager.class);
 
     public static final String PROPOSE_ACTION = "internal:cluster/state/propose";
 
@@ -195,7 +198,7 @@ public final class ClusterStateManager implements AutoCloseable, ClusterStateLis
                 try {
                     runnable.run();
                 } catch (Throwable t) {
-                    System.err.println("[cluster] coordinator task failed: " + t);
+                    LOG.warn("[cluster] coordinator task failed: " + t);
                 }
             }
         });
@@ -237,6 +240,10 @@ public final class ClusterStateManager implements AutoCloseable, ClusterStateLis
         clusterNode.getApplierService().addListener(listener);
     }
 
+    public void addPreCommitListener(ClusterStateListener listener) {
+        clusterNode.getApplierService().addPreCommitListener(listener);
+    }
+
     public ClusterState state() {
         return clusterNode.getApplierService().state();
     }
@@ -252,7 +259,7 @@ public final class ClusterStateManager implements AutoCloseable, ClusterStateLis
         while (!hasElectedMaster()) {
             if (System.currentTimeMillis() > deadline) {
                 if (isMultiNode()) {
-                    System.err.println("[cluster] node [" + localNode.getName() + "] has not discovered an elected master within ["
+                    LOG.warn("[cluster] node [" + localNode.getName() + "] has not discovered an elected master within ["
                         + electionTimeoutMillis + "ms]; continuing to look for one in the background");
                     return;
                 }
@@ -296,7 +303,7 @@ public final class ClusterStateManager implements AutoCloseable, ClusterStateLis
         try {
             tick(System.currentTimeMillis());
         } catch (Throwable t) {
-            System.err.println("[cluster] tick failed: " + t);
+            LOG.warn("[cluster] tick failed: " + t);
         }
     }
 

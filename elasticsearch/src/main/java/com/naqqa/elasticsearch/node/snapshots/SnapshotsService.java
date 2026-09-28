@@ -11,7 +11,9 @@ import com.naqqa.elasticsearch.cluster.state.IndexMetadata;
 import com.naqqa.elasticsearch.cluster.state.MapCustom;
 import com.naqqa.elasticsearch.cluster.state.Metadata;
 import com.naqqa.elasticsearch.common.json.JsonValue;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
+import com.naqqa.elasticsearch.index.translog.Releasable;
 import com.naqqa.elasticsearch.node.action.NodeIndexAdminActionService;
 import com.naqqa.elasticsearch.node.cluster.ClusterStateManager;
 import com.naqqa.elasticsearch.node.cluster.NodeConnections;
@@ -56,6 +58,8 @@ import java.util.stream.Stream;
 import java.util.zip.CRC32;
 
 public final class SnapshotsService implements ClusterStateListener {
+
+    private static final ESLogger LOG = ESLogger.getLogger(SnapshotsService.class);
 
     public static final String MAPPINGS_SETTING = "index.snapshot_source_mappings";
     public static final String REPOSITORIES_CUSTOM = "snapshot_repositories";
@@ -189,7 +193,7 @@ public final class SnapshotsService implements ClusterStateListener {
             try {
                 registerLocally(name, type, settings, false);
             } catch (RuntimeException e) {
-                System.err.println("[snapshots] failed to apply repository [" + name + "] from cluster state: " + e.getMessage());
+                LOG.warn("[snapshots] failed to apply repository [" + name + "] from cluster state: " + e.getMessage());
             }
         }
     }
@@ -300,34 +304,42 @@ public final class SnapshotsService implements ClusterStateListener {
         ClusterState state = clusterStateManager.state();
         List<String> indices = indexResolver.resolve(state, indexExpressions, false, false);
         Map<ShardId, ShardSnapshotSource> sources = new LinkedHashMap<>();
-        for (String index : indices) {
-            IndexMetadata imd = state.getMetadata().index(index);
-            IndexService service = indicesService.indexService(index);
-            int numberOfShards = imd == null ? (service == null ? 0 : service.shards().size()) : imd.getNumberOfShards();
-            for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
-                IndexShard localShard = service == null ? null : service.shard(shardNum);
-                if (localShard != null) {
-                    try {
-                        localShard.flush(true);
-                    } catch (IOException ex) {
-                        throw new RestApiException(500, "failed to flush " + index + "[" + shardNum + "]: " + ex.getMessage(), ex);
-                    }
-                    sources.put(new ShardId(index, shardNum), new DirectoryShardSnapshotSource(service.shardPath(shardNum).resolve("index")));
-                    continue;
-                }
-                DiscoveryNode owner = nodeHoldingShard(state, index, shardNum);
-                if (owner == null || transportService == null) {
-                    throw new RestApiException(500, "index [" + index + "] shard [" + shardNum
-                        + "] has no available copy on this or any other node to snapshot");
-                }
-                sources.put(new ShardId(index, shardNum), new RemoteShardSnapshotSource(owner, index, shardNum));
-            }
-        }
+        List<Releasable> commitRefs = new ArrayList<>();
         try {
-            return entry.repository().createSnapshot(new CreateSnapshotRequest(snapshotName, indices, sources,
-                new ClusterMetadataSource(state, indices), null, null, Instant.now()));
-        } catch (IOException e) {
-            throw new RestApiException(500, "snapshot [" + repositoryName + ":" + snapshotName + "] failed: " + e.getMessage(), e);
+            for (String index : indices) {
+                IndexMetadata imd = state.getMetadata().index(index);
+                IndexService service = indicesService.indexService(index);
+                int numberOfShards = imd == null ? (service == null ? 0 : service.shards().size()) : imd.getNumberOfShards();
+                for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
+                    IndexShard localShard = service == null ? null : service.shard(shardNum);
+                    if (localShard != null) {
+                        try {
+                            localShard.flush(true);
+                        } catch (IOException ex) {
+                            throw new RestApiException(500, "failed to flush " + index + "[" + shardNum + "]: " + ex.getMessage(), ex);
+                        }
+                        commitRefs.add(localShard.acquireLastCommitRef());
+                        sources.put(new ShardId(index, shardNum), new DirectoryShardSnapshotSource(service.shardPath(shardNum).resolve("index")));
+                        continue;
+                    }
+                    DiscoveryNode owner = nodeHoldingShard(state, index, shardNum);
+                    if (owner == null || transportService == null) {
+                        throw new RestApiException(500, "index [" + index + "] shard [" + shardNum
+                            + "] has no available copy on this or any other node to snapshot");
+                    }
+                    sources.put(new ShardId(index, shardNum), new RemoteShardSnapshotSource(owner, index, shardNum));
+                }
+            }
+            try {
+                return entry.repository().createSnapshot(new CreateSnapshotRequest(snapshotName, indices, sources,
+                    new ClusterMetadataSource(state, indices), null, null, Instant.now()));
+            } catch (IOException e) {
+                throw new RestApiException(500, "snapshot [" + repositoryName + ":" + snapshotName + "] failed: " + e.getMessage(), e);
+            }
+        } finally {
+            for (Releasable commitRef : commitRefs) {
+                commitRef.close();
+            }
         }
     }
 
@@ -385,63 +397,44 @@ public final class SnapshotsService implements ClusterStateListener {
             }
             targetNames.put(index, target);
         }
-        Map<String, String> uuids = new LinkedHashMap<>();
-        Map<ShardId, ShardRestoreTarget> targets = new LinkedHashMap<>();
+        Map<ShardId, ShardRestoreTarget> metadataOnlyTargets = new LinkedHashMap<>();
         for (String key : info.shardManifestBlobs().keySet()) {
             ShardId shardId = ShardId.parseKey(key);
             String target = targetNames.get(shardId.index());
             if (target == null) {
                 continue;
             }
-            String uuid = uuids.computeIfAbsent(target, t -> MetadataIndexService.newUuid());
-            Path dir = indicesPath.resolve(uuid).resolve(Integer.toString(shardId.shard())).resolve("index");
-            targets.put(new ShardId(target, shardId.shard()), name -> {
-                Files.createDirectories(dir);
-                return Files.newOutputStream(dir.resolve(name));
-            });
+            metadataOnlyTargets.put(new ShardId(target, shardId.shard()), name -> OutputStream.nullOutputStream());
         }
         RestoreResult result;
         try {
             result = entry.repository().restoreSnapshot(snapshotName,
-                new RestoreRequest(selected, renamePattern, renameReplacement, overrides, existing), targets);
+                new RestoreRequest(selected, renamePattern, renameReplacement, overrides, existing), metadataOnlyTargets);
         } catch (IOException | RuntimeException e) {
-            for (String uuid : uuids.values()) {
-                deleteQuietly(indicesPath.resolve(uuid));
-            }
             throw new RestApiException(500, "restore of [" + repositoryName + ":" + snapshotName + "] failed: " + e.getMessage(), e);
         }
         List<String> restored = new ArrayList<>();
         for (Map.Entry<String, String> e : result.renamedIndices().entrySet()) {
+            String source = e.getKey();
             String target = e.getValue();
             Map<String, Object> settings = new LinkedHashMap<>(result.restoredIndexSettings().getOrDefault(target, Map.of()));
             Object mappingsJson = settings.remove(MAPPINGS_SETTING);
             Map<String, Object> mappings = mappingsJson == null ? Map.of()
                 : SettingsMaps.asMap(JsonValue.parse(String.valueOf(mappingsJson).getBytes(StandardCharsets.UTF_8)).toJava());
             settings.keySet().removeIf(k -> k.equals("index.uuid") || k.equals("index.creation_date") || k.equals("index.provided_name"));
-            String uuid = uuids.computeIfAbsent(target, t -> MetadataIndexService.newUuid());
+            settings.put(IndicesService.RECOVERY_TYPE_SETTING, IndicesService.RECOVERY_TYPE_SNAPSHOT);
+            settings.put(IndicesService.RECOVERY_REPOSITORY_SETTING, repositoryName);
+            settings.put(IndicesService.RECOVERY_SNAPSHOT_SETTING, snapshotName);
+            settings.put(IndicesService.RECOVERY_SOURCE_INDEX_SETTING, source);
+            String uuid = MetadataIndexService.newUuid();
             indexAdmin.createIndexInternal(target, settings, mappings, Map.of(), uuid, true);
             restored.add(target);
         }
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("snapshot", snapshotName);
         snapshot.put("indices", restored);
-        snapshot.put("shards", Map.of("total", targets.size(), "failed", 0, "successful", targets.size()));
+        snapshot.put("shards", Map.of("total", metadataOnlyTargets.size(), "failed", 0, "successful", metadataOnlyTargets.size()));
         return Map.of("snapshot", snapshot);
-    }
-
-    private static void deleteQuietly(Path path) {
-        if (!Files.exists(path)) {
-            return;
-        }
-        try (Stream<Path> walk = Files.walk(path)) {
-            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
-                try {
-                    Files.deleteIfExists(p);
-                } catch (IOException ignored) {
-                }
-            });
-        } catch (IOException ignored) {
-        }
     }
 
     public Map<String, Object> render(SnapshotInfo info) {

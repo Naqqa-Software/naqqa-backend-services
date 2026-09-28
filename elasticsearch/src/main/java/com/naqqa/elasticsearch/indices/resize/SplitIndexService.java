@@ -7,6 +7,7 @@ import com.naqqa.elasticsearch.index.engine.segment.SegmentReader;
 import com.naqqa.elasticsearch.index.engine.segment.StoredDocCodec;
 import com.naqqa.elasticsearch.index.mapper.MapperService;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
+import com.naqqa.elasticsearch.index.translog.Releasable;
 import com.naqqa.elasticsearch.store.Directory;
 
 import java.io.IOException;
@@ -43,30 +44,32 @@ public final class SplitIndexService {
         for (IndexShard source : sourceShards) {
             source.flush(true);
             Directory srcDir = source.engine().config().directory();
-            SegmentInfos lastCommit = SegmentInfos.readLatestCommit(srcDir);
-            for (SegmentCommitInfo sci : lastCommit.segments()) {
-                SegmentReader reader = SegmentReader.open(srcDir, sci);
-                try {
-                    int maxDoc = reader.maxDoc();
-                    for (int docId = 0; docId < maxDoc; docId++) {
-                        if (!reader.isLive(docId)) {
-                            continue;
+            try (Releasable commitRef = source.acquireLastCommitRef()) {
+                SegmentInfos lastCommit = SegmentInfos.readLatestCommit(srcDir);
+                for (SegmentCommitInfo sci : lastCommit.segments()) {
+                    SegmentReader reader = SegmentReader.open(srcDir, sci);
+                    try {
+                        int maxDoc = reader.maxDoc();
+                        for (int docId = 0; docId < maxDoc; docId++) {
+                            if (!reader.isLive(docId)) {
+                                continue;
+                            }
+                            StoredDocCodec.Decoded decoded = reader.storedDocument(docId);
+                            byte[] routingBytes = decoded.extraStoredFields().get("_routing");
+                            String explicitRouting = routingBytes == null ? null : new String(routingBytes, StandardCharsets.UTF_8);
+                            String effectiveRoutingKey = explicitRouting != null ? explicitRouting : decoded.id();
+                            int targetShardId = RoutingShardResolver.shardForRouting(effectiveRoutingKey, targetShardCount);
+                            Map<String, Object> sourceMap = (Map<String, Object>) JsonValue.parse(decoded.source()).toJava();
+                            IndexShard targetShard = targetShards.get(targetShardId);
+                            if (explicitRouting != null) {
+                                targetShard.index(decoded.id(), explicitRouting, sourceMap);
+                            } else {
+                                targetShard.index(decoded.id(), sourceMap);
+                            }
                         }
-                        StoredDocCodec.Decoded decoded = reader.storedDocument(docId);
-                        byte[] routingBytes = decoded.extraStoredFields().get("_routing");
-                        String explicitRouting = routingBytes == null ? null : new String(routingBytes, StandardCharsets.UTF_8);
-                        String effectiveRoutingKey = explicitRouting != null ? explicitRouting : decoded.id();
-                        int targetShardId = RoutingShardResolver.shardForRouting(effectiveRoutingKey, targetShardCount);
-                        Map<String, Object> sourceMap = (Map<String, Object>) JsonValue.parse(decoded.source()).toJava();
-                        IndexShard targetShard = targetShards.get(targetShardId);
-                        if (explicitRouting != null) {
-                            targetShard.index(decoded.id(), explicitRouting, sourceMap);
-                        } else {
-                            targetShard.index(decoded.id(), sourceMap);
-                        }
+                    } finally {
+                        reader.decRef();
                     }
-                } finally {
-                    reader.decRef();
                 }
             }
         }

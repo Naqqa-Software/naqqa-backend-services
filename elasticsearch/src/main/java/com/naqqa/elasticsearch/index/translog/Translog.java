@@ -120,11 +120,15 @@ public final class Translog implements Closeable {
     }
 
     public Location add(Operation op) throws IOException {
+        return add(op, true);
+    }
+
+    public Location add(Operation op, boolean fsync) throws IOException {
         ensureOpen();
         Location loc;
         synchronized (generationLock) {
             loc = current.add(op);
-            if (config.durability() == Durability.REQUEST) {
+            if (fsync && config.durability() == Durability.REQUEST) {
                 current.sync();
             }
             maybeRoll();
@@ -159,9 +163,7 @@ public final class Translog implements Closeable {
     }
 
     public long sizeInBytes() {
-        synchronized (generationLock) {
-            return current.sizeInBytes();
-        }
+        return current.sizeInBytes();
     }
 
     public int getMinFileGeneration() {

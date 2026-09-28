@@ -14,6 +14,7 @@ import com.naqqa.elasticsearch.cluster.state.IndexMetadata;
 import com.naqqa.elasticsearch.cluster.state.Metadata;
 import com.naqqa.elasticsearch.cluster.state.Settings;
 import com.naqqa.elasticsearch.cluster.node.NodeIdentity;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.index.mapper.MapperService;
 import com.naqqa.elasticsearch.indices.IndexBlocks;
 import com.naqqa.elasticsearch.indices.alias.AliasAction;
@@ -34,6 +35,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
 public final class MetadataIndexService {
+
+    private static final ESLogger LOG = ESLogger.getLogger(MetadataIndexService.class);
 
     public record CreateSpec(String index, String uuid, Map<String, String> settings, Map<String, Object> mappings,
                              Map<String, com.naqqa.elasticsearch.indices.alias.AliasMetadata> aliases) {
@@ -533,7 +536,7 @@ public final class MetadataIndexService {
             try {
                 aliasService.applyActions(actions);
             } catch (RuntimeException e) {
-                System.err.println("[indices] failed to restore aliases: " + e);
+                LOG.warn("[indices] failed to restore aliases: " + e);
             }
         }
     }

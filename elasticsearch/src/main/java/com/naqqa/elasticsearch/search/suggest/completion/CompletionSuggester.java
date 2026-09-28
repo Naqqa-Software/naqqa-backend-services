@@ -22,41 +22,47 @@ public final class CompletionSuggester {
     private final List<List<CompletionEntry>> postings;
 
     public CompletionSuggester(List<CompletionEntry.Input> inputs) {
-        java.util.Map<String, List<CompletionEntry>> byText = new java.util.LinkedHashMap<>();
+        int n = inputs.size();
+        CompletionEntry[] entries = new CompletionEntry[n];
         long order = 0;
-        for (CompletionEntry.Input input : inputs) {
-            CompletionEntry entry = new CompletionEntry(input.text(), input.weight(), input.contexts(), order++);
-            byText.computeIfAbsent(input.text(), k -> new ArrayList<>()).add(entry);
+        for (int i = 0; i < n; i++) {
+            CompletionEntry.Input input = inputs.get(i);
+            entries[i] = new CompletionEntry(input.text(), input.weight(), input.contexts(), order++);
         }
-        List<String> texts = new ArrayList<>(byText.keySet());
-        List<byte[]> byteKeys = new ArrayList<>();
-        for (String t : texts) {
-            byteKeys.add(t.getBytes(StandardCharsets.UTF_8));
-        }
-        Integer[] index = new Integer[texts.size()];
-        for (int i = 0; i < index.length; i++) {
-            index[i] = i;
-        }
-        Arrays.sort(index, (a, b) -> Arrays.compareUnsigned(byteKeys.get(a), byteKeys.get(b)));
-        sortedTexts = new String[texts.size()];
-        postings = new ArrayList<>(texts.size());
-        for (int i = 0; i < index.length; i++) {
-            sortedTexts[i] = texts.get(index[i]);
-            postings.add(null);
-        }
-        FSTBuilder builder = new FSTBuilder();
-        for (int i = 0; i < index.length; i++) {
-            byte[] key = byteKeys.get(index[i]);
-            builder.add(key, i);
-            List<CompletionEntry> group = new ArrayList<>(byText.get(sortedTexts[i]));
+        Arrays.sort(entries, (a, b) -> compareUtf8(a.text(), b.text()));
+
+        List<String> texts = new ArrayList<>();
+        List<List<CompletionEntry>> groups = new ArrayList<>();
+        int i = 0;
+        while (i < n) {
+            String text = entries[i].text();
+            List<CompletionEntry> group = new ArrayList<>(1);
+            int j = i;
+            while (j < n && entries[j].text().equals(text)) {
+                group.add(entries[j]);
+                j++;
+            }
             group.sort(ENTRY_ORDER);
-            postings.set(i, group);
+            texts.add(text);
+            groups.add(group);
+            i = j;
         }
+        sortedTexts = texts.toArray(new String[0]);
+        postings = groups;
+
+        FSTBuilder builder = new FSTBuilder();
         try {
+            for (int k = 0; k < sortedTexts.length; k++) {
+                builder.add(sortedTexts[k].getBytes(StandardCharsets.UTF_8), k);
+            }
             fst = builder.build();
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static int compareUtf8(String a, String b) {
+        return Arrays.compareUnsigned(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
     }
 
     public List<CompletionEntry> suggest(String prefix, int size, ContextQuery contextQuery) {
@@ -89,15 +95,27 @@ public final class CompletionSuggester {
 
     public List<CompletionEntry> suggestFuzzy(String prefix, int size, FuzzyOptions options, ContextQuery contextQuery) {
         List<CompletionEntry> results = new ArrayList<>();
-        for (int i = 0; i < sortedTexts.length; i++) {
-            String text = sortedTexts[i];
+        if (fst.isEmpty()) {
+            return results;
+        }
+        byte[] requiredPrefixBytes = FuzzyPrefixMatcher.requiredPrefixBytes(prefix, options);
+        FSTEnum it = fst.iterator();
+        boolean has = it.seekCeil(requiredPrefixBytes);
+        while (has) {
+            byte[] term = it.term();
+            if (term == null || !startsWith(term, requiredPrefixBytes)) {
+                break;
+            }
+            int idx = (int) it.output();
+            String text = sortedTexts[idx];
             if (FuzzyPrefixMatcher.matches(prefix, text, options)) {
-                for (CompletionEntry entry : postings.get(i)) {
+                for (CompletionEntry entry : postings.get(idx)) {
                     if (contextQuery == null || contextQuery.matches(entry)) {
                         results.add(entry);
                     }
                 }
             }
+            has = it.next();
         }
         results.sort(ENTRY_ORDER);
         if (results.size() > size) {

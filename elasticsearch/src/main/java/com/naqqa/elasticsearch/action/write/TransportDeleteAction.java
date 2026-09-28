@@ -22,13 +22,18 @@ public final class TransportDeleteAction {
 
     public DocumentActionService.DeleteResult execute(DocumentActionService.DeleteRequest request,
                                                         WaitForActiveShards waitForActiveShards) throws IOException {
+        return execute(request, waitForActiveShards, true);
+    }
+
+    public DocumentActionService.DeleteResult execute(DocumentActionService.DeleteRequest request,
+                                                        WaitForActiveShards waitForActiveShards, boolean fsyncTranslog) throws IOException {
         RefreshPolicy policy = RefreshPolicy.parse(request.refresh());
         IndexNameResolver.Resolution resolution = router.resolveIndex(request.index());
         String index = resolution.index();
         String routing = request.routing() != null ? request.routing() : resolution.routingOverride();
         DeleteResult result = router.execute(index, request.id(), routing, group -> {
             DeleteOperation op = buildOperation(request);
-            DeleteResult deleteResult = group.replicateDelete(op, waitForActiveShards);
+            DeleteResult deleteResult = group.replicateDelete(op, waitForActiveShards, fsyncTranslog);
             if (deleteResult.success()) {
                 RefreshCoordinator.apply(policy, group.primary().indexShard());
             }

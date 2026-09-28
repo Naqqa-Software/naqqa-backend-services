@@ -1,5 +1,7 @@
 package com.naqqa.elasticsearch.transport;
 
+import com.naqqa.elasticsearch.common.logging.ESLogger;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
@@ -17,6 +19,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executor;
 
 final class TcpTransport {
+
+    private static final ESLogger LOG = ESLogger.getLogger(TcpTransport.class);
 
     private final TransportMessageListener listener;
     private final Executor dispatchExecutor;
@@ -187,6 +191,9 @@ final class TcpTransport {
         try {
             if (socketChannel.finishConnect()) {
                 key.interestOps(SelectionKey.OP_READ);
+                if (channel.hasPendingWrites()) {
+                    key.interestOpsOr(SelectionKey.OP_WRITE);
+                }
                 channel.markConnected();
             }
         } catch (IOException e) {
@@ -238,7 +245,7 @@ final class TcpTransport {
                 rxBytes.add(body.length);
                 listener.onMessage(channel, message.requestId(), message.status(), message.version(), message.action(), message.payload());
             } catch (Exception e) {
-                System.err.println("transport: failed to decode inbound message: " + e);
+                LOG.warn("transport: failed to decode inbound message: " + e);
             }
         };
         try {
@@ -254,6 +261,9 @@ final class TcpTransport {
             boolean drained = channel.flush();
             if (drained) {
                 key.interestOpsAnd(~SelectionKey.OP_WRITE);
+                if (channel.hasPendingWrites()) {
+                    key.interestOpsOr(SelectionKey.OP_WRITE);
+                }
             }
         } catch (IOException e) {
             channel.close(e);

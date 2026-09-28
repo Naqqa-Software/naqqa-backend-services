@@ -5,6 +5,7 @@ import com.naqqa.elasticsearch.cluster.service.ClusterStateListener;
 import com.naqqa.elasticsearch.cluster.state.IndexMetadata;
 import com.naqqa.elasticsearch.cluster.state.MapCustom;
 import com.naqqa.elasticsearch.cluster.state.Metadata;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.common.unit.TimeValue;
 import com.naqqa.elasticsearch.indices.ilm.IlmRunner;
 import com.naqqa.elasticsearch.indices.ilm.IndexLifecycleActionExecutor;
@@ -32,6 +33,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 
 public final class LifecycleService implements ClusterStateListener {
+
+    private static final ESLogger LOG = ESLogger.getLogger(LifecycleService.class);
 
     public static final String POLICY_SETTING = "index.lifecycle.name";
     public static final String POLICIES_CUSTOM = "index_lifecycle_policies";
@@ -95,7 +98,7 @@ public final class LifecycleService implements ClusterStateListener {
             try {
                 applyPolicyLocally(name, body);
             } catch (RuntimeException e) {
-                System.err.println("[ilm] failed to apply lifecycle policy [" + name + "] from cluster state: " + e);
+                LOG.warn("[ilm] failed to apply lifecycle policy [" + name + "] from cluster state: " + e);
             }
         }
         for (String name : new ArrayList<>(policySources.keySet())) {
@@ -310,7 +313,7 @@ public final class LifecycleService implements ClusterStateListener {
                 return changed ? cs.builder().metadata(mb.build()).build() : cs;
             }).get(30, TimeUnit.SECONDS);
         } catch (ExecutionException | TimeoutException e) {
-            System.err.println("[ilm] failed to persist lifecycle execution state: " + e);
+            LOG.error("[ilm] failed to persist lifecycle execution state: " + e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -392,7 +395,7 @@ public final class LifecycleService implements ClusterStateListener {
             try {
                 runner.tick(System.currentTimeMillis());
             } catch (RuntimeException e) {
-                System.err.println("[ilm] tick failed: " + e);
+                LOG.warn("[ilm] tick failed: " + e);
             }
         } finally {
             lock.unlock();

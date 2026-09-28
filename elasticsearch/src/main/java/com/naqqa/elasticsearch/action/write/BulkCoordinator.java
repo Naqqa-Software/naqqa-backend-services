@@ -4,6 +4,7 @@ import com.naqqa.elasticsearch.cluster.routing.ShardId;
 import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.common.UUIDs;
 import com.naqqa.elasticsearch.http.RestStatusProvider;
+import com.naqqa.elasticsearch.index.replication.WaitForActiveShards;
 import com.naqqa.elasticsearch.rest.document.DocumentActionService;
 import com.naqqa.elasticsearch.transport.Connection;
 import com.naqqa.elasticsearch.transport.TransportException;
@@ -144,7 +145,22 @@ public final class BulkCoordinator {
                                                                      String defaultIndex, String globalRefresh) {
         List<DocumentActionService.BulkItemResult> results = new ArrayList<>(shardItems.size());
         for (DocumentActionService.BulkItem item : shardItems) {
-            results.add(executeItem(defaultIndex, item));
+            results.add(executeItem(defaultIndex, item, false));
+        }
+        if (!shardItems.isEmpty()) {
+            var group = router.replicationGroups().get(shardId);
+            if (group != null) {
+                try {
+                    group.primary().indexShard().syncTranslog();
+                } catch (IOException e) {
+                    for (int i = 0; i < results.size(); i++) {
+                        DocumentActionService.BulkItemResult r = results.get(i);
+                        if (r.error() == null) {
+                            results.set(i, errorResult(shardItems.get(i), r.index(), e));
+                        }
+                    }
+                }
+            }
         }
         RefreshPolicy policy = RefreshPolicy.parse(globalRefresh);
         if (policy != RefreshPolicy.NONE) {
@@ -152,7 +168,13 @@ public final class BulkCoordinator {
             if (group != null) {
                 try {
                     RefreshCoordinator.apply(policy, group.primary().indexShard());
-                } catch (IOException ignored) {
+                } catch (IOException e) {
+                    for (int i = 0; i < results.size(); i++) {
+                        DocumentActionService.BulkItemResult r = results.get(i);
+                        if (r.error() == null) {
+                            results.set(i, errorResult(shardItems.get(i), r.index(), e));
+                        }
+                    }
                 }
             }
         }
@@ -187,7 +209,8 @@ public final class BulkCoordinator {
         return response.results();
     }
 
-    private DocumentActionService.BulkItemResult executeItem(String defaultIndex, DocumentActionService.BulkItem item) {
+    private DocumentActionService.BulkItemResult executeItem(String defaultIndex, DocumentActionService.BulkItem item,
+                                                               boolean fsyncTranslog) {
         String index = item.index() != null ? item.index() : defaultIndex;
         try {
             return switch (item.action()) {
@@ -195,14 +218,14 @@ public final class BulkCoordinator {
                     String opType = "create".equals(item.action()) ? "create" : (item.opType() != null ? item.opType() : "index");
                     DocumentActionService.IndexRequest req = new DocumentActionService.IndexRequest(index, item.id(), item.source(),
                         item.routing(), item.version(), item.versionType(), item.ifSeqNo(), item.ifPrimaryTerm(), opType, "false", null);
-                    DocumentActionService.IndexResult r = indexAction.execute(req);
+                    DocumentActionService.IndexResult r = indexAction.execute(req, WaitForActiveShards.DEFAULT, fsyncTranslog);
                     yield new DocumentActionService.BulkItemResult(item.action(), r.index(), r.id(), r.created() ? 201 : 200,
                         r.version(), r.seqNo(), r.primaryTerm(), r.result(), true, null);
                 }
                 case "delete" -> {
                     DocumentActionService.DeleteRequest req = new DocumentActionService.DeleteRequest(index, item.id(), item.routing(),
                         item.version(), item.versionType(), item.ifSeqNo(), item.ifPrimaryTerm(), "false");
-                    DocumentActionService.DeleteResult r = deleteAction.execute(req);
+                    DocumentActionService.DeleteResult r = deleteAction.execute(req, WaitForActiveShards.DEFAULT, fsyncTranslog);
                     yield new DocumentActionService.BulkItemResult("delete", index, item.id(), r.found() ? 200 : 404,
                         r.version(), r.seqNo(), r.primaryTerm(), r.result(), r.found(), null);
                 }

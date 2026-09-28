@@ -1,6 +1,7 @@
 package com.naqqa.elasticsearch.node.rest;
 
 import com.naqqa.elasticsearch.http.RestChannel;
+import com.naqqa.elasticsearch.http.RestHandler;
 import com.naqqa.elasticsearch.http.RestMethod;
 import com.naqqa.elasticsearch.http.RestRequest;
 import com.naqqa.elasticsearch.http.RestResponse;
@@ -9,13 +10,16 @@ import com.naqqa.elasticsearch.ingest.IngestService;
 import com.naqqa.elasticsearch.ingest.Pipeline;
 import com.naqqa.elasticsearch.ingest.PipelineFactory;
 import com.naqqa.elasticsearch.monitor.health.HealthReport;
+import com.naqqa.elasticsearch.node.action.NodeSlmActionService;
 import com.naqqa.elasticsearch.node.indices.LifecycleService;
 import com.naqqa.elasticsearch.node.security.SecurityService;
 import com.naqqa.elasticsearch.node.snapshots.SnapshotsService;
 import com.naqqa.elasticsearch.node.support.IndexResolver;
 import com.naqqa.elasticsearch.node.support.SettingsMaps;
+import com.naqqa.elasticsearch.rest.support.CommonParams;
 import com.naqqa.elasticsearch.rest.support.RestApiException;
 import com.naqqa.elasticsearch.rest.support.RestUtils;
+import com.naqqa.elasticsearch.rest.support.StrictParamsFilter;
 import com.naqqa.elasticsearch.script.ScriptService;
 import com.naqqa.elasticsearch.script.StoredScriptSource;
 import com.naqqa.elasticsearch.security.authc.ApiKeyService;
@@ -27,6 +31,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Supplier;
 
@@ -40,6 +45,55 @@ public final class NodeRestHandlers {
     private final Supplier<HealthReport> healthReport;
     private final Supplier<com.naqqa.elasticsearch.cluster.state.ClusterState> state;
     private final IndexResolver indexResolver;
+    private final NodeSlmActionService slmService;
+
+    private static final Set<String> NONE = CommonParams.NONE;
+    private static final Set<String> MASTER_TIMEOUT = CommonParams.MASTER_TIMEOUT;
+    private static final Set<String> INGEST_PUT_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> INGEST_GET_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> INGEST_SIMULATE_PARAMS = CommonParams.of("verbose");
+    private static final Set<String> SNAPSHOT_PUT_REPO_PARAMS = CommonParams.union(MASTER_TIMEOUT, CommonParams.of("verify"));
+    private static final Set<String> SNAPSHOT_GET_REPO_PARAMS = CommonParams.union(MASTER_TIMEOUT, CommonParams.LOCAL);
+    private static final Set<String> SNAPSHOT_DELETE_REPO_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SNAPSHOT_VERIFY_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SNAPSHOT_CREATE_PARAMS = CommonParams.union(MASTER_TIMEOUT,
+        CommonParams.of("wait_for_completion"));
+    private static final Set<String> SNAPSHOT_GET_PARAMS = CommonParams.union(MASTER_TIMEOUT,
+        CommonParams.of("ignore_unavailable", "verbose", "index_details"));
+    private static final Set<String> SNAPSHOT_DELETE_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SNAPSHOT_RESTORE_PARAMS = CommonParams.union(MASTER_TIMEOUT,
+        CommonParams.of("wait_for_completion"));
+    private static final Set<String> ILM_PUT_POLICY_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> ILM_GET_POLICY_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> ILM_DELETE_POLICY_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> ILM_EXPLAIN_PARAMS = CommonParams.of("only_managed", "only_errors");
+    private static final Set<String> ILM_RETRY_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> ILM_START_STOP_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> ILM_STATUS_PARAMS = NONE;
+    private static final Set<String> SLM_PUT_POLICY_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SLM_GET_POLICY_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SLM_DELETE_POLICY_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SLM_EXECUTE_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SLM_EXECUTE_RETENTION_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SLM_STATS_PARAMS = NONE;
+    private static final Set<String> SLM_STATUS_PARAMS = NONE;
+    private static final Set<String> SLM_START_STOP_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SECURITY_AUTHENTICATE_PARAMS = NONE;
+    private static final Set<String> SECURITY_PUT_USER_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SECURITY_GET_USER_PARAMS = NONE;
+    private static final Set<String> SECURITY_DELETE_USER_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SECURITY_PUT_ROLE_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SECURITY_GET_ROLE_PARAMS = NONE;
+    private static final Set<String> SECURITY_DELETE_ROLE_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SECURITY_PUT_ROLE_MAPPING_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SECURITY_GET_ROLE_MAPPING_PARAMS = NONE;
+    private static final Set<String> SECURITY_DELETE_ROLE_MAPPING_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SECURITY_CREATE_API_KEY_PARAMS = NONE;
+    private static final Set<String> SECURITY_INVALIDATE_API_KEY_PARAMS = NONE;
+    private static final Set<String> SCRIPTS_PUT_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SCRIPTS_GET_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> SCRIPTS_DELETE_PARAMS = MASTER_TIMEOUT;
+    private static final Set<String> HEALTH_REPORT_PARAMS = CommonParams.of("size", "verbose");
 
     public NodeRestHandlers(IngestService ingestService, SnapshotsService snapshotsService, LifecycleService lifecycleService,
                             SecurityService securityService, ScriptService scriptService, Supplier<HealthReport> healthReport,
@@ -52,61 +106,85 @@ public final class NodeRestHandlers {
         this.healthReport = healthReport;
         this.state = state;
         this.indexResolver = indexResolver;
+        this.slmService = new NodeSlmActionService(snapshotsService);
+        if (securityService.clusterStateManager() != null) {
+            this.slmService.bind(securityService.clusterStateManager());
+        }
+    }
+
+    private static void reg(Router router, RestMethod method, String pathPattern, RestHandler handler, Set<String> declaredParams) {
+        router.register(method, pathPattern, StrictParamsFilter.wrap(handler, declaredParams));
     }
 
     public void registerAll(Router router) {
-        router.register(RestMethod.PUT, "/_ingest/pipeline/{id}", this::putPipeline);
-        router.register(RestMethod.GET, "/_ingest/pipeline", this::getPipeline);
-        router.register(RestMethod.GET, "/_ingest/pipeline/{id}", this::getPipeline);
-        router.register(RestMethod.DELETE, "/_ingest/pipeline/{id}", this::deletePipeline);
-        router.register(RestMethod.POST, "/_ingest/pipeline/_simulate", this::simulatePipeline);
-        router.register(RestMethod.GET, "/_ingest/pipeline/_simulate", this::simulatePipeline);
-        router.register(RestMethod.POST, "/_ingest/pipeline/{id}/_simulate", this::simulatePipeline);
-        router.register(RestMethod.GET, "/_ingest/pipeline/{id}/_simulate", this::simulatePipeline);
+        reg(router, RestMethod.PUT, "/_ingest/pipeline/{id}", this::putPipeline, INGEST_PUT_PARAMS);
+        reg(router, RestMethod.GET, "/_ingest/pipeline", this::getPipeline, INGEST_GET_PARAMS);
+        reg(router, RestMethod.GET, "/_ingest/pipeline/{id}", this::getPipeline, INGEST_GET_PARAMS);
+        reg(router, RestMethod.DELETE, "/_ingest/pipeline/{id}", this::deletePipeline, MASTER_TIMEOUT);
+        reg(router, RestMethod.POST, "/_ingest/pipeline/_simulate", this::simulatePipeline, INGEST_SIMULATE_PARAMS);
+        reg(router, RestMethod.GET, "/_ingest/pipeline/_simulate", this::simulatePipeline, INGEST_SIMULATE_PARAMS);
+        reg(router, RestMethod.POST, "/_ingest/pipeline/{id}/_simulate", this::simulatePipeline, INGEST_SIMULATE_PARAMS);
+        reg(router, RestMethod.GET, "/_ingest/pipeline/{id}/_simulate", this::simulatePipeline, INGEST_SIMULATE_PARAMS);
 
-        router.register(RestMethod.PUT, "/_snapshot/{repository}", this::putRepository);
-        router.register(RestMethod.POST, "/_snapshot/{repository}", this::putRepository);
-        router.register(RestMethod.GET, "/_snapshot", this::getRepositories);
-        router.register(RestMethod.GET, "/_snapshot/{repository}", this::getRepositories);
-        router.register(RestMethod.DELETE, "/_snapshot/{repository}", this::deleteRepository);
-        router.register(RestMethod.POST, "/_snapshot/{repository}/_verify", this::verifyRepository);
-        router.register(RestMethod.PUT, "/_snapshot/{repository}/{snapshot}", this::createSnapshot);
-        router.register(RestMethod.POST, "/_snapshot/{repository}/{snapshot}", this::createSnapshot);
-        router.register(RestMethod.GET, "/_snapshot/{repository}/{snapshot}", this::getSnapshots);
-        router.register(RestMethod.DELETE, "/_snapshot/{repository}/{snapshot}", this::deleteSnapshot);
-        router.register(RestMethod.POST, "/_snapshot/{repository}/{snapshot}/_restore", this::restoreSnapshot);
+        reg(router, RestMethod.PUT, "/_snapshot/{repository}", this::putRepository, SNAPSHOT_PUT_REPO_PARAMS);
+        reg(router, RestMethod.POST, "/_snapshot/{repository}", this::putRepository, SNAPSHOT_PUT_REPO_PARAMS);
+        reg(router, RestMethod.GET, "/_snapshot", this::getRepositories, SNAPSHOT_GET_REPO_PARAMS);
+        reg(router, RestMethod.GET, "/_snapshot/{repository}", this::getRepositories, SNAPSHOT_GET_REPO_PARAMS);
+        reg(router, RestMethod.DELETE, "/_snapshot/{repository}", this::deleteRepository, SNAPSHOT_DELETE_REPO_PARAMS);
+        reg(router, RestMethod.POST, "/_snapshot/{repository}/_verify", this::verifyRepository, SNAPSHOT_VERIFY_PARAMS);
+        reg(router, RestMethod.PUT, "/_snapshot/{repository}/{snapshot}", this::createSnapshot, SNAPSHOT_CREATE_PARAMS);
+        reg(router, RestMethod.POST, "/_snapshot/{repository}/{snapshot}", this::createSnapshot, SNAPSHOT_CREATE_PARAMS);
+        reg(router, RestMethod.GET, "/_snapshot/{repository}/{snapshot}", this::getSnapshots, SNAPSHOT_GET_PARAMS);
+        reg(router, RestMethod.DELETE, "/_snapshot/{repository}/{snapshot}", this::deleteSnapshot, SNAPSHOT_DELETE_PARAMS);
+        reg(router, RestMethod.POST, "/_snapshot/{repository}/{snapshot}/_restore", this::restoreSnapshot, SNAPSHOT_RESTORE_PARAMS);
 
-        router.register(RestMethod.PUT, "/_ilm/policy/{name}", this::putPolicy);
-        router.register(RestMethod.GET, "/_ilm/policy", this::getPolicy);
-        router.register(RestMethod.GET, "/_ilm/policy/{name}", this::getPolicy);
-        router.register(RestMethod.DELETE, "/_ilm/policy/{name}", this::deletePolicy);
-        router.register(RestMethod.GET, "/{index}/_ilm/explain", this::explainLifecycle);
-        router.register(RestMethod.POST, "/{index}/_ilm/retry", this::retryLifecycle);
-        router.register(RestMethod.POST, "/_ilm/start", (r, c) -> ilmRunning(r, c, true));
-        router.register(RestMethod.POST, "/_ilm/stop", (r, c) -> ilmRunning(r, c, false));
-        router.register(RestMethod.GET, "/_ilm/status", this::ilmStatus);
+        reg(router, RestMethod.PUT, "/_ilm/policy/{name}", this::putPolicy, ILM_PUT_POLICY_PARAMS);
+        reg(router, RestMethod.GET, "/_ilm/policy", this::getPolicy, ILM_GET_POLICY_PARAMS);
+        reg(router, RestMethod.GET, "/_ilm/policy/{name}", this::getPolicy, ILM_GET_POLICY_PARAMS);
+        reg(router, RestMethod.DELETE, "/_ilm/policy/{name}", this::deletePolicy, ILM_DELETE_POLICY_PARAMS);
+        reg(router, RestMethod.GET, "/{index}/_ilm/explain", this::explainLifecycle, ILM_EXPLAIN_PARAMS);
+        reg(router, RestMethod.POST, "/{index}/_ilm/retry", this::retryLifecycle, ILM_RETRY_PARAMS);
+        reg(router, RestMethod.POST, "/_ilm/start", (r, c) -> ilmRunning(r, c, true), ILM_START_STOP_PARAMS);
+        reg(router, RestMethod.POST, "/_ilm/stop", (r, c) -> ilmRunning(r, c, false), ILM_START_STOP_PARAMS);
+        reg(router, RestMethod.GET, "/_ilm/status", this::ilmStatus, ILM_STATUS_PARAMS);
 
-        router.register(RestMethod.GET, "/_security/_authenticate", this::authenticate);
-        router.register(RestMethod.PUT, "/_security/user/{username}", this::putUser);
-        router.register(RestMethod.POST, "/_security/user/{username}", this::putUser);
-        router.register(RestMethod.GET, "/_security/user", this::getUsers);
-        router.register(RestMethod.GET, "/_security/user/{username}", this::getUsers);
-        router.register(RestMethod.DELETE, "/_security/user/{username}", this::deleteUser);
-        router.register(RestMethod.PUT, "/_security/role/{name}", this::putRole);
-        router.register(RestMethod.POST, "/_security/role/{name}", this::putRole);
-        router.register(RestMethod.GET, "/_security/role", this::getRoles);
-        router.register(RestMethod.GET, "/_security/role/{name}", this::getRoles);
-        router.register(RestMethod.DELETE, "/_security/role/{name}", this::deleteRole);
-        router.register(RestMethod.POST, "/_security/api_key", this::createApiKey);
-        router.register(RestMethod.PUT, "/_security/api_key", this::createApiKey);
-        router.register(RestMethod.DELETE, "/_security/api_key", this::invalidateApiKey);
+        reg(router, RestMethod.PUT, "/_slm/policy/{name}", this::putSlmPolicy, SLM_PUT_POLICY_PARAMS);
+        reg(router, RestMethod.GET, "/_slm/policy", this::getSlmPolicy, SLM_GET_POLICY_PARAMS);
+        reg(router, RestMethod.GET, "/_slm/policy/{name}", this::getSlmPolicy, SLM_GET_POLICY_PARAMS);
+        reg(router, RestMethod.DELETE, "/_slm/policy/{name}", this::deleteSlmPolicy, SLM_DELETE_POLICY_PARAMS);
+        reg(router, RestMethod.POST, "/_slm/policy/{name}/_execute", this::executeSlmPolicy, SLM_EXECUTE_PARAMS);
+        reg(router, RestMethod.POST, "/_slm/_execute_retention", this::executeSlmRetention, SLM_EXECUTE_RETENTION_PARAMS);
+        reg(router, RestMethod.GET, "/_slm/stats", this::slmStats, SLM_STATS_PARAMS);
+        reg(router, RestMethod.GET, "/_slm/status", this::slmStatus, SLM_STATUS_PARAMS);
+        reg(router, RestMethod.POST, "/_slm/start", (r, c) -> slmRunning(r, c, true), SLM_START_STOP_PARAMS);
+        reg(router, RestMethod.POST, "/_slm/stop", (r, c) -> slmRunning(r, c, false), SLM_START_STOP_PARAMS);
 
-        router.register(RestMethod.PUT, "/_scripts/{id}", this::putScript);
-        router.register(RestMethod.POST, "/_scripts/{id}", this::putScript);
-        router.register(RestMethod.GET, "/_scripts/{id}", this::getScript);
-        router.register(RestMethod.DELETE, "/_scripts/{id}", this::deleteScript);
+        reg(router, RestMethod.GET, "/_security/_authenticate", this::authenticate, SECURITY_AUTHENTICATE_PARAMS);
+        reg(router, RestMethod.PUT, "/_security/user/{username}", this::putUser, SECURITY_PUT_USER_PARAMS);
+        reg(router, RestMethod.POST, "/_security/user/{username}", this::putUser, SECURITY_PUT_USER_PARAMS);
+        reg(router, RestMethod.GET, "/_security/user", this::getUsers, SECURITY_GET_USER_PARAMS);
+        reg(router, RestMethod.GET, "/_security/user/{username}", this::getUsers, SECURITY_GET_USER_PARAMS);
+        reg(router, RestMethod.DELETE, "/_security/user/{username}", this::deleteUser, SECURITY_DELETE_USER_PARAMS);
+        reg(router, RestMethod.PUT, "/_security/role/{name}", this::putRole, SECURITY_PUT_ROLE_PARAMS);
+        reg(router, RestMethod.POST, "/_security/role/{name}", this::putRole, SECURITY_PUT_ROLE_PARAMS);
+        reg(router, RestMethod.GET, "/_security/role", this::getRoles, SECURITY_GET_ROLE_PARAMS);
+        reg(router, RestMethod.GET, "/_security/role/{name}", this::getRoles, SECURITY_GET_ROLE_PARAMS);
+        reg(router, RestMethod.DELETE, "/_security/role/{name}", this::deleteRole, SECURITY_DELETE_ROLE_PARAMS);
+        reg(router, RestMethod.PUT, "/_security/role_mapping/{name}", this::putRoleMapping, SECURITY_PUT_ROLE_MAPPING_PARAMS);
+        reg(router, RestMethod.POST, "/_security/role_mapping/{name}", this::putRoleMapping, SECURITY_PUT_ROLE_MAPPING_PARAMS);
+        reg(router, RestMethod.GET, "/_security/role_mapping", this::getRoleMappings, SECURITY_GET_ROLE_MAPPING_PARAMS);
+        reg(router, RestMethod.GET, "/_security/role_mapping/{name}", this::getRoleMappings, SECURITY_GET_ROLE_MAPPING_PARAMS);
+        reg(router, RestMethod.DELETE, "/_security/role_mapping/{name}", this::deleteRoleMapping, SECURITY_DELETE_ROLE_MAPPING_PARAMS);
+        reg(router, RestMethod.POST, "/_security/api_key", this::createApiKey, SECURITY_CREATE_API_KEY_PARAMS);
+        reg(router, RestMethod.PUT, "/_security/api_key", this::createApiKey, SECURITY_CREATE_API_KEY_PARAMS);
+        reg(router, RestMethod.DELETE, "/_security/api_key", this::invalidateApiKey, SECURITY_INVALIDATE_API_KEY_PARAMS);
 
-        router.register(RestMethod.GET, "/_health_report", this::healthReport);
+        reg(router, RestMethod.PUT, "/_scripts/{id}", this::putScript, SCRIPTS_PUT_PARAMS);
+        reg(router, RestMethod.POST, "/_scripts/{id}", this::putScript, SCRIPTS_PUT_PARAMS);
+        reg(router, RestMethod.GET, "/_scripts/{id}", this::getScript, SCRIPTS_GET_PARAMS);
+        reg(router, RestMethod.DELETE, "/_scripts/{id}", this::deleteScript, SCRIPTS_DELETE_PARAMS);
+
+        reg(router, RestMethod.GET, "/_health_report", this::healthReport, HEALTH_REPORT_PARAMS);
     }
 
     private static void ok(RestRequest request, RestChannel channel, Map<String, Object> body) {
@@ -302,6 +380,42 @@ public final class NodeRestHandlers {
         ok(request, channel, Map.of("operation_mode", lifecycleService.running() ? "RUNNING" : "STOPPED"));
     }
 
+    private void putSlmPolicy(RestRequest request, RestChannel channel) {
+        RestUtils.requireContent(request);
+        slmService.putPolicy(request.param("name"), RestUtils.parseBody(request));
+        ok(request, channel, Map.of("acknowledged", true));
+    }
+
+    private void getSlmPolicy(RestRequest request, RestChannel channel) {
+        ok(request, channel, slmService.getPolicies(request.param("name")));
+    }
+
+    private void deleteSlmPolicy(RestRequest request, RestChannel channel) {
+        slmService.deletePolicy(request.param("name"));
+        ok(request, channel, ack());
+    }
+
+    private void executeSlmPolicy(RestRequest request, RestChannel channel) {
+        ok(request, channel, slmService.executeNow(request.param("name")));
+    }
+
+    private void executeSlmRetention(RestRequest request, RestChannel channel) {
+        ok(request, channel, slmService.executeRetentionNow());
+    }
+
+    private void slmStats(RestRequest request, RestChannel channel) {
+        ok(request, channel, slmService.stats());
+    }
+
+    private void slmStatus(RestRequest request, RestChannel channel) {
+        ok(request, channel, Map.of("operation_mode", slmService.running() ? "RUNNING" : "STOPPED"));
+    }
+
+    private void slmRunning(RestRequest request, RestChannel channel, boolean running) {
+        slmService.setRunning(running);
+        ok(request, channel, ack());
+    }
+
     private Authentication requireAuthentication() {
         Authentication authentication = NodeRestFilter.currentAuthentication();
         if (authentication == null) {
@@ -373,6 +487,29 @@ public final class NodeRestHandlers {
 
     private void deleteRole(RestRequest request, RestChannel channel) {
         boolean found = securityService.deleteRole(request.param("name"));
+        RestUtils.sendJson(channel, request, found ? 200 : 404, Map.of("found", found));
+    }
+
+    private void putRoleMapping(RestRequest request, RestChannel channel) {
+        RestUtils.requireContent(request);
+        String name = request.param("name");
+        boolean existed = securityService.getRoleMappings(null).containsKey(name);
+        securityService.putRoleMapping(name, RestUtils.parseBody(request));
+        ok(request, channel, Map.of("role_mapping", Map.of("created", !existed)));
+    }
+
+    private void getRoleMappings(RestRequest request, RestChannel channel) {
+        String name = request.param("name");
+        Map<String, Object> mappings = securityService.getRoleMappings(name);
+        if (name != null && mappings.isEmpty()) {
+            RestUtils.sendJson(channel, request, 404, Map.of());
+            return;
+        }
+        ok(request, channel, mappings);
+    }
+
+    private void deleteRoleMapping(RestRequest request, RestChannel channel) {
+        boolean found = securityService.deleteRoleMapping(request.param("name"));
         RestUtils.sendJson(channel, request, found ? 200 : 404, Map.of("found", found));
     }
 

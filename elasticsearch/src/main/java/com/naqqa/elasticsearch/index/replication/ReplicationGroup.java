@@ -293,12 +293,20 @@ public final class ReplicationGroup {
         return new ReplicationOperation(this, waitForActiveShards).executeIndex(op);
     }
 
+    public IndexResult replicateIndex(IndexOperation op, WaitForActiveShards waitForActiveShards, boolean fsyncTranslog) throws IOException {
+        return new ReplicationOperation(this, waitForActiveShards).executeIndex(op, fsyncTranslog);
+    }
+
     public DeleteResult replicateDelete(DeleteOperation op) throws IOException {
         return replicateDelete(op, WaitForActiveShards.DEFAULT);
     }
 
     public DeleteResult replicateDelete(DeleteOperation op, WaitForActiveShards waitForActiveShards) throws IOException {
         return new ReplicationOperation(this, waitForActiveShards).executeDelete(op);
+    }
+
+    public DeleteResult replicateDelete(DeleteOperation op, WaitForActiveShards waitForActiveShards, boolean fsyncTranslog) throws IOException {
+        return new ReplicationOperation(this, waitForActiveShards).executeDelete(op, fsyncTranslog);
     }
 
     public NoOpResult replicateNoOp(NoOpOperation op) throws IOException {

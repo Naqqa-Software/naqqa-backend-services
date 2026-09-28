@@ -10,6 +10,7 @@ import com.naqqa.elasticsearch.cluster.routing.ShardId;
 import com.naqqa.elasticsearch.cluster.routing.ShardRouting;
 import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.common.UUIDs;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.common.json.JsonValue;
 import com.naqqa.elasticsearch.http.DefaultRestErrorRenderer;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
@@ -40,6 +41,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class ClusterDocumentActionService implements DocumentActionService, AutoCloseable {
+
+    private static final ESLogger LOG = ESLogger.getLogger(ClusterDocumentActionService.class);
 
     public static final String INDEX_ACTION = "internal:node/document/index";
     public static final String DELETE_ACTION = "internal:node/document/delete";
@@ -171,7 +174,7 @@ public final class ClusterDocumentActionService implements DocumentActionService
                 }
                 results.add(SettingsMaps.asMap(resp.get("result")));
             } catch (Exception e) {
-                System.err.println("[document] by-query broadcast to [" + node.getName() + "] failed: " + e);
+                LOG.warn("[document] by-query broadcast to [" + node.getName() + "] failed: " + e);
             }
         }
         return mergeByQueryResults(results);

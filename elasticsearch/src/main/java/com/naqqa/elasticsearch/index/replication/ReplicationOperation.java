@@ -33,8 +33,12 @@ public final class ReplicationOperation {
     }
 
     public IndexResult executeIndex(IndexOperation op) throws IOException {
+        return executeIndex(op, true);
+    }
+
+    public IndexResult executeIndex(IndexOperation op, boolean fsyncTranslog) throws IOException {
         ShardCopy primary = ensurePrimaryUsable();
-        IndexResult result = primary.indexShard().index(op);
+        IndexResult result = primary.indexShard().index(op, fsyncTranslog);
         if (!result.success()) {
             return result;
         }
@@ -47,8 +51,12 @@ public final class ReplicationOperation {
     }
 
     public DeleteResult executeDelete(DeleteOperation op) throws IOException {
+        return executeDelete(op, true);
+    }
+
+    public DeleteResult executeDelete(DeleteOperation op, boolean fsyncTranslog) throws IOException {
         ShardCopy primary = ensurePrimaryUsable();
-        DeleteResult result = primary.indexShard().delete(op);
+        DeleteResult result = primary.indexShard().delete(op, fsyncTranslog);
         if (!result.success()) {
             return result;
         }

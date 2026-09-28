@@ -5,7 +5,10 @@ import com.naqqa.elasticsearch.action.search.SearchCoordinator;
 import com.naqqa.elasticsearch.action.search.SearchRequest;
 import com.naqqa.elasticsearch.action.search.SearchResponse;
 import com.naqqa.elasticsearch.action.write.SourceUtils;
+import com.naqqa.elasticsearch.cluster.routing.IndexRoutingTable;
+import com.naqqa.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import com.naqqa.elasticsearch.cluster.routing.ShardId;
+import com.naqqa.elasticsearch.cluster.routing.ShardRouting;
 import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.common.json.JsonValue;
 import com.naqqa.elasticsearch.index.engine.EngineSearcher;
@@ -40,7 +43,8 @@ public final class SearchEngine {
 
     public record ParsedSearch(Query query, int from, int size, Sort sort, List<String> sortFieldNames,
                                Map<String, Object> aggs, boolean fetchSource, List<String> includes, List<String> excludes,
-                               boolean version, boolean seqNoPrimaryTerm, String pitId, Float minScore) {
+                               boolean version, boolean seqNoPrimaryTerm, String pitId, Float minScore,
+                               long trackTotalHitsUpTo, boolean totalHitsAsInt) {
     }
 
     private final ClusterStateManager clusterStateManager;
@@ -147,21 +151,77 @@ public final class SearchEngine {
         return indexResolver.resolve(clusterStateManager.state(), expressions, false, ignoreUnavailable);
     }
 
+    private static final long SHARD_WAIT_TOTAL_MILLIS = 5_000L;
+    private static final long SHARD_WAIT_STEP_MILLIS = 10L;
+
     public Map<ShardId, IndexShard> shardsFor(List<String> indices) {
         Map<ShardId, IndexShard> out = new LinkedHashMap<>();
+        ClusterState state = clusterStateManager.state();
+        List<ShardId> unavailable = null;
         for (String index : indices) {
             IndexService service = indicesService.indexService(index);
             if (service == null) {
                 continue;
             }
             for (int i = 0; i < service.metadata().getNumberOfShards(); i++) {
+                ShardId shardId = new ShardId(index, i);
                 IndexShard shard = service.shard(i);
+                boolean expected = expectedLocally(state, index, i);
+                if (shard == null && expected) {
+                    shard = waitForLocalShard(service, i);
+                }
                 if (shard != null) {
-                    out.put(new ShardId(index, i), shard);
+                    out.put(shardId, shard);
+                } else if (expected) {
+                    if (unavailable == null) {
+                        unavailable = new ArrayList<>();
+                    }
+                    unavailable.add(shardId);
                 }
             }
         }
+        if (unavailable != null && !unavailable.isEmpty()) {
+            throw new RestApiException(503, "shard" + (unavailable.size() > 1 ? "s " : " ") + unavailable
+                + " not available on node [" + nodeId() + "]; refusing to return partial search results silently");
+        }
         return out;
+    }
+
+    private boolean expectedLocally(ClusterState state, String index, int shardId) {
+        IndexRoutingTable irt = state.getRoutingTable().index(index);
+        if (irt == null) {
+            return true;
+        }
+        IndexShardRoutingTable table = irt.shard(shardId);
+        if (table == null) {
+            return true;
+        }
+        com.naqqa.elasticsearch.cluster.node.DiscoveryNode local = clusterStateManager.localNode();
+        String localId = local == null ? null : local.getId();
+        if (localId == null) {
+            return true;
+        }
+        for (ShardRouting sr : table.getShards()) {
+            if (localId.equals(sr.currentNodeId()) && (sr.active() || sr.initializing())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static IndexShard waitForLocalShard(IndexService service, int shardId) {
+        IndexShard shard = service.shard(shardId);
+        long deadline = System.currentTimeMillis() + SHARD_WAIT_TOTAL_MILLIS;
+        while (shard == null && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(SHARD_WAIT_STEP_MILLIS);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            shard = service.shard(shardId);
+        }
+        return shard;
     }
 
     @SuppressWarnings("unchecked")
@@ -271,8 +331,10 @@ public final class SearchEngine {
             pitId = String.valueOf(pit.get("id"));
         }
         Float minScore = b.get("min_score") instanceof Number n ? n.floatValue() : null;
+        long trackTotalHitsUpTo = SearchSpec.parseTrackTotalHitsUpTo(b.get("track_total_hits"), p.get("track_total_hits"));
+        boolean totalHitsAsInt = "true".equals(p.get("rest_total_hits_as_int"));
         return new ParsedSearch(query, from, size, sort, sortNames, aggs, fetchSource, includes, excludes, version, seqNo,
-            pitId, minScore);
+            pitId, minScore, trackTotalHitsUpTo, totalHitsAsInt);
     }
 
     public Query toQuery(List<String> indices, Map<String, Object> clause) {
@@ -394,11 +456,13 @@ public final class SearchEngine {
             if (indices.size() == 1 && QueryFactory.isTransportable(parsed.query())) {
                 ClusterState state = clusterStateManager.state();
                 SearchRequest request = new SearchRequest(indices.get(0), parsed.query())
-                    .from(parsed.from()).size(parsed.size()).sort(parsed.sort()).aggs(parsed.aggs());
+                    .from(parsed.from()).size(parsed.size()).sort(parsed.sort()).aggs(parsed.aggs())
+                    .trackTotalHitsUpTo(parsed.trackTotalHitsUpTo());
                 response = coordinator.search(state.getRoutingTable(), request);
             } else {
                 SearchRequest request = new SearchRequest(indices.isEmpty() ? "_none" : indices.get(0), parsed.query())
-                    .from(parsed.from()).size(parsed.size()).sort(parsed.sort()).aggs(parsed.aggs());
+                    .from(parsed.from()).size(parsed.size()).sort(parsed.sort()).aggs(parsed.aggs())
+                    .trackTotalHitsUpTo(parsed.trackTotalHitsUpTo());
                 response = LocalSearchExecutor.search(shardsFor(indices), request);
             }
             ok = true;
@@ -421,7 +485,8 @@ public final class SearchEngine {
         boolean ok = false;
         try {
             SearchRequest request = new SearchRequest("_pit", parsed.query())
-                .from(parsed.from()).size(parsed.size()).sort(parsed.sort()).aggs(parsed.aggs());
+                .from(parsed.from()).size(parsed.size()).sort(parsed.sort()).aggs(parsed.aggs())
+                .trackTotalHitsUpTo(parsed.trackTotalHitsUpTo());
             SearchResponse response = LocalSearchExecutor.searchOpen(searchers, request);
             ok = true;
             return response;
@@ -455,14 +520,16 @@ public final class SearchEngine {
             }
             out.put("_shards", shards);
             Map<String, Object> hits = new LinkedHashMap<>();
-            boolean totalAsInt = params != null && "true".equals(params.get("rest_total_hits_as_int"));
-            if (totalAsInt) {
-                hits.put("total", response.totalHits().value());
-            } else {
-                Map<String, Object> total = new LinkedHashMap<>();
-                total.put("value", response.totalHits().value());
-                total.put("relation", response.totalHits().relation().name().equals("EQUAL_TO") ? "eq" : "gte");
-                hits.put("total", total);
+            if (response.totalHits() != null) {
+                boolean totalAsInt = params != null && "true".equals(params.get("rest_total_hits_as_int"));
+                if (totalAsInt) {
+                    hits.put("total", response.totalHits().value());
+                } else {
+                    Map<String, Object> total = new LinkedHashMap<>();
+                    total.put("value", response.totalHits().value());
+                    total.put("relation", response.totalHits().relation().name().equals("EQUAL_TO") ? "eq" : "gte");
+                    hits.put("total", total);
+                }
             }
             Float maxScore = null;
             List<Object> hitList = new ArrayList<>();

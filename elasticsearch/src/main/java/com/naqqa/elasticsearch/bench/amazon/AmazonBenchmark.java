@@ -53,7 +53,7 @@ public final class AmazonBenchmark {
             String index = AmazonMapping.INDEX_NAME;
             client.request("DELETE", "/" + index, null);
             BenchHttpClient.Resp created = client.request("PUT", "/" + index,
-                JsonWriter.toJson(AmazonMapping.createIndexBody(options.shards, true), false));
+                JsonWriter.toJson(AmazonMapping.createIndexBody(options.shards, true, options.storeType), false));
             if (!created.ok()) {
                 throw new IllegalStateException("failed to create index: " + created.status() + " " + created.body());
             }
@@ -94,6 +94,11 @@ public final class AmazonBenchmark {
             queryResults.add(AmazonQueryExtras.searchAfter(client, index, 20, options.searchAfterPages));
 
             printQuerySummary(queryResults);
+
+            ConcurrentSearchResult concurrentResult = runConcurrentSearchBenchmark(client, index, topCategory,
+                options.searchThreads, options.searchDurationSeconds);
+            printConcurrentSearchResult(concurrentResult);
+            report.put("concurrent_search", concurrentResult.toMap());
 
             List<AmazonQueryExtras.SpotCheckResult> spotChecks = AmazonQueryExtras.spotCheck(client, index,
                 load.groundTruth().samples());
@@ -148,6 +153,77 @@ public final class AmazonBenchmark {
                 r.name(), r.iterations(), r.opsPerSec(), r.p50Ms(), r.p90Ms(), r.p99Ms(), r.maxMs(), r.errorCount(),
                 r.hitCount(), r.note() == null ? "" : r.note());
         }
+    }
+
+    record ConcurrentSearchResult(int threads, double durationSeconds, long termOps, long matchOps, long errors,
+                                  double opsPerSec) {
+        Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("threads", threads);
+            m.put("duration_seconds", durationSeconds);
+            m.put("term_ops", termOps);
+            m.put("match_ops", matchOps);
+            m.put("errors", errors);
+            m.put("ops_per_sec", opsPerSec);
+            return m;
+        }
+    }
+
+    private ConcurrentSearchResult runConcurrentSearchBenchmark(BenchHttpClient client, String index, String topCategory,
+                                                                 int threads, int durationSeconds) throws InterruptedException {
+        String path = "/" + index + "/_search";
+        String categoryJson = topCategory == null ? "\"\"" : "\"" + topCategory.replace("\"", "\\\"") + "\"";
+        String termBody = "{\"size\":0,\"query\":{\"term\":{\"category_id\":" + categoryJson + "}}}";
+        String matchBody = "{\"size\":10,\"query\":{\"match\":{\"title\":\"wireless bluetooth headphones\"}}}";
+
+        java.util.concurrent.atomic.AtomicLong termOps = new java.util.concurrent.atomic.AtomicLong();
+        java.util.concurrent.atomic.AtomicLong matchOps = new java.util.concurrent.atomic.AtomicLong();
+        java.util.concurrent.atomic.AtomicLong errors = new java.util.concurrent.atomic.AtomicLong();
+        java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        Runnable worker = () -> {
+            boolean term = true;
+            while (!stop.get()) {
+                BenchHttpClient.Resp resp = client.request("POST", path, term ? termBody : matchBody);
+                if (resp.ok()) {
+                    if (term) {
+                        termOps.incrementAndGet();
+                    } else {
+                        matchOps.incrementAndGet();
+                    }
+                } else {
+                    errors.incrementAndGet();
+                }
+                term = !term;
+            }
+        };
+
+        List<Thread> workers = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            Thread t = new Thread(worker, "concurrent-search-" + i);
+            t.setDaemon(true);
+            workers.add(t);
+        }
+        long start = System.nanoTime();
+        for (Thread t : workers) {
+            t.start();
+        }
+        Thread.sleep(durationSeconds * 1000L);
+        stop.set(true);
+        for (Thread t : workers) {
+            t.join(5000);
+        }
+        double elapsed = (System.nanoTime() - start) / 1e9;
+        long total = termOps.get() + matchOps.get();
+        double opsPerSec = elapsed > 0 ? total / elapsed : 0.0;
+        return new ConcurrentSearchResult(threads, elapsed, termOps.get(), matchOps.get(), errors.get(), opsPerSec);
+    }
+
+    private void printConcurrentSearchResult(ConcurrentSearchResult r) {
+        out.println();
+        out.println("--- Concurrent search throughput (term + match, " + r.threads() + " threads) ---");
+        out.printf(Locale.ROOT, "duration=%.1fs term_ops=%d match_ops=%d errors=%d ops/sec=%.1f%n",
+            r.durationSeconds(), r.termOps(), r.matchOps(), r.errors(), r.opsPerSec());
     }
 
     private void printSpotChecks(List<AmazonQueryExtras.SpotCheckResult> results) {
@@ -257,6 +333,9 @@ public final class AmazonBenchmark {
         int forceMergeTimeoutMinutes = 5;
         String url;
         String outPath = "results.json";
+        String storeType;
+        int searchThreads = 8;
+        int searchDurationSeconds = 5;
 
         static Options parse(String[] args) {
             Options o = new Options();
@@ -275,6 +354,9 @@ public final class AmazonBenchmark {
                     case "--force-merge-timeout-minutes" -> o.forceMergeTimeoutMinutes = Integer.parseInt(args[++i]);
                     case "--url" -> o.url = args[++i];
                     case "--out" -> o.outPath = args[++i];
+                    case "--store-type" -> o.storeType = args[++i];
+                    case "--search-threads" -> o.searchThreads = Integer.parseInt(args[++i]);
+                    case "--search-seconds" -> o.searchDurationSeconds = Integer.parseInt(args[++i]);
                     default -> throw new IllegalArgumentException("unknown argument: " + a);
                 }
                 i++;
@@ -296,6 +378,9 @@ public final class AmazonBenchmark {
             m.put("limit", limit);
             m.put("search_after_pages", searchAfterPages);
             m.put("url", url);
+            m.put("store_type", storeType);
+            m.put("search_threads", searchThreads);
+            m.put("search_duration_seconds", searchDurationSeconds);
             return m;
         }
     }

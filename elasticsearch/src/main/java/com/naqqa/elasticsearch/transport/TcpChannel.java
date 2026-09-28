@@ -91,6 +91,10 @@ final class TcpChannel {
         return true;
     }
 
+    boolean hasPendingWrites() {
+        return !writeQueue.isEmpty();
+    }
+
     void addCloseListener(Consumer<Exception> listener) {
         closeListeners.add(listener);
     }

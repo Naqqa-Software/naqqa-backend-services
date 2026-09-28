@@ -16,6 +16,7 @@ import com.naqqa.elasticsearch.index.engine.NoOpOperation;
 import com.naqqa.elasticsearch.index.engine.NoOpResult;
 import com.naqqa.elasticsearch.index.engine.RefreshResult;
 import com.naqqa.elasticsearch.index.mapper.MapperService;
+import com.naqqa.elasticsearch.index.translog.Releasable;
 import com.naqqa.elasticsearch.index.translog.TranslogConfig;
 import com.naqqa.elasticsearch.store.Directory;
 import com.naqqa.elasticsearch.store.FSDirectory;
@@ -73,12 +74,24 @@ public final class IndexShard implements Closeable {
         return engine.index(op);
     }
 
+    public IndexResult index(IndexOperation op, boolean fsyncTranslog) throws IOException {
+        return engine.index(op, fsyncTranslog);
+    }
+
     public DeleteResult delete(String id) throws IOException {
         return engine.delete(DeleteOperation.of(id));
     }
 
     public DeleteResult delete(DeleteOperation op) throws IOException {
         return engine.delete(op);
+    }
+
+    public DeleteResult delete(DeleteOperation op, boolean fsyncTranslog) throws IOException {
+        return engine.delete(op, fsyncTranslog);
+    }
+
+    public void syncTranslog() throws IOException {
+        engine.syncTranslog();
     }
 
     public NoOpResult noOp(String reason) throws IOException {
@@ -131,6 +144,10 @@ public final class IndexShard implements Closeable {
 
     public EngineStats stats() {
         return engine.stats();
+    }
+
+    public Releasable acquireLastCommitRef() {
+        return engine.acquireLastCommitRef();
     }
 
     public com.naqqa.elasticsearch.index.translog.Translog.Snapshot newTranslogSnapshot(long fromSeqNo) throws IOException {

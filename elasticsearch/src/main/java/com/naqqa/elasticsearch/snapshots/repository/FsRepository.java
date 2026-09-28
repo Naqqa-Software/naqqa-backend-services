@@ -276,7 +276,7 @@ public final class FsRepository implements Repository {
                 ShardId targetShardId = new ShardId(targetName, shardId.shard());
                 ShardRestoreTarget target = shardTargets.get(targetShardId);
                 if (target == null) {
-                    throw new SnapshotException("no restore target provided for shard " + targetShardId);
+                    continue;
                 }
                 for (FileInfo file : manifest.files()) {
                     try (InputStream in = dataContainer.readBlob(file.blobName());

@@ -109,7 +109,11 @@ final class QueryPhase {
                 return convertMissing(s, kind);
             }
             if (FieldValues.isNumeric(kind)) {
-                List<Double> nums = new ArrayList<>();
+                if (values.size() == 1) {
+                    Object single = values.get(0);
+                    return single instanceof Boolean b ? (Object) (b ? 1L : 0L) : single;
+                }
+                List<Double> nums = new ArrayList<>(values.size());
                 boolean integral = true;
                 for (Object v : values) {
                     if (v instanceof Boolean b) {
@@ -133,16 +137,15 @@ final class QueryPhase {
                     }
                     default -> Collections.min(nums);
                 };
-                if (values.size() == 1) {
-                    Object single = values.get(0);
-                    return single instanceof Boolean b ? (Object) (b ? 1L : 0L) : single;
-                }
                 if (integral && (mode.equals("min") || mode.equals("max") || mode.equals("sum"))) {
                     return (long) result;
                 }
                 return result;
             }
-            List<String> strings = new ArrayList<>();
+            if (values.size() == 1) {
+                return String.valueOf(values.get(0));
+            }
+            List<String> strings = new ArrayList<>(values.size());
             for (Object v : values) {
                 strings.add(String.valueOf(v));
             }
@@ -221,6 +224,23 @@ final class QueryPhase {
             }
             int cmp = Integer.compare(a.shard.ordinal, b.shard.ordinal);
             return cmp != 0 ? cmp : Integer.compare(a.doc, b.doc);
+        }
+
+        boolean isBetter(ShardTarget shard, int globalDoc, float score, Object[] values, Candidate other) {
+            for (int i = 0; i < sorts.size(); i++) {
+                SearchSpec.SortSpec s = sorts.get(i);
+                Object va = s.type() == SearchSpec.SortType.SCORE ? (Object) score : values[i];
+                Object vb = s.type() == SearchSpec.SortType.SCORE ? (Object) other.score : other.sortValues[i];
+                int cmp = compareValues(s, va, vb);
+                if (cmp != 0) {
+                    return cmp < 0;
+                }
+            }
+            int cmp = Integer.compare(shard.ordinal, other.shard.ordinal);
+            if (cmp != 0) {
+                return cmp < 0;
+            }
+            return Integer.compare(globalDoc, other.doc) < 0;
         }
 
         static int compareValues(SearchSpec.SortSpec s, Object a, Object b) {
@@ -310,20 +330,17 @@ final class QueryPhase {
                 if (topN > 0 || groups != null) {
                     Object[] values = sorter.values(shard, ctx, doc, score);
                     if (options.searchAfter == null || sorter.compareToAfter(values, score, options.searchAfter) > 0) {
-                        Object key = null;
                         if (groups != null) {
                             List<Object> keyValues = FieldValues.read(ctx.reader(), options.collapseField,
                                 shard.fieldType(options.collapseField), doc);
-                            key = keyValues.isEmpty() ? null : keyValues.get(0);
-                        }
-                        Candidate candidate = new Candidate(shard, ctx.docBase() + doc, score, values, key);
-                        if (groups != null) {
+                            Object key = keyValues.isEmpty() ? null : keyValues.get(0);
+                            Candidate candidate = new Candidate(shard, ctx.docBase() + doc, score, values, key);
                             groups.computeIfAbsent(key == null ? NullKey.INSTANCE : key, k -> new ArrayList<>()).add(candidate);
-                        } else {
-                            queue.add(candidate);
-                            if (queue.size() > topN) {
-                                queue.poll();
-                            }
+                        } else if (queue.size() < topN) {
+                            queue.add(new Candidate(shard, ctx.docBase() + doc, score, values, null));
+                        } else if (topN > 0 && sorter.isBetter(shard, ctx.docBase() + doc, score, values, queue.peek())) {
+                            queue.poll();
+                            queue.add(new Candidate(shard, ctx.docBase() + doc, score, values, null));
                         }
                     }
                 }

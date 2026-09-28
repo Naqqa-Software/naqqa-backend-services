@@ -73,7 +73,7 @@ public final class SearchSpec {
     }
 
     public boolean requiresRichExecution() {
-        return postFilter != null || explicitSort || trackScores || searchAfter != null || trackTotalHitsUpTo != 10_000L
+        return postFilter != null || explicitSort || trackScores || searchAfter != null
             || minScore != null || sourceExplicit || !docvalueFields.isEmpty() || storedFields != null || scriptFields != null
             || !fields.isEmpty() || version || seqNoPrimaryTerm || explain || profile || !indicesBoost.isEmpty()
             || timeoutMillis >= 0 || terminateAfter > 0 || highlight != null || suggest != null || collapse != null
@@ -132,24 +132,7 @@ public final class SearchSpec {
             }
             s.searchAfter = new ArrayList<>(after);
         }
-        Object tth = p.get("track_total_hits") != null ? p.get("track_total_hits") : b.get("track_total_hits");
-        if (tth != null) {
-            String v = String.valueOf(tth);
-            if ("true".equals(v)) {
-                s.trackTotalHitsUpTo = Long.MAX_VALUE;
-            } else if ("false".equals(v)) {
-                s.trackTotalHitsUpTo = -1;
-            } else {
-                try {
-                    s.trackTotalHitsUpTo = (long) Double.parseDouble(v);
-                } catch (NumberFormatException e) {
-                    throw new RestApiException(400, "[track_total_hits] must be a boolean or an integer but was [" + v + "]");
-                }
-                if (s.trackTotalHitsUpTo < 0) {
-                    throw new RestApiException(400, "[track_total_hits] parameter must be positive or equals to -1, got " + v);
-                }
-            }
-        }
+        s.trackTotalHitsUpTo = parseTrackTotalHitsUpTo(b.get("track_total_hits"), p.get("track_total_hits"));
         s.totalHitsAsInt = "true".equals(p.get("rest_total_hits_as_int"));
         Object minScore = b.get("min_score") != null ? b.get("min_score") : p.get("min_score");
         if (minScore != null) {
@@ -374,6 +357,30 @@ public final class SearchSpec {
             case "_shard_doc" -> new SortSpec(null, SortType.SHARD_DOC, desc, null, null, null, null);
             default -> new SortSpec(field, SortType.FIELD, desc, missing, mode, unmappedType, format);
         };
+    }
+
+    public static long parseTrackTotalHitsUpTo(Object bodyValue, Object paramValue) {
+        Object tth = paramValue != null ? paramValue : bodyValue;
+        if (tth == null) {
+            return 10_000L;
+        }
+        String v = String.valueOf(tth);
+        if ("true".equals(v)) {
+            return Long.MAX_VALUE;
+        }
+        if ("false".equals(v)) {
+            return -1L;
+        }
+        long parsed;
+        try {
+            parsed = (long) Double.parseDouble(v);
+        } catch (NumberFormatException e) {
+            throw new RestApiException(400, "[track_total_hits] must be a boolean or an integer but was [" + v + "]");
+        }
+        if (parsed < 0) {
+            throw new RestApiException(400, "[track_total_hits] parameter must be positive or equals to -1, got " + v);
+        }
+        return parsed;
     }
 
     private static boolean bool(Object v) {

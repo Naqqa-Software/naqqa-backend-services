@@ -15,6 +15,10 @@ public final class StoredFieldsReader {
     private final long[] blockFilePointers;
     private final int[] blockDocCounts;
     private final int[] blockBaseDocId;
+    private volatile BlockCache cache;
+
+    private record BlockCache(int blockIdx, int[] lengths, byte[] uncompressed) {
+    }
 
     public StoredFieldsReader(IndexInput in) throws IOException {
         CodecUtil.checksumEntireFile(in);
@@ -48,18 +52,27 @@ public final class StoredFieldsReader {
             throw new IllegalArgumentException("docId out of range: " + docId);
         }
         int blockIdx = findBlock(docId);
-        IndexInput cursor = in.clone();
-        cursor.seek(blockFilePointers[blockIdx]);
-        int numDocsInBlock = cursor.readVInt();
-        int[] lengths = new int[numDocsInBlock];
-        for (int i = 0; i < numDocsInBlock; i++) {
-            lengths[i] = cursor.readVInt();
+        BlockCache cached = cache;
+        int[] lengths;
+        byte[] uncompressed;
+        if (cached != null && cached.blockIdx() == blockIdx) {
+            lengths = cached.lengths();
+            uncompressed = cached.uncompressed();
+        } else {
+            IndexInput cursor = in.clone();
+            cursor.seek(blockFilePointers[blockIdx]);
+            int numDocsInBlock = cursor.readVInt();
+            lengths = new int[numDocsInBlock];
+            for (int i = 0; i < numDocsInBlock; i++) {
+                lengths[i] = cursor.readVInt();
+            }
+            int uncompressedLength = cursor.readVInt();
+            int compressedLength = cursor.readVInt();
+            byte[] compressed = new byte[compressedLength];
+            cursor.readBytes(compressed, 0, compressedLength);
+            uncompressed = decompress(compressed, uncompressedLength, compressionMode);
+            cache = new BlockCache(blockIdx, lengths, uncompressed);
         }
-        int uncompressedLength = cursor.readVInt();
-        int compressedLength = cursor.readVInt();
-        byte[] compressed = new byte[compressedLength];
-        cursor.readBytes(compressed, 0, compressedLength);
-        byte[] uncompressed = decompress(compressed, uncompressedLength, compressionMode);
         int localIndex = docId - blockBaseDocId[blockIdx];
         int offset = 0;
         for (int i = 0; i < localIndex; i++) {

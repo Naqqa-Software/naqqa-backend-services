@@ -1,6 +1,7 @@
 package com.naqqa.elasticsearch.node.indices;
 
 import com.naqqa.elasticsearch.common.json.JsonObject;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.index.mapper.Mapper;
 import com.naqqa.elasticsearch.index.mapper.MapperService;
 import com.naqqa.elasticsearch.index.mapper.Mapping;
@@ -12,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class DynamicMappingService {
+
+    private static final ESLogger LOG = ESLogger.getLogger(DynamicMappingService.class);
 
     private final IndicesService indicesService;
     private final MetadataIndexService metadataService;
@@ -63,7 +66,7 @@ public final class DynamicMappingService {
             try {
                 metadataService.putMapping(List.of(index), update);
             } catch (RuntimeException e) {
-                System.err.println("[mapping] failed to apply dynamic mapping update to [" + index + "]: " + e.getMessage());
+                LOG.warn("[mapping] failed to apply dynamic mapping update to [" + index + "]: " + e.getMessage());
             }
         }
     }

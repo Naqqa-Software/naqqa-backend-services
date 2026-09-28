@@ -4,10 +4,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 public final class IncludeExclude {
+
+    private static final Map<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>();
 
     private IncludeExclude() {
     }
@@ -29,7 +32,7 @@ public final class IncludeExclude {
             return null;
         }
         if (spec instanceof String regex) {
-            Pattern pattern = Pattern.compile(regex);
+            Pattern pattern = PATTERN_CACHE.computeIfAbsent(regex, Pattern::compile);
             return s -> pattern.matcher(s).matches();
         }
         if (spec instanceof List<?> list) {

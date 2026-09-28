@@ -1,0 +1,152 @@
+naqqa-backend-services :: elasticsearch module
+Copyright (c) the naqqa-backend-services contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE
+in this directory for the full text).
+
+This module contains original code plus a number of algorithms and data
+tables that were ported or adapted from third-party open source projects.
+Those ported components remain subject to their original third-party
+licenses, reproduced below, in addition to being made available under the
+Apache License, Version 2.0 as part of this project. Where a third-party
+license (e.g. the BSD 3-Clause license used by Snowball) differs from the
+Apache License, both licenses apply to the corresponding files: this
+project's Apache License, Version 2.0 grant, and the original license's
+attribution/redistribution terms.
+
+=========================================================================
+Apache Lucene
+=========================================================================
+
+Portions of this module, in particular under
+com.naqqa.elasticsearch.analysis, were ported or adapted from Apache
+Lucene (https://lucene.apache.org/), including but not limited to:
+
+  - the light/minimal stemmers and normalizers under
+    analysis/stem/light (e.g. GermanLightStemmer, GermanMinimalStemmer,
+    GermanNormalizer, FrenchLightStemmer, FrenchMinimalStemmer,
+    ItalianLightStemmer, DutchLightStemmer, NorwegianLightStemmer,
+    NorwegianMinimalStemmer, PortugueseLightStemmer,
+    PortugueseMinimalStemmer, RussianLightStemmer, SpanishLightStemmer,
+    SwedishLightStemmer, FinnishLightStemmer, GalicianMinimalStemmer,
+    RslpPluralStep, ScandinavianFolder, ScandinavianNormalizer),
+  - the Porter stemmer under analysis/stem/english/PorterStemmer.java,
+    whose underlying public-domain algorithm (M.F. Porter) is implemented
+    following Lucene's Apache-2.0 licensed adaptation,
+  - the script-specific normalizers/stemmers under analysis/lang/c
+    (Arabic, Bengali, Hindi, Indic, Persian, Sorani, Thai
+    normalizers/stemmers/analyzer factories, and the Thai dictionary
+    tokenizer),
+  - the HTML character stripping code under analysis/charfilter/html
+    (HtmlStripCharFilter, HtmlStripScanner, HtmlCharacterEntities),
+  - the word delimiter filter under analysis/filter/worddelimiter
+    (WordDelimiterFilter, WordDelimiterGraphFilter,
+    WordDelimiterIterator, WordDelimiterSettings),
+  - the ASCII folding data tables under analysis/folding
+    (AsciiFolder, AsciiFoldingData),
+  - the hyphenation package under analysis/hyphenation (Hyphen,
+    Hyphenation, HyphenationTree), itself originally derived by Lucene
+    from the Apache FOP (Formatting Objects Processor) project,
+  - the synonym handling code under analysis/synonym (SynonymFilter,
+    SynonymGraphFilter, SynonymMap),
+  - automaton support utilities under analysis/automaton (e.g. IntList).
+
+  Copyright 2001-present The Apache Software Foundation
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+Lucene's own automaton utilities were themselves originally adapted from
+the dk.brics.automaton project:
+
+  Copyright (c) 2001-2009 Anders Moller
+  All rights reserved.
+  Licensed under the BSD License (see the "Snowball / BSD-licensed
+  components" section below for the general form of this license).
+
+=========================================================================
+Snowball
+=========================================================================
+
+The Snowball stemmer runtime and the per-language stemmers ported from
+the Snowball project (https://snowballstem.org/) are used under
+analysis/lang/a, analysis/lang/b, and analysis/stem/snowball, including:
+
+  - the shared Snowball runtime base classes (SnowballProgram,
+    SnowballAmong),
+  - the generated per-language stemmers: Turkish, Irish, Hungarian,
+    Catalan, Basque, Armenian, Serbian, Lithuanian, Estonian, Romanian,
+    French, Italian, Spanish, Finnish, Russian, Danish, Norwegian, and
+    Swedish stemmers.
+
+  Copyright (c) 2001, Dr Martin Porter
+  Copyright (c) 2004,2005, Richard Boulton
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+
+  1. Redistributions of source code must retain the above copyright
+     notice, this list of conditions and the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in the
+     documentation and/or other materials provided with the distribution.
+  3. Neither the name of the Snowball project nor the names of its
+     contributors may be used to endorse or promote products derived from
+     this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+=========================================================================
+Apache Commons Codec
+=========================================================================
+
+The phonetic encoders under analysis/phonetic (Soundex, RefinedSoundex,
+SoundexUtils, Metaphone, DoubleMetaphone, Caverphone1, Caverphone2,
+Nysiis, ColognePhonetic / KoelnerPhonetik / HaasePhonetik, and the
+PhoneticEncoder / PhoneticEncoders support classes) were ported or
+adapted from Apache Commons Codec (https://commons.apache.org/proper/commons-codec/).
+
+  Copyright 2002-present The Apache Software Foundation
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+=========================================================================
+Notes
+=========================================================================
+
+No license header comments have been added to individual source files as
+part of documenting this attribution; this NOTICE file is the canonical
+record of which components were ported/derived from the third-party
+projects listed above and under which original licenses they remain
+available.

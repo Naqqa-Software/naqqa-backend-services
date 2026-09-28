@@ -42,6 +42,7 @@ public final class TransportService extends AbstractLifecycleComponent {
     private volatile TcpTransport transport;
     private volatile DiscoveryNode localNode;
     private volatile ScheduledExecutorService scheduler;
+    private volatile java.util.concurrent.ExecutorService workers;
     private volatile ScheduledFuture<?> keepAliveFuture;
 
     public TransportService(String nodeId, InetSocketAddress bindAddress, ThreadPool threadPool) {
@@ -178,7 +179,13 @@ public final class TransportService extends AbstractLifecycleComponent {
                 t.setDaemon(true);
                 return t;
             });
-            transport = new TcpTransport(this::onMessage, threadPool.generic());
+            workers = Executors.newCachedThreadPool(r -> {
+                Thread t = new Thread(r, "transport-worker[" + nodeId + "]");
+                t.setDaemon(true);
+                return t;
+            });
+            transport = new TcpTransport(this::onMessage,
+                new com.naqqa.elasticsearch.common.util.concurrent.ContextPreservingExecutorService(workers, threadPool.getThreadContext()));
             transport.bind(bindAddress);
             transport.start();
             InetSocketAddress bound = transport.boundAddress();
@@ -215,6 +222,9 @@ public final class TransportService extends AbstractLifecycleComponent {
         }
         if (scheduler != null) {
             scheduler.shutdownNow();
+        }
+        if (workers != null) {
+            workers.shutdown();
         }
     }
 

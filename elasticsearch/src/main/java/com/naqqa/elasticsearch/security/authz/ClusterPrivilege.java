@@ -7,6 +7,7 @@ public enum ClusterPrivilege {
     MANAGE_SECURITY,
     MANAGE_INDEX_TEMPLATES,
     MANAGE_ILM,
+    MANAGE_SLM,
     MANAGE_API_KEY,
     NONE;
 
@@ -20,6 +21,7 @@ public enum ClusterPrivilege {
             case MANAGE_INDEX_TEMPLATES -> action.startsWith("cluster:admin/index_template")
                     || action.startsWith("cluster:admin/template");
             case MANAGE_ILM -> action.startsWith("cluster:admin/ilm/");
+            case MANAGE_SLM -> action.startsWith("cluster:admin/slm/");
             case MANAGE_API_KEY -> action.startsWith("cluster:admin/xpack/security/api_key/");
         };
     }

@@ -101,6 +101,8 @@ public final class ShardSearchService {
                 searcher.useDfsStatistics(request.dfsCollectionStats(), request.dfsTermStats());
             }
             int topN = request.from() + request.size();
+            long trackTotalHitsUpTo = request.trackTotalHitsUpTo();
+            int threshold = TotalHits.collectorThreshold(trackTotalHitsUpTo);
             TotalHits totalHits;
             List<ShardQueryResponse.Hit> hits = new ArrayList<>();
             Map<String, Object> aggsClause = request.aggs();
@@ -110,12 +112,13 @@ public final class ShardSearchService {
                     MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(request.maxBuckets());
                     AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), null, aggsClause, bucketConsumer, fieldTypes);
                     aggregationsResult = result.aggregations;
-                    totalHits = new TotalHits(result.matchedDocCount, TotalHits.Relation.EQUAL_TO);
+                    totalHits = new TotalHits(result.matchedDocCount, TotalHits.relationFor(result.matchedDocCount, trackTotalHitsUpTo));
                 } else {
-                    totalHits = new TotalHits(searcher.count(request.query()), TotalHits.Relation.EQUAL_TO);
+                    long rawCount = searcher.count(request.query());
+                    totalHits = new TotalHits(rawCount, TotalHits.relationFor(rawCount, trackTotalHitsUpTo));
                 }
             } else if (request.sort() != null) {
-                ShardFieldCollector collector = new ShardFieldCollector(request.sort(), topN);
+                ShardFieldCollector collector = new ShardFieldCollector(request.sort(), topN, trackTotalHitsUpTo);
                 if (aggsClause != null) {
                     MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(request.maxBuckets());
                     AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause, bucketConsumer, fieldTypes);
@@ -128,7 +131,7 @@ public final class ShardSearchService {
                     hits.add(new ShardQueryResponse.Hit(hit.doc(), hit.score(), hit.values()));
                 }
             } else {
-                TopScoreDocCollector collector = TopScoreDocCollector.create(topN);
+                TopScoreDocCollector collector = TopScoreDocCollector.create(topN, threshold);
                 if (aggsClause != null) {
                     MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(request.maxBuckets());
                     AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause, bucketConsumer, fieldTypes);
@@ -389,15 +392,24 @@ public final class ShardSearchService {
         private final Map<Term, TermStatistics> dfsTermStats;
         private final Map<String, Object> aggs;
         private final int maxBuckets;
+        private final long trackTotalHitsUpTo;
 
         public ShardQueryRequest(ShardId shardId, Query query, Sort sort, int from, int size,
                                   Map<String, CollectionStatistics> dfsCollectionStats, Map<Term, TermStatistics> dfsTermStats) {
-            this(shardId, query, sort, from, size, dfsCollectionStats, dfsTermStats, null, MultiBucketConsumer.DEFAULT_MAX_BUCKETS);
+            this(shardId, query, sort, from, size, dfsCollectionStats, dfsTermStats, null, MultiBucketConsumer.DEFAULT_MAX_BUCKETS,
+                TotalHits.TRACK_TOTAL_HITS_ACCURATE);
         }
 
         public ShardQueryRequest(ShardId shardId, Query query, Sort sort, int from, int size,
                                   Map<String, CollectionStatistics> dfsCollectionStats, Map<Term, TermStatistics> dfsTermStats,
                                   Map<String, Object> aggs, int maxBuckets) {
+            this(shardId, query, sort, from, size, dfsCollectionStats, dfsTermStats, aggs, maxBuckets,
+                TotalHits.TRACK_TOTAL_HITS_ACCURATE);
+        }
+
+        public ShardQueryRequest(ShardId shardId, Query query, Sort sort, int from, int size,
+                                  Map<String, CollectionStatistics> dfsCollectionStats, Map<Term, TermStatistics> dfsTermStats,
+                                  Map<String, Object> aggs, int maxBuckets, long trackTotalHitsUpTo) {
             this.shardId = shardId;
             this.query = query;
             this.sort = sort;
@@ -407,6 +419,7 @@ public final class ShardSearchService {
             this.dfsTermStats = dfsTermStats;
             this.aggs = aggs;
             this.maxBuckets = maxBuckets;
+            this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         }
 
         ShardQueryRequest(StreamInput in) throws IOException {
@@ -449,6 +462,7 @@ public final class ShardSearchService {
                 this.aggs = null;
             }
             this.maxBuckets = in.readVInt();
+            this.trackTotalHitsUpTo = in.readZLong();
         }
 
         public ShardId shardId() {
@@ -487,6 +501,10 @@ public final class ShardSearchService {
             return maxBuckets;
         }
 
+        public long trackTotalHitsUpTo() {
+            return trackTotalHitsUpTo;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             writeShardId(out, shardId);
@@ -519,6 +537,7 @@ public final class ShardSearchService {
                 out.writeGenericValue(aggs);
             }
             out.writeVInt(maxBuckets);
+            out.writeZLong(trackTotalHitsUpTo);
         }
     }
 

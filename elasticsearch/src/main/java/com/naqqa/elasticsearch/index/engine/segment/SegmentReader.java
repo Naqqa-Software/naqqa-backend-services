@@ -101,8 +101,23 @@ public final class SegmentReader {
     }
 
     public static SegmentReader open(Directory dir, SegmentCommitInfo commitInfo) throws IOException {
-        String name = commitInfo.segmentName();
         List<IndexInput> openInputs = new ArrayList<>();
+        try {
+            return open(dir, commitInfo, openInputs);
+        } catch (IOException | RuntimeException | Error e) {
+            for (IndexInput in : openInputs) {
+                try {
+                    in.close();
+                } catch (IOException | RuntimeException suppressed) {
+                    e.addSuppressed(suppressed);
+                }
+            }
+            throw e;
+        }
+    }
+
+    private static SegmentReader open(Directory dir, SegmentCommitInfo commitInfo, List<IndexInput> openInputs) throws IOException {
+        String name = commitInfo.segmentName();
 
         IndexInput siIn = dir.openInput(Codec.segmentInfoFileName(name), IOContext.READ);
         SegmentInfo info;
@@ -608,15 +623,41 @@ public final class SegmentReader {
         return norms.get(field);
     }
 
-    public Set<String> allFiles() {
-        Set<String> files = new HashSet<>(info.files());
-        files.add(Codec.liveDocsFileName(info.name(), delGeneration));
+    public Set<String> staticFiles() {
+        Set<String> files = new HashSet<>();
+        for (String f : info.files()) {
+            if (!f.endsWith("." + Codec.LIVE_DOCS_EXT)) {
+                files.add(f);
+            }
+        }
         files.add(Codec.segmentInfoFileName(info.name()));
+        return files;
+    }
+
+    public Set<String> allFiles() {
+        long gen;
+        synchronized (liveDocsLock) {
+            gen = delGeneration;
+        }
+        Set<String> files = staticFiles();
+        files.add(Codec.liveDocsFileName(info.name(), gen));
         return files;
     }
 
     public void incRef() {
         refCount.incrementAndGet();
+    }
+
+    public boolean tryIncRef() {
+        while (true) {
+            int current = refCount.get();
+            if (current <= 0) {
+                return false;
+            }
+            if (refCount.compareAndSet(current, current + 1)) {
+                return true;
+            }
+        }
     }
 
     public void decRef() throws IOException {

@@ -7,10 +7,13 @@ import com.naqqa.elasticsearch.common.unit.ByteSizeValue;
 import com.naqqa.elasticsearch.common.unit.TimeValue;
 import com.naqqa.elasticsearch.index.engine.EngineConfig;
 import com.naqqa.elasticsearch.index.mapper.MapperService;
+import com.naqqa.elasticsearch.index.recovery.RecoveryThrottler;
+import com.naqqa.elasticsearch.index.recovery.StoreRecovery;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
 import com.naqqa.elasticsearch.index.translog.Durability;
 import com.naqqa.elasticsearch.index.translog.TranslogConfig;
 import com.naqqa.elasticsearch.node.support.SettingsMaps;
+import com.naqqa.elasticsearch.snapshots.repository.Repository;
 import com.naqqa.elasticsearch.store.FSDirectory;
 
 import java.io.IOException;
@@ -107,29 +110,62 @@ public final class IndexService {
         return indexPath.resolve(Integer.toString(shardId));
     }
 
+    public record SnapshotRestore(Repository repository, String snapshotName, String sourceIndex) {
+    }
+
+    private final Map<Integer, Object> shardLocks = new ConcurrentHashMap<>();
+
+    private Object lockFor(int shardId) {
+        return shardLocks.computeIfAbsent(shardId, k -> new Object());
+    }
+
     IndexShard openShard(int shardId) throws IOException {
-        IndexShard existing = shards.get(shardId);
-        if (existing != null) {
-            return existing;
+        return openShard(shardId, null);
+    }
+
+    IndexShard openShard(int shardId, SnapshotRestore restore) throws IOException {
+        synchronized (lockFor(shardId)) {
+            IndexShard existing = shards.get(shardId);
+            if (existing != null) {
+                return existing;
+            }
+            Path shardPath = shardPath(shardId);
+            Files.createDirectories(shardPath);
+            if (restore != null && StoreRecovery.isFreshStore(shardPath)) {
+                com.naqqa.elasticsearch.snapshots.model.ShardId sourceShardId =
+                    new com.naqqa.elasticsearch.snapshots.model.ShardId(restore.sourceIndex(), shardId);
+                StoreRecovery.restoreFilesFromSnapshot(shardPath, restore.repository(), restore.snapshotName(), sourceShardId,
+                    RecoveryThrottler.unthrottled());
+            }
+            com.naqqa.elasticsearch.cluster.state.Settings s = metadata.getSettings();
+            TranslogConfig translogConfig = newTranslogConfig(shardId);
+            EngineConfig config = EngineConfig.defaultConfig(shardPath, newIndexDirectory(shardPath.resolve("index"), s),
+                mapperService, translogConfig);
+            String refresh = s.get("index.refresh_interval");
+            if (refresh != null) {
+                config = config.withRefreshInterval(TimeValue.parseTimeValue(refresh, "index.refresh_interval"));
+            }
+            String flushThreshold = s.get("index.translog.flush_threshold_size");
+            if (flushThreshold != null) {
+                config = config.withFlushThresholdSize(ByteSizeValue.parseBytesSizeValue(flushThreshold, "index.translog.flush_threshold_size"));
+            }
+            IndexShard shard = IndexShard.open(config, mapperService);
+            shards.put(shardId, shard);
+            translogConfigs.put(shardId, translogConfig);
+            return shard;
         }
-        Path shardPath = shardPath(shardId);
-        Files.createDirectories(shardPath);
-        com.naqqa.elasticsearch.cluster.state.Settings s = metadata.getSettings();
-        TranslogConfig translogConfig = newTranslogConfig(shardId);
-        EngineConfig config = EngineConfig.defaultConfig(shardPath, new FSDirectory(shardPath.resolve("index")),
-            mapperService, translogConfig);
-        String refresh = s.get("index.refresh_interval");
-        if (refresh != null) {
-            config = config.withRefreshInterval(TimeValue.parseTimeValue(refresh, "index.refresh_interval"));
+    }
+
+    static com.naqqa.elasticsearch.store.Directory newIndexDirectory(Path path, com.naqqa.elasticsearch.cluster.state.Settings settings)
+        throws IOException {
+        String storeType = settings.get("index.store.type", "mmapfs");
+        boolean is64Bit = System.getProperty("sun.arch.data.model", "64").equals("64")
+            || System.getProperty("os.arch", "").contains("64");
+        boolean canMmap = is64Bit && com.naqqa.elasticsearch.store.MMapDirectory.isUnmapSupported();
+        if ("niofs".equalsIgnoreCase(storeType) || !canMmap) {
+            return new FSDirectory(path);
         }
-        String flushThreshold = s.get("index.translog.flush_threshold_size");
-        if (flushThreshold != null) {
-            config = config.withFlushThresholdSize(ByteSizeValue.parseBytesSizeValue(flushThreshold, "index.translog.flush_threshold_size"));
-        }
-        IndexShard shard = IndexShard.open(config, mapperService);
-        shards.put(shardId, shard);
-        translogConfigs.put(shardId, translogConfig);
-        return shard;
+        return new com.naqqa.elasticsearch.store.MMapDirectory(path);
     }
 
     TranslogConfig newTranslogConfig(int shardId) {
@@ -147,26 +183,30 @@ public final class IndexService {
     }
 
     void installShard(int shardId, IndexShard shard, TranslogConfig translogConfig) {
-        IndexShard previous = shards.put(shardId, shard);
-        translogConfigs.put(shardId, translogConfig);
-        if (previous != null && previous != shard) {
-            try {
-                previous.close();
-            } catch (Exception ignored) {
+        synchronized (lockFor(shardId)) {
+            IndexShard previous = shards.put(shardId, shard);
+            translogConfigs.put(shardId, translogConfig);
+            if (previous != null && previous != shard) {
+                try {
+                    previous.close();
+                } catch (Exception ignored) {
+                }
             }
         }
     }
 
     void closeShard(int shardId) {
-        IndexShard shard = shards.remove(shardId);
-        translogConfigs.remove(shardId);
-        if (shard != null) {
-            try {
-                shard.flushAndClose();
-            } catch (Exception e) {
+        synchronized (lockFor(shardId)) {
+            IndexShard shard = shards.remove(shardId);
+            translogConfigs.remove(shardId);
+            if (shard != null) {
                 try {
-                    shard.close();
-                } catch (Exception ignored) {
+                    shard.flushAndClose();
+                } catch (Exception e) {
+                    try {
+                        shard.close();
+                    } catch (Exception ignored) {
+                    }
                 }
             }
         }

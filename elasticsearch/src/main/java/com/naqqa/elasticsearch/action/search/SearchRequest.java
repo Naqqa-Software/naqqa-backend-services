@@ -2,6 +2,7 @@ package com.naqqa.elasticsearch.action.search;
 
 import com.naqqa.elasticsearch.search.aggs.support.MultiBucketConsumer;
 import com.naqqa.elasticsearch.search.execution.Sort;
+import com.naqqa.elasticsearch.search.execution.TotalHits;
 import com.naqqa.elasticsearch.search.query.Query;
 
 import java.util.Map;
@@ -25,6 +26,8 @@ public final class SearchRequest {
     private boolean useAdaptiveReplicaSelection = false;
     private Map<String, Object> aggs;
     private int maxBuckets = MultiBucketConsumer.DEFAULT_MAX_BUCKETS;
+    private long trackTotalHitsUpTo = TotalHits.TRACK_TOTAL_HITS_ACCURATE;
+    private boolean totalHitsAsInt = false;
 
     public SearchRequest(String index, Query query) {
         this.index = index;
@@ -144,6 +147,24 @@ public final class SearchRequest {
 
     public SearchRequest maxBuckets(int maxBuckets) {
         this.maxBuckets = maxBuckets;
+        return this;
+    }
+
+    public long trackTotalHitsUpTo() {
+        return trackTotalHitsUpTo;
+    }
+
+    public SearchRequest trackTotalHitsUpTo(long trackTotalHitsUpTo) {
+        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
+        return this;
+    }
+
+    public boolean totalHitsAsInt() {
+        return totalHitsAsInt;
+    }
+
+    public SearchRequest totalHitsAsInt(boolean totalHitsAsInt) {
+        this.totalHitsAsInt = totalHitsAsInt;
         return this;
     }
 }

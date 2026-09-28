@@ -45,13 +45,13 @@ public final class TieredMergePolicy {
     }
 
     public List<SegmentReader> pickForceMergeBatch(List<SegmentReader> segments, int maxSegments) {
-        if (segments.size() <= Math.max(1, maxSegments)) {
+        int target = Math.max(1, maxSegments);
+        if (segments.size() <= target) {
             return null;
         }
         List<SegmentReader> sorted = new ArrayList<>(segments);
         sorted.sort(Comparator.comparingInt(SegmentReader::maxDoc));
-        int excess = sorted.size() - maxSegments;
-        int n = Math.min(sorted.size(), Math.max(2, Math.min(maxMergeAtOnce, excess + 1)));
+        int n = sorted.size() - target + 1;
         return new ArrayList<>(sorted.subList(0, n));
     }
 }

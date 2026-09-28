@@ -13,6 +13,7 @@ import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.cluster.state.IndexMetadata;
 import com.naqqa.elasticsearch.cluster.state.Metadata;
 import com.naqqa.elasticsearch.common.json.JsonValue;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.common.threadpool.ThreadPool;
 import com.naqqa.elasticsearch.index.engine.DeleteOperation;
 import com.naqqa.elasticsearch.index.engine.DeleteResult;
@@ -30,6 +31,7 @@ import com.naqqa.elasticsearch.index.translog.VersionType;
 import com.naqqa.elasticsearch.node.cluster.ClusterStateManager;
 import com.naqqa.elasticsearch.node.cluster.NodeConnections;
 import com.naqqa.elasticsearch.node.cluster.Wire;
+import com.naqqa.elasticsearch.snapshots.repository.Repository;
 import com.naqqa.elasticsearch.transport.TransportChannel;
 import com.naqqa.elasticsearch.transport.TransportService;
 
@@ -50,11 +52,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 public final class IndicesService implements ClusterStateApplier, Closeable {
 
+    private static final ESLogger LOG = ESLogger.getLogger(IndicesService.class);
+
     public static final String BROADCAST_REFRESH_ACTION = "internal:admin/shard/refresh";
+    public static final String RECOVERY_TYPE_SETTING = "index.recovery.type";
+    public static final String RECOVERY_TYPE_SNAPSHOT = "snapshot";
+    public static final String RECOVERY_REPOSITORY_SETTING = "index.recovery.repository";
+    public static final String RECOVERY_SNAPSHOT_SETTING = "index.recovery.snapshot";
+    public static final String RECOVERY_SOURCE_INDEX_SETTING = "index.recovery.source_index";
 
     static final class ReplicaShard {
         final ShardId shardId;
@@ -89,6 +99,11 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
     private final Set<String> failedAllocations = ConcurrentHashMap.newKeySet();
     private final Map<ShardId, String> failures = new ConcurrentHashMap<>();
     private volatile ClusterState lastApplied;
+    private volatile Function<String, Repository> repositoryResolver;
+
+    public void setRepositoryResolver(Function<String, Repository> repositoryResolver) {
+        this.repositoryResolver = repositoryResolver;
+    }
 
     public IndicesService(Path indicesPath, String localNodeId, TransportService transportService,
                           AnalysisRegistry analysisRegistry, ClusterStateManager clusterStateManager) throws IOException {
@@ -132,7 +147,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                 shard.refresh();
                 ok = true;
             } catch (IOException | RuntimeException e) {
-                System.err.println("[indices] broadcast refresh of " + shardId + " failed: " + e.getMessage());
+                LOG.warn("[indices] broadcast refresh of " + shardId + " failed: " + e.getMessage());
             }
         }
         return CompletableFuture.completedFuture(Wire.encode(Map.of("ok", ok)));
@@ -161,7 +176,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                             try {
                                 shard.refresh();
                             } catch (IOException | RuntimeException e) {
-                                System.err.println("[indices] refresh of " + shardId + " failed: " + e.getMessage());
+                                LOG.warn("[indices] refresh of " + shardId + " failed: " + e.getMessage());
                             }
                         }
                     } else if (connections != null) {
@@ -173,7 +188,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                             Wire.sendSync(transportService, connections.get(node), BROADCAST_REFRESH_ACTION,
                                 Wire.encode(Map.of("index", index, "shard", sr.getShardId())), 10_000L);
                         } catch (Exception e) {
-                            System.err.println("[indices] broadcast refresh to [" + node.getName() + "] for "
+                            LOG.warn("[indices] broadcast refresh to [" + node.getName() + "] for "
                                 + index + "[" + sr.getShardId() + "] failed: " + e.getMessage());
                         }
                     }
@@ -262,7 +277,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                     service = new IndexService(imd, indexPath(imd), analysisRegistry);
                     indices.put(imd.getIndex(), service);
                 } catch (RuntimeException e) {
-                    System.err.println("[indices] failed to create index service [" + imd.getIndex() + "]: " + e);
+                    LOG.warn("[indices] failed to create index service [" + imd.getIndex() + "]: " + e);
                     continue;
                 }
             }
@@ -284,7 +299,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                     }
                 } catch (IOException | RuntimeException e) {
                     failures.put(shardId, String.valueOf(e));
-                    System.err.println("[indices] failed to apply shard " + shardId + ": " + e);
+                    LOG.warn("[indices] failed to apply shard " + shardId + ": " + e);
                 }
             }
             for (Integer shardId : new ArrayList<>(service.shards().keySet())) {
@@ -315,6 +330,30 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
         return transportService.localNode();
     }
 
+    private IndexService.SnapshotRestore snapshotRestoreFor(IndexMetadata imd) {
+        Function<String, Repository> resolver = repositoryResolver;
+        if (resolver == null || !RECOVERY_TYPE_SNAPSHOT.equals(imd.getSettings().get(RECOVERY_TYPE_SETTING))) {
+            return null;
+        }
+        String repositoryName = imd.getSettings().get(RECOVERY_REPOSITORY_SETTING);
+        String snapshotName = imd.getSettings().get(RECOVERY_SNAPSHOT_SETTING);
+        String sourceIndex = imd.getSettings().get(RECOVERY_SOURCE_INDEX_SETTING);
+        if (repositoryName == null || snapshotName == null || sourceIndex == null) {
+            return null;
+        }
+        Repository repository;
+        try {
+            repository = resolver.apply(repositoryName);
+        } catch (RuntimeException e) {
+            LOG.warn("[indices] snapshot repository [" + repositoryName + "] unavailable for recovery: " + e);
+            return null;
+        }
+        if (repository == null) {
+            return null;
+        }
+        return new IndexService.SnapshotRestore(repository, snapshotName, sourceIndex);
+    }
+
     private void applyPrimary(IndexService service, IndexMetadata imd, ClusterState state, IndexShardRoutingTable table,
                               ShardRouting sr, List<ShardRouting> toStart) throws IOException {
         ShardId shardId = new ShardId(imd.getIndex(), sr.getShardId());
@@ -332,7 +371,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                 if (asReplica != null) {
                     cancelReplica(shardId);
                 }
-                IndexShard shard = service.openShard(sr.getShardId());
+                IndexShard shard = service.openShard(sr.getShardId(), snapshotRestoreFor(imd));
                 ShardCopy copy = new ShardCopy(allocationId, localTransportNode(), shard, transportService, term, ShardCopy.Role.PRIMARY);
                 group = new ReplicationGroup(shardId, copy, this::onReplicaFailure);
             }
@@ -367,12 +406,12 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
         try {
             promotedTerm = handover.promoteReplicaToPrimary(replica.allocationId).currentTerm();
         } catch (IOException | RuntimeException e) {
-            System.err.println("[indices] promotion handover for " + shardId + " reported: " + e.getMessage());
+            LOG.warn("[indices] promotion handover for " + shardId + " reported: " + e.getMessage());
         }
         long term = Math.max(metadataTerm, promotedTerm);
         ShardCopy primary = new ShardCopy(replica.allocationId, localTransportNode(), replica.shard, transportService, term,
             ShardCopy.Role.PRIMARY);
-        System.err.println("[indices] promoted replica " + replica.allocationId + " of " + shardId + " to primary with term [" + term + "]");
+        LOG.warn("[indices] promoted replica " + replica.allocationId + " of " + shardId + " to primary with term [" + term + "]");
         return new ReplicationGroup(shardId, primary, this::onReplicaFailure);
     }
 
@@ -422,7 +461,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                 try {
                     target.resyncReplica(newCopy);
                 } catch (IOException e) {
-                    System.err.println("[indices] failed to resync replica [" + id + "] of " + shardId + ": " + e.getMessage());
+                    LOG.warn("[indices] failed to resync replica [" + id + "] of " + shardId + ": " + e.getMessage());
                 }
             }
         }
@@ -511,7 +550,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                     try {
                         applyOnReplica(shard, buffered);
                     } catch (IOException | RuntimeException e) {
-                        System.err.println("[indices] failed to replay buffered op on " + replica.shardId + ": " + e.getMessage());
+                        LOG.warn("[indices] failed to replay buffered op on " + replica.shardId + ": " + e.getMessage());
                     }
                 }
                 replica.buffer.clear();
@@ -523,7 +562,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                 markShardsStarted(List.of(routing));
             }
         } catch (Exception e) {
-            System.err.println("[indices] peer recovery of " + replica.shardId + " [" + replica.allocationId + "] from ["
+            LOG.warn("[indices] peer recovery of " + replica.shardId + " [" + replica.allocationId + "] from ["
                 + primaryNode.getName() + "] failed: " + e);
             failures.put(replica.shardId, String.valueOf(e));
             replicas.remove(replica.shardId, replica);
@@ -688,7 +727,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                 System.currentTimeMillis());
         }).whenComplete((s, e) -> {
             if (e != null) {
-                System.err.println("[indices] failed to report shard failure for " + routing.shardId() + ": " + e.getMessage());
+                LOG.warn("[indices] failed to report shard failure for " + routing.shardId() + ": " + e.getMessage());
             }
         });
     }
@@ -733,7 +772,7 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
                         startedRequested.remove(sr.allocationId().getId());
                     }
                 }
-                System.err.println("[indices] failed to report started shards " + shards + ": " + e.getMessage());
+                LOG.warn("[indices] failed to report started shards " + shards + ": " + e.getMessage());
             }
         });
     }

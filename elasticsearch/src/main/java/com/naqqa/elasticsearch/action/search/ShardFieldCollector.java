@@ -28,12 +28,18 @@ final class ShardFieldCollector implements Collector {
     private final Sort sort;
     private final int numHits;
     private final boolean needsScore;
+    private final long trackTotalHitsUpTo;
     private final PriorityQueue<Hit> pq;
     private long hitCount;
 
     ShardFieldCollector(Sort sort, int numHits) {
+        this(sort, numHits, TotalHits.TRACK_TOTAL_HITS_ACCURATE);
+    }
+
+    ShardFieldCollector(Sort sort, int numHits, long trackTotalHitsUpTo) {
         this.sort = sort;
         this.numHits = numHits;
+        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.needsScore = Arrays.stream(sort.fields()).anyMatch(f -> f.type() == SortField.Type.SCORE);
         this.pq = new PriorityQueue<>(Math.max(numHits, 1), false) {
             @Override
@@ -125,6 +131,6 @@ final class ShardFieldCollector implements Collector {
     }
 
     TotalHits totalHits() {
-        return new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
+        return new TotalHits(hitCount, TotalHits.relationFor(hitCount, trackTotalHitsUpTo));
     }
 }

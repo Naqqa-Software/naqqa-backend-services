@@ -17,6 +17,9 @@ import com.naqqa.elasticsearch.cluster.routing.ShardRouting;
 import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.common.breaker.CircuitBreakerService;
 import com.naqqa.elasticsearch.common.lifecycle.AbstractLifecycleComponent;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
+import com.naqqa.elasticsearch.common.logging.LogConfigurator;
+import com.naqqa.elasticsearch.common.logging.LoggingSettingsApplier;
 import com.naqqa.elasticsearch.common.settings.ClusterSettings;
 import com.naqqa.elasticsearch.common.settings.Setting;
 import com.naqqa.elasticsearch.common.settings.Settings;
@@ -83,6 +86,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public final class Node extends AbstractLifecycleComponent {
+
+    private static final ESLogger LOG = ESLogger.getLogger(Node.class);
 
     public static final Setting<String> NODE_NAME = Setting.simpleString("node.name", s -> defaultNodeName(), Setting.Property.NODE_SCOPE);
     public static final Setting<String> CLUSTER_NAME = Setting.simpleString("cluster.name", "elasticsearch", Setting.Property.NODE_SCOPE);
@@ -242,6 +247,7 @@ public final class Node extends AbstractLifecycleComponent {
     }
 
     private void startComponents() throws Exception {
+        LogConfigurator.configure(settings.getAsMap());
         long startTime = System.currentTimeMillis();
         String nodeName = NODE_NAME.get(settings);
         String clusterName = CLUSTER_NAME.get(settings);
@@ -320,12 +326,13 @@ public final class Node extends AbstractLifecycleComponent {
             nodeConnections, threadPool);
         track(indicesService);
         clusterStateManager.addApplier(indicesService);
+        clusterStateManager.addApplier(new LoggingSettingsApplier());
 
         new ShardSearchService(transportService, indicesService::shard);
         new ShardGetService(transportService, indicesService::shard);
         Map<String, com.naqqa.elasticsearch.transport.DiscoveryNode> transportNodes = new java.util.concurrent.ConcurrentHashMap<>();
         transportNodes.put(nodeId, transportService.localNode());
-        clusterStateManager.addListener(event -> refreshTransportNodes(event.state(), transportNodes, nodeId));
+        clusterStateManager.addPreCommitListener(event -> refreshTransportNodes(event.state(), transportNodes, nodeId));
         SearchCoordinator searchCoordinator = new SearchCoordinator(transportService, transportNodes);
 
         clusterStateManager.start(ELECTION_TIMEOUT.get(settings).millis());
@@ -335,7 +342,7 @@ public final class Node extends AbstractLifecycleComponent {
                     try {
                         indicesService.awaitShardsStarted(imd.getIndex(), 30_000L).get(31, TimeUnit.SECONDS);
                     } catch (java.util.concurrent.TimeoutException e) {
-                        System.err.println("[node] index [" + imd.getIndex() + "] did not recover within 30s");
+                        LOG.warn("[node] index [" + imd.getIndex() + "] did not recover within 30s");
                     }
                 }
             }
@@ -405,6 +412,13 @@ public final class Node extends AbstractLifecycleComponent {
         documentService.setRefresher(index -> indexAdmin.refresh(List.of(index)).join());
         snapshotsService = new SnapshotsService(clusterStateManager, indicesService, indexAdmin, indicesPath, repoRoots,
             dataPath.resolve("_repositories.json"), transportService, nodeConnections);
+        indicesService.setRepositoryResolver(repoName -> {
+            try {
+                return snapshotsService.repository(repoName).repository();
+            } catch (RuntimeException e) {
+                return null;
+            }
+        });
 
         monitorService = new MonitorService(nodeId, nodeName, startTime, List.of(dataPath), counters, indicesService, threadPool,
             transportService, breakerService, taskManager, () -> 0);
@@ -589,7 +603,7 @@ public final class Node extends AbstractLifecycleComponent {
             try {
                 closeables.get(i).close();
             } catch (Exception e) {
-                System.err.println("[node] error while closing component: " + e);
+                LOG.warn("[node] error while closing component: " + e);
             }
         }
         closeables.clear();

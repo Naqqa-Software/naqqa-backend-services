@@ -9,6 +9,7 @@ import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.cluster.state.IndexMetadata;
 import com.naqqa.elasticsearch.cluster.state.MapCustom;
 import com.naqqa.elasticsearch.cluster.state.Metadata;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.common.regex.Regex;
 import com.naqqa.elasticsearch.common.unit.ByteSizeValue;
 import com.naqqa.elasticsearch.common.unit.TimeValue;
@@ -67,6 +68,7 @@ import java.util.stream.Stream;
 
 public final class NodeIndexAdminActionService implements IndexAdminActionService, ClusterStateListener {
 
+    private static final ESLogger LOG = ESLogger.getLogger(NodeIndexAdminActionService.class);
     private static final Pattern ROLLOVER_SUFFIX = Pattern.compile("^(.*?)-(\\d+)$");
     public static final String INDEX_TEMPLATES_CUSTOM = "index_templates";
     public static final String COMPONENT_TEMPLATES_CUSTOM = "component_templates";
@@ -278,7 +280,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
             try {
                 applyComponentTemplateLocally(name, body);
             } catch (RuntimeException e) {
-                System.err.println("[indices] failed to apply component template [" + name + "] from cluster state: " + e);
+                LOG.warn("failed to apply component template [{}] from cluster state", e, name);
             }
         }
     }
@@ -302,7 +304,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
             try {
                 applyIndexTemplateLocally(name, body);
             } catch (RuntimeException e) {
-                System.err.println("[indices] failed to apply index template [" + name + "] from cluster state: " + e);
+                LOG.warn("failed to apply index template [{}] from cluster state", e, name);
             }
         }
     }
@@ -326,7 +328,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
             try {
                 applyLegacyTemplateLocally(name, body);
             } catch (RuntimeException e) {
-                System.err.println("[indices] failed to apply legacy template [" + name + "] from cluster state: " + e);
+                LOG.warn("failed to apply legacy template [{}] from cluster state", e, name);
             }
         }
     }

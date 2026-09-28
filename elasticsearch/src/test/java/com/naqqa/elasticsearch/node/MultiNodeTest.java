@@ -62,7 +62,7 @@ public class MultiNodeTest {
                 .put("path.data", home.resolve("data").toString())
                 .put("path.logs", home.resolve("logs").toString())
                 .put("path.conf", home.resolve("config").toString())
-                .put("path.repo", home.resolve("repo").toString())
+                .put("path.repo", home.getParent().resolve("shared-repo").toString())
                 .put("http.port", 0)
                 .put("transport.port", transportPort)
                 .build();
@@ -789,6 +789,87 @@ public class MultiNodeTest {
             }
             assertTrue(sawInitializingWhileYellow, "expected to observe yellow health while a replica was still recovering");
             awaitTrue("cluster returns to green once recovery completes", 60_000L, () -> "green".equals(health(a)));
+        } finally {
+            for (ClusterMember m : members) {
+                try {
+                    m.stop();
+                } catch (RuntimeException ignored) {
+                }
+            }
+            NodeTestSupport.deleteRecursively(root);
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testSnapshotRestoreAcrossNodesAllocatesToOtherNodesAndIsSearchableEverywhere() throws Exception {
+        Path root = Files.createTempDirectory("multi-node-snapshot-restore");
+        List<ClusterMember> members = startCluster("sr", root, 3, Settings.EMPTY);
+        try {
+            awaitFormed(members, 3);
+            ClusterMember a = members.get(0);
+            ClusterMember b = members.get(1);
+            ClusterMember c = members.get(2);
+
+            ok(request(a, "PUT", "/src-idx", "{\"settings\":{\"number_of_shards\":2,\"number_of_replicas\":1}}"));
+            awaitFullyActive(a, 4);
+            for (int i = 0; i < 20; i++) {
+                Response indexed = request(b, "PUT", "/src-idx/_doc/" + i + "?refresh=true", "{\"v\":" + i + "}");
+                assertEquals(201, indexed.status(), indexed.body());
+            }
+            awaitTrue("20 docs visible before snapshot", 20_000L, () -> searchTotal(c, "src-idx") == 20L);
+
+            ok(request(a, "PUT", "/_snapshot/backup", "{\"type\":\"fs\",\"settings\":{\"location\":\"backup\"}}"));
+            Response snap = request(a, "PUT", "/_snapshot/backup/snap1?wait_for_completion=true", "{\"indices\":\"src-idx\"}");
+            ok(snap);
+            assertEquals("SUCCESS", ((Map<String, Object>) snap.json().get("snapshot")).get("state"), snap.body());
+
+            String initiatorId = a.id();
+            Response restore = request(a, "POST", "/_snapshot/backup/snap1/_restore?wait_for_completion=true",
+                "{\"indices\":\"src-idx\",\"rename_pattern\":\"src-idx\",\"rename_replacement\":\"restored-idx\"}");
+            ok(restore);
+
+            awaitTrue("restored-idx is green on every node", 60_000L, () -> {
+                for (ClusterMember m : members) {
+                    try {
+                        Response h = request(m, "GET", "/_cluster/health/restored-idx?wait_for_status=green&timeout=5s", null);
+                        if (h.status() != 200 || !"green".equals(h.json().get("status"))) {
+                            return false;
+                        }
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            ClusterState state = a.state();
+            Set<String> restoredHostNodes = new HashSet<>();
+            IndexRoutingTable irt = state.getRoutingTable().index("restored-idx");
+            assertNotNull(irt);
+            for (IndexShardRoutingTable table : irt.getShards().values()) {
+                for (ShardRouting sr : table.getShards()) {
+                    assertTrue(sr.started(), sr.toString());
+                    restoredHostNodes.add(sr.currentNodeId());
+                }
+            }
+            assertTrue(restoredHostNodes.stream().anyMatch(id -> !id.equals(initiatorId)),
+                "restored shards should be allocated across the cluster, not only the initiating node: " + restoredHostNodes);
+
+            for (ClusterMember m : members) {
+                awaitTrue("20 restored docs visible via " + m.name, 20_000L, () -> searchTotal(m, "restored-idx") == 20L);
+            }
+            for (int i = 0; i < 20; i++) {
+                ClusterMember reader = members.get(i % members.size());
+                Response got = request(reader, "GET", "/restored-idx/_doc/" + i, null);
+                assertEquals(200, got.status(), "doc " + i + " via " + reader.name + ": " + got.body());
+                Map<String, Object> source = (Map<String, Object>) got.json().get("_source");
+                assertEquals((long) i, ((Number) source.get("v")).longValue());
+            }
+
+            ok(request(b, "PUT", "/restored-idx/_doc/after-restore?refresh=true", "{\"v\":99}"));
+            Response after = request(c, "GET", "/restored-idx/_doc/after-restore", null);
+            assertEquals(200, after.status(), after.body());
         } finally {
             for (ClusterMember m : members) {
                 try {

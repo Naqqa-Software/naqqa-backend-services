@@ -11,6 +11,10 @@ public final class AmazonMapping {
     }
 
     public static Map<String, Object> createIndexBody(int shards, boolean disableRefresh) {
+        return createIndexBody(shards, disableRefresh, null);
+    }
+
+    public static Map<String, Object> createIndexBody(int shards, boolean disableRefresh, String storeType) {
         Map<String, Object> titleKeyword = new LinkedHashMap<>();
         titleKeyword.put("type", "keyword");
         titleKeyword.put("ignore_above", 512);
@@ -58,6 +62,9 @@ public final class AmazonMapping {
         settings.put("number_of_replicas", 0);
         if (disableRefresh) {
             settings.put("refresh_interval", "-1");
+        }
+        if (storeType != null && !storeType.isBlank()) {
+            settings.put("index.store.type", storeType);
         }
 
         Map<String, Object> root = new LinkedHashMap<>();

@@ -15,6 +15,7 @@ import com.naqqa.elasticsearch.store.IOContext;
 import com.naqqa.elasticsearch.store.IndexInput;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,12 @@ public final class StoreRecovery {
     public static IndexShard recoverFromSnapshot(Path shardPath, MapperService mapperService, Repository repository,
                                                   String snapshotName, ShardId shardId, TranslogConfig translogConfig,
                                                   RecoveryThrottler throttler) throws IOException {
+        restoreFilesFromSnapshot(shardPath, repository, snapshotName, shardId, throttler);
+        return IndexShard.open(shardPath, mapperService, translogConfig);
+    }
+
+    public static void restoreFilesFromSnapshot(Path shardPath, Repository repository, String snapshotName, ShardId shardId,
+                                                  RecoveryThrottler throttler) throws IOException {
         Path indexPath = shardPath.resolve("index");
         try (Directory directory = new FSDirectory(indexPath)) {
             DirectoryShardRestoreTarget target = new DirectoryShardRestoreTarget(directory, throttler);
@@ -56,7 +63,18 @@ public final class StoreRecovery {
         try (Directory directory = new FSDirectory(indexPath)) {
             verifyStore(directory);
         }
-        return IndexShard.open(shardPath, mapperService, translogConfig);
+    }
+
+    public static boolean isFreshStore(Path shardPath) {
+        Path indexPath = shardPath.resolve("index");
+        if (!Files.isDirectory(indexPath)) {
+            return true;
+        }
+        try (java.util.stream.Stream<Path> entries = Files.list(indexPath)) {
+            return entries.findAny().isEmpty();
+        } catch (IOException e) {
+            return true;
+        }
     }
 
     static void verifyStore(Directory directory) throws IOException {

@@ -47,9 +47,9 @@ public class NodeSmokeTest {
             assertEquals(200, searched.status(), searched.body());
             Map<String, Object> hits = (Map<String, Object>) searched.json().get("hits");
             Map<String, Object> total = (Map<String, Object>) hits.get("total");
-            assertEquals(1L, ((Number) total.get("value")).longValue());
+            assertEquals(1L, ((Number) total.get("value")).longValue(), searched.body());
             List<Object> hitList = (List<Object>) hits.get("hits");
-            assertEquals(1, hitList.size());
+            assertEquals(1, hitList.size(), searched.body());
             Map<String, Object> hit = (Map<String, Object>) hitList.get(0);
             assertEquals("1", hit.get("_id"));
             assertEquals("myindex", hit.get("_index"));

@@ -6,6 +6,7 @@ import com.naqqa.elasticsearch.action.write.IndexNameResolver;
 import com.naqqa.elasticsearch.cluster.state.ClusterBlockLevel;
 import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.cluster.state.IndexMetadata;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.indices.IndexBlocks;
 import com.naqqa.elasticsearch.ingest.IngestDocument;
 import com.naqqa.elasticsearch.ingest.IngestService;
@@ -28,6 +29,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class NodeDocumentActionService implements DocumentActionService {
+
+    private static final ESLogger LOGGER = ESLogger.getLogger(NodeDocumentActionService.class);
 
     public interface AutoCreator {
         void ensureWriteTarget(String indexOrAlias);
@@ -60,7 +63,7 @@ public final class NodeDocumentActionService implements DocumentActionService {
         try {
             dynamicMappings.onDocument(index, id, routing, source);
         } catch (RuntimeException e) {
-            System.err.println("[mapping] dynamic mapping hook failed: " + e.getMessage());
+            LOGGER.warn("[mapping] dynamic mapping hook failed: " + e.getMessage());
         }
     }
 

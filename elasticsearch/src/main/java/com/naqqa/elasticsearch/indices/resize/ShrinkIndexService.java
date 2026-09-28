@@ -5,6 +5,7 @@ import com.naqqa.elasticsearch.codec.segment.SegmentInfos;
 import com.naqqa.elasticsearch.index.engine.EngineStats;
 import com.naqqa.elasticsearch.index.mapper.MapperService;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
+import com.naqqa.elasticsearch.index.translog.Releasable;
 import com.naqqa.elasticsearch.store.Directory;
 import com.naqqa.elasticsearch.store.FSDirectory;
 
@@ -50,12 +51,14 @@ public final class ShrinkIndexService {
                 for (int sourceOrdinal : sourceOrdinals) {
                     IndexShard source = sourceShards.get(sourceOrdinal);
                     Directory srcDir = source.engine().config().directory();
-                    SegmentInfos lastCommit = SegmentInfos.readLatestCommit(srcDir);
-                    String prefix = "s" + sourceOrdinal + "_";
-                    for (SegmentCommitInfo sci : lastCommit.segments()) {
-                        String newName = prefix + sci.segmentName();
-                        SegmentCommitInfo newSci = SegmentCopyUtil.copySegment(srcDir, destDir, sci, newName, allFiles);
-                        newCommitInfos.add(newSci);
+                    try (Releasable commitRef = source.acquireLastCommitRef()) {
+                        SegmentInfos lastCommit = SegmentInfos.readLatestCommit(srcDir);
+                        String prefix = "s" + sourceOrdinal + "_";
+                        for (SegmentCommitInfo sci : lastCommit.segments()) {
+                            String newName = prefix + sci.segmentName();
+                            SegmentCommitInfo newSci = SegmentCopyUtil.copySegment(srcDir, destDir, sci, newName, allFiles);
+                            newCommitInfos.add(newSci);
+                        }
                     }
                     EngineStats stats = source.stats();
                     maxSeqNo = Math.max(maxSeqNo, stats.maxSeqNo());

@@ -3,6 +3,7 @@ package com.naqqa.elasticsearch.index.recovery;
 import com.naqqa.elasticsearch.index.engine.EngineStats;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
 import com.naqqa.elasticsearch.index.translog.Operation;
+import com.naqqa.elasticsearch.index.translog.Releasable;
 import com.naqqa.elasticsearch.store.Directory;
 import com.naqqa.elasticsearch.store.IOContext;
 import com.naqqa.elasticsearch.store.IndexInput;
@@ -27,6 +28,7 @@ public final class RecoverySourceHandler {
     private final RetentionLeaseTracker leaseTracker;
     private final AtomicLong recoveryIdGenerator = new AtomicLong();
     private final Map<Long, String> activeLeaseIds = new ConcurrentHashMap<>();
+    private final Map<Long, Releasable> activeCommitRefs = new ConcurrentHashMap<>();
 
     public RecoverySourceHandler(IndexShard shard, Directory directory, LiveOpsSource opsSource,
                                   RecoveryThrottler throttler, RetentionLeaseTracker leaseTracker) {
@@ -50,34 +52,43 @@ public final class RecoverySourceHandler {
     }
 
     private void handleStart(RecoveryStartRequest request, TransportChannel channel) throws IOException {
-        List<StoreFileMetadata> sourceFiles = StoreFiles.latestCommitFiles(directory);
-        Map<String, StoreFileMetadata> sourceByName = StoreFiles.byName(sourceFiles);
-        Map<String, StoreFileMetadata> targetByName = StoreFiles.byName(request.targetFiles());
+        Releasable commitRef = shard.acquireLastCommitRef();
+        try {
+            List<StoreFileMetadata> sourceFiles = StoreFiles.latestCommitFiles(directory);
+            Map<String, StoreFileMetadata> sourceByName = StoreFiles.byName(sourceFiles);
+            Map<String, StoreFileMetadata> targetByName = StoreFiles.byName(request.targetFiles());
 
-        List<StoreFileMetadata> filesToFetch = new ArrayList<>();
-        for (StoreFileMetadata sourceFile : sourceFiles) {
-            StoreFileMetadata targetFile = targetByName.get(sourceFile.name());
-            if (!sourceFile.sameAs(targetFile)) {
-                filesToFetch.add(sourceFile);
+            List<StoreFileMetadata> filesToFetch = new ArrayList<>();
+            for (StoreFileMetadata sourceFile : sourceFiles) {
+                StoreFileMetadata targetFile = targetByName.get(sourceFile.name());
+                if (!sourceFile.sameAs(targetFile)) {
+                    filesToFetch.add(sourceFile);
+                }
+            }
+            List<String> filesToDelete = new ArrayList<>();
+            for (String targetName : targetByName.keySet()) {
+                if (!sourceByName.containsKey(targetName)) {
+                    filesToDelete.add(targetName);
+                }
+            }
+
+            long recoveryId = recoveryIdGenerator.incrementAndGet();
+            String leaseId = "recovery-" + recoveryId;
+            activeLeaseIds.put(recoveryId, leaseId);
+            activeCommitRefs.put(recoveryId, commitRef);
+            commitRef = null;
+            leaseTracker.addOrRenew(leaseId, request.startingSeqNo(), "peer-recovery");
+
+            EngineStats stats = shard.stats();
+            boolean opsBasedRecovery = filesToFetch.isEmpty() && request.startingSeqNo() <= stats.localCheckpoint() + 1;
+
+            channel.sendResponse(new RecoveryStartResponse(
+                recoveryId, filesToFetch, filesToDelete, stats.localCheckpoint(), stats.maxSeqNo(), opsBasedRecovery));
+        } finally {
+            if (commitRef != null) {
+                commitRef.close();
             }
         }
-        List<String> filesToDelete = new ArrayList<>();
-        for (String targetName : targetByName.keySet()) {
-            if (!sourceByName.containsKey(targetName)) {
-                filesToDelete.add(targetName);
-            }
-        }
-
-        long recoveryId = recoveryIdGenerator.incrementAndGet();
-        String leaseId = "recovery-" + recoveryId;
-        activeLeaseIds.put(recoveryId, leaseId);
-        leaseTracker.addOrRenew(leaseId, request.startingSeqNo(), "peer-recovery");
-
-        EngineStats stats = shard.stats();
-        boolean opsBasedRecovery = filesToFetch.isEmpty() && request.startingSeqNo() <= stats.localCheckpoint() + 1;
-
-        channel.sendResponse(new RecoveryStartResponse(
-            recoveryId, filesToFetch, filesToDelete, stats.localCheckpoint(), stats.maxSeqNo(), opsBasedRecovery));
     }
 
     private void handleFileChunk(RecoveryFileChunkRequest request, TransportChannel channel) throws IOException {
@@ -104,6 +115,10 @@ public final class RecoverySourceHandler {
         String leaseId = activeLeaseIds.remove(recoveryId);
         if (leaseId != null) {
             leaseTracker.remove(leaseId);
+        }
+        Releasable commitRef = activeCommitRefs.remove(recoveryId);
+        if (commitRef != null) {
+            commitRef.close();
         }
     }
 

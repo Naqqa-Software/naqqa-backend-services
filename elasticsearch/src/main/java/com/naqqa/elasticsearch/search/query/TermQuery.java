@@ -14,7 +14,10 @@ import com.naqqa.elasticsearch.search.similarity.Similarity;
 import com.naqqa.elasticsearch.search.similarity.TermStatistics;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
+import java.util.WeakHashMap;
 
 public final class TermQuery extends Query {
 
@@ -126,6 +129,8 @@ public final class TermQuery extends Query {
     }
 
     static final class TermScorer extends Scorer {
+        private static final Map<NormsReader, Long> MIN_NORM_CACHE = Collections.synchronizedMap(new WeakHashMap<>());
+
         private final PostingsEnum postings;
         private final SimScorer simScorer;
         private final NormsReader norms;
@@ -179,20 +184,27 @@ public final class TermQuery extends Query {
         public float getMaxScore(int upTo) {
             if (cachedMaxScore == null) {
                 float maxFreq = totalTermFreq > Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(totalTermFreq, 1);
-                long minNorm = 1;
-                if (norms != null) {
-                    long best = Long.MAX_VALUE;
-                    for (int d = 0; d < norms.maxDoc(); d++) {
-                        long len = norms.fieldLength(d);
-                        if (len > 0 && len < best) {
-                            best = len;
-                        }
-                    }
-                    minNorm = best == Long.MAX_VALUE ? 1 : best;
-                }
+                long minNorm = norms == null ? 1 : minNormOf(norms);
                 cachedMaxScore = boost * simScorer.score(maxFreq, minNorm);
             }
             return cachedMaxScore;
+        }
+
+        private static long minNormOf(NormsReader norms) {
+            Long cached = MIN_NORM_CACHE.get(norms);
+            if (cached != null) {
+                return cached;
+            }
+            long best = Long.MAX_VALUE;
+            for (int d = 0; d < norms.maxDoc(); d++) {
+                long len = norms.fieldLength(d);
+                if (len > 0 && len < best) {
+                    best = len;
+                }
+            }
+            long result = best == Long.MAX_VALUE ? 1 : best;
+            MIN_NORM_CACHE.put(norms, result);
+            return result;
         }
     }
 }

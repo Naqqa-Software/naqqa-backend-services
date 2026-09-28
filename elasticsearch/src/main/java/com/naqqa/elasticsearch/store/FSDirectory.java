@@ -26,7 +26,7 @@ import java.util.zip.CRC32C;
 
 public class FSDirectory extends BaseDirectory {
 
-    public static final int BUFFER_SIZE = 16384;
+    public static final int BUFFER_SIZE = 65536;
     private static final int CHUNK_SIZE = 8192;
 
     protected final Path directory;
@@ -94,9 +94,8 @@ public class FSDirectory extends BaseDirectory {
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
         ensureOpen();
         maybeDeletePendingFiles();
-        if (pendingDeletes.remove(name)) {
+        if (pendingDeletes.contains(name)) {
             privateDeleteFile(name, true);
-            pendingDeletes.remove(name);
         }
         return new FSIndexOutput(name, directory.resolve(name));
     }
@@ -164,9 +163,8 @@ public class FSDirectory extends BaseDirectory {
             throw new NoSuchFileException("file \"" + source + "\" is pending delete and cannot be moved");
         }
         maybeDeletePendingFiles();
-        if (pendingDeletes.remove(dest)) {
+        if (pendingDeletes.contains(dest)) {
             privateDeleteFile(dest, true);
-            pendingDeletes.remove(dest);
         }
         Files.move(directory.resolve(source), directory.resolve(dest), StandardCopyOption.ATOMIC_MOVE);
     }

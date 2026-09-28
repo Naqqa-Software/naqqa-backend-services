@@ -1,5 +1,7 @@
 package com.naqqa.elasticsearch.node;
 
+import com.naqqa.elasticsearch.common.logging.ESLogger;
+import com.naqqa.elasticsearch.common.logging.LogConfigurator;
 import com.naqqa.elasticsearch.common.settings.PropertiesSettingsLoader;
 import com.naqqa.elasticsearch.common.settings.Settings;
 import com.naqqa.elasticsearch.common.settings.YamlSettingsLoader;
@@ -11,6 +13,8 @@ import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 
 public final class Bootstrap {
+
+    private static final ESLogger LOG = ESLogger.getLogger(Bootstrap.class);
 
     private Bootstrap() {
     }
@@ -63,6 +67,7 @@ public final class Bootstrap {
 
     public static void main(String[] args) throws Exception {
         Settings settings = loadSettings(args);
+        LogConfigurator.configure(settings.getAsMap());
         Node node = new Node(settings);
         CountDownLatch stopped = new CountDownLatch(1);
         Thread hook = new Thread(() -> {
@@ -76,14 +81,14 @@ public final class Bootstrap {
         try {
             node.start();
         } catch (RuntimeException e) {
-            System.err.println("[bootstrap] " + e.getMessage());
+            LOG.error("[bootstrap] " + e.getMessage());
             Runtime.getRuntime().removeShutdownHook(hook);
             node.close();
             System.exit(1);
             return;
         }
         NodeInfo info = node.nodeInfo();
-        System.out.println("[" + info.name() + "] started: cluster [" + info.clusterName() + "], node id [" + info.id()
+        LOG.warn("[" + info.name() + "] started: cluster [" + info.clusterName() + "], node id [" + info.id()
             + "], http [" + info.httpAddress() + "], transport [" + info.transportAddress() + "]");
         stopped.await();
     }

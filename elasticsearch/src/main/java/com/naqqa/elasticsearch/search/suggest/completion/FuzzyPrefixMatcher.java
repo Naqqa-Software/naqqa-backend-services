@@ -1,10 +1,31 @@
 package com.naqqa.elasticsearch.search.suggest.completion;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 final class FuzzyPrefixMatcher {
 
     private FuzzyPrefixMatcher() {
+    }
+
+    static byte[] requiredPrefixBytes(String query, FuzzyOptions options) {
+        int[] q = units(query, options.unicodeAware());
+        int k = q.length < options.fuzzyMinLength() ? q.length : Math.min(options.fuzzyPrefixLength(), q.length);
+        return prefixString(query, k, options.unicodeAware()).getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String prefixString(String s, int unitCount, boolean unicodeAware) {
+        if (unicodeAware) {
+            int total = s.codePointCount(0, s.length());
+            if (unitCount >= total) {
+                return s;
+            }
+            return s.substring(0, s.offsetByCodePoints(0, unitCount));
+        }
+        if (unitCount >= s.length()) {
+            return s;
+        }
+        return s.substring(0, unitCount);
     }
 
     static boolean matches(String query, String text, FuzzyOptions options) {

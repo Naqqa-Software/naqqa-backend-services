@@ -4,6 +4,7 @@ import com.naqqa.elasticsearch.cluster.service.ClusterChangedEvent;
 import com.naqqa.elasticsearch.cluster.service.ClusterStateListener;
 import com.naqqa.elasticsearch.cluster.state.MapCustom;
 import com.naqqa.elasticsearch.cluster.state.Metadata;
+import com.naqqa.elasticsearch.common.logging.ESLogger;
 import com.naqqa.elasticsearch.http.RestMethod;
 import com.naqqa.elasticsearch.http.RestRequest;
 import com.naqqa.elasticsearch.node.cluster.ClusterStateManager;
@@ -31,6 +32,8 @@ import com.naqqa.elasticsearch.security.authz.ClusterPrivilege;
 import com.naqqa.elasticsearch.security.authz.IndexPrivilege;
 import com.naqqa.elasticsearch.security.authz.IndicesPrivileges;
 import com.naqqa.elasticsearch.security.authz.RoleDescriptor;
+import com.naqqa.elasticsearch.security.authz.RoleMapping;
+import com.naqqa.elasticsearch.security.authz.RoleMappingRules;
 import com.naqqa.elasticsearch.node.support.SettingsMaps;
 
 import java.io.IOException;
@@ -59,6 +62,9 @@ public final class SecurityService implements ClusterStateListener {
     public static final String USERS_CUSTOM = "security_users";
     public static final String ROLES_CUSTOM = "security_roles";
     public static final String API_KEYS_CUSTOM = "security_api_keys";
+    public static final String ROLE_MAPPINGS_CUSTOM = "security_role_mappings";
+
+    private static final ESLogger LOG = ESLogger.getLogger(SecurityService.class);
 
     public static final class AuthenticationException extends RestApiException {
         public AuthenticationException(String message) {
@@ -81,6 +87,7 @@ public final class SecurityService implements ClusterStateListener {
     private final RealmChain realmChain;
     private final Authorizer authorizer = new Authorizer();
     private final Map<String, RoleDescriptor> customRoles = new ConcurrentHashMap<>();
+    private final Map<String, RoleMapping> roleMappings = new ConcurrentHashMap<>();
     private final AuditLogger auditLogger;
     private final List<String> realmNames = new ArrayList<>();
     private volatile ClusterStateManager clusterStateManager;
@@ -96,7 +103,7 @@ public final class SecurityService implements ClusterStateListener {
                 realms.add(FileRealm.loadFromFiles("file1", usersFile, roles));
                 realmNames.add("file1");
             } catch (IOException e) {
-                System.err.println("[security] failed to load file realm: " + e);
+                LOG.warn("failed to load file realm", e);
             }
         }
         realms.add(new NativeRealm("native1", nativeStore));
@@ -130,6 +137,10 @@ public final class SecurityService implements ClusterStateListener {
 
     public ApiKeyService apiKeyService() {
         return apiKeyService;
+    }
+
+    public ClusterStateManager clusterStateManager() {
+        return clusterStateManager;
     }
 
     public void bind(ClusterStateManager clusterStateManager) {
@@ -178,7 +189,20 @@ public final class SecurityService implements ClusterStateListener {
             try {
                 putRoleLocally(name, roles.get(name));
             } catch (RuntimeException e) {
-                System.err.println("[security] failed to apply role [" + name + "] from cluster state: " + e);
+                LOG.warn("failed to apply role [{}] from cluster state", e, name);
+            }
+        }
+        MapCustom mappings = metadata.mapCustom(ROLE_MAPPINGS_CUSTOM);
+        for (String name : new ArrayList<>(roleMappings.keySet())) {
+            if (!mappings.contains(name)) {
+                roleMappings.remove(name);
+            }
+        }
+        for (String name : mappings.ids()) {
+            try {
+                putRoleMappingLocally(name, mappings.get(name));
+            } catch (RuntimeException e) {
+                LOG.warn("failed to apply role mapping [{}] from cluster state", e, name);
             }
         }
         MapCustom apiKeys = metadata.mapCustom(API_KEYS_CUSTOM);
@@ -367,6 +391,98 @@ public final class SecurityService implements ClusterStateListener {
         return out;
     }
 
+    private void putRoleMappingLocally(String name, Map<String, Object> body) {
+        List<String> roles = SettingsMaps.asStringList(body.get("roles"));
+        boolean enabled = !Boolean.FALSE.equals(body.get("enabled"));
+        Map<String, Object> metadata = SettingsMaps.asMap(body.get("metadata"));
+        roleMappings.put(name, new RoleMapping(name, roles, body.get("rules"), enabled, metadata));
+    }
+
+    public void putRoleMapping(String name, Map<String, Object> body) {
+        if (body.get("rules") == null) {
+            throw new RestApiException(400, "rules is missing");
+        }
+        putRoleMappingLocally(name, body);
+        mutate("put-role-mapping [" + name + "]", md -> md.toBuilder()
+            .mutateMapCustom(ROLE_MAPPINGS_CUSTOM, mc -> mc.with(name, body)).build());
+    }
+
+    public boolean deleteRoleMapping(String name) {
+        if (roleMappings.remove(name) == null) {
+            return false;
+        }
+        mutate("delete-role-mapping [" + name + "]", md -> md.toBuilder()
+            .mutateMapCustom(ROLE_MAPPINGS_CUSTOM, mc -> mc.without(name)).build());
+        return true;
+    }
+
+    public Map<String, Object> getRoleMappings(String name) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (RoleMapping mapping : roleMappings.values()) {
+            if (name != null && !name.equals(mapping.name())) {
+                continue;
+            }
+            Map<String, Object> view = new LinkedHashMap<>();
+            view.put("enabled", mapping.enabled());
+            view.put("roles", mapping.roles());
+            view.put("rules", mapping.rules());
+            view.put("metadata", mapping.metadata());
+            out.put(mapping.name(), view);
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object metadataField(User user, String field) {
+        Map<String, Object> metadata = user.metadata();
+        if (metadata == null) {
+            return null;
+        }
+        if (field.equals("groups")) {
+            return metadata.get("groups");
+        }
+        if (field.startsWith("metadata.")) {
+            return metadata.get(field.substring("metadata.".length()));
+        }
+        return null;
+    }
+
+    private static RoleMappingRules.Context contextFor(User user, String realmName) {
+        return field -> switch (field) {
+            case "username" -> user.username();
+            case "realm.name" -> realmName;
+            default -> metadataField(user, field);
+        };
+    }
+
+    private Authentication applyRoleMappings(Authentication authentication) {
+        if (roleMappings.isEmpty()) {
+            return authentication;
+        }
+        User user = authentication.effectiveUser();
+        List<String> merged = new ArrayList<>(user.roles());
+        boolean changed = false;
+        RoleMappingRules.Context context = contextFor(user, authentication.realmName());
+        for (RoleMapping mapping : roleMappings.values()) {
+            if (!mapping.enabled() || !RoleMappingRules.matches(mapping.rules(), context)) {
+                continue;
+            }
+            for (String role : mapping.roles()) {
+                if (!merged.contains(role)) {
+                    merged.add(role);
+                    changed = true;
+                }
+            }
+        }
+        if (!changed) {
+            return authentication;
+        }
+        User mappedUser = new User(user.username(), merged, user.fullName(), user.email(), user.metadata(), user.enabled());
+        return authentication.runAs()
+            ? new Authentication(authentication.authenticatedUser(), mappedUser, authentication.realmName(), true)
+            : Authentication.of(mappedUser, authentication.realmName());
+    }
+
     public List<RoleDescriptor> resolveRoles(List<String> names) {
         List<RoleDescriptor> out = new ArrayList<>();
         for (String name : names) {
@@ -408,7 +524,7 @@ public final class SecurityService implements ClusterStateListener {
             throw new AuthenticationException(message);
         }
         auditLogger.authenticationSuccess(result.user().username(), result.realmName());
-        return Authentication.of(result.user(), result.realmName());
+        return applyRoleMappings(Authentication.of(result.user(), result.realmName()));
     }
 
     public void authorize(Authentication authentication, RequestAction action) {
@@ -482,6 +598,9 @@ public final class SecurityService implements ClusterStateListener {
         }
         if (p.startsWith("/_ilm") || p.contains("/_ilm/")) {
             return new RequestAction("cluster:admin/ilm/" + (read ? "get" : "put"), List.of());
+        }
+        if (p.startsWith("/_slm")) {
+            return new RequestAction("cluster:admin/slm/" + (read ? "get" : "put"), List.of());
         }
         if (p.startsWith("/_data_stream")) {
             return new RequestAction("indices:admin/data_stream/" + (read ? "get" : "manage"), List.of(request.param("name") == null ? "*" : request.param("name")));

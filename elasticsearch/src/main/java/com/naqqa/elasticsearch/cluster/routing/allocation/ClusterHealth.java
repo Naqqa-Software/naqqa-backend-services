@@ -43,12 +43,10 @@ public final class ClusterHealth {
             if (indexRouting != null) {
                 for (IndexShardRoutingTable shardTable : indexRouting.getShards().values()) {
                     boolean primaryActive = false;
-                    // A replica that is still INITIALIZING (recovering) or UNASSIGNED means this
-                    // shard copy is not yet fully available, so the index (and cluster) can only be
-                    // YELLOW at best, matching real Elasticsearch semantics.
                     boolean anyReplicaNotActive = false;
                     for (ShardRouting shard : shardTable.getShards()) {
-                        if (shard.active()) {
+                        boolean onKnownNode = shard.currentNodeId() != null && clusterState.getNodes().nodeExists(shard.currentNodeId());
+                        if (shard.active() && onKnownNode) {
                             indexActive++;
                             activeShards++;
                             if (shard.primary()) {
