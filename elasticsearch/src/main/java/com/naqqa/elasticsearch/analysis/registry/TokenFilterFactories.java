@@ -123,8 +123,8 @@ public final class TokenFilterFactories {
             }
             case "stemmer": {
                 String lang = settings.getString("language", settings.getString("name", "english"));
-                Stemmer stemmer = Stemmers.create(lang);
-                return of(name, in -> new StemmerFilter(in, stemmer));
+                Stemmers.create(lang);
+                return of(name, in -> new StemmerFilter(in, Stemmers.create(lang)));
             }
             case "porter_stem":
                 return of(name, in -> new StemmerFilter(in, Stemmers.create("porter")));
@@ -132,8 +132,8 @@ public final class TokenFilterFactories {
                 return of(name, in -> new StemmerFilter(in, Stemmers.create("kstem")));
             case "snowball": {
                 String lang = settings.getString("language", "English").toLowerCase(Locale.ROOT);
-                Stemmer stemmer = Stemmers.create(lang);
-                return of(name, in -> new StemmerFilter(in, stemmer));
+                Stemmers.create(lang);
+                return of(name, in -> new StemmerFilter(in, Stemmers.create(lang)));
             }
             case "stemmer_override": {
                 List<String> rules = context.getWordList(settings, "rules");
@@ -211,6 +211,18 @@ public final class TokenFilterFactories {
                 return of(name, true, ApostropheFilter::new);
             case "decimal_digit":
                 return of(name, true, DecimalDigitFilter::new);
+            case "indic_normalization":
+                return of(name, true, com.naqqa.elasticsearch.analysis.lang.c.IndicNormalizationFilter::new);
+            case "hindi_normalization":
+                return of(name, true, com.naqqa.elasticsearch.analysis.lang.c.HindiNormalizationFilter::new);
+            case "bengali_normalization":
+                return of(name, true, com.naqqa.elasticsearch.analysis.lang.c.BengaliNormalizationFilter::new);
+            case "arabic_normalization":
+                return of(name, true, com.naqqa.elasticsearch.analysis.lang.c.ArabicNormalizationFilter::new);
+            case "persian_normalization":
+                return of(name, true, com.naqqa.elasticsearch.analysis.lang.c.PersianNormalizationFilter::new);
+            case "sorani_normalization":
+                return of(name, true, com.naqqa.elasticsearch.analysis.lang.c.SoraniNormalizationFilter::new);
             case "fingerprint": {
                 char sep = settings.getString("separator", " ").charAt(0);
                 int maxOutputSize = settings.getInt("max_output_size", 255);

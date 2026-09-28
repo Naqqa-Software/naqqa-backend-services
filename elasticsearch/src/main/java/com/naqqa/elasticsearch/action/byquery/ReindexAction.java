@@ -77,6 +77,9 @@ public final class ReindexAction {
                                                             com.naqqa.elasticsearch.action.search.SearchResponse.Hit hit,
                                                             UnaryOperator<Map<String, Object>> transform,
                                                             ByQueryOptions options) throws IOException {
+        if (hit.id() == null || !router.replicationGroups().containsKey(router.resolveShardId(destIndex, hit.id(), null))) {
+            return BulkByScrollExecutor.HandlerResult.skipped();
+        }
         Map<String, Object> source = hit.source() == null ? new LinkedHashMap<>() : hit.sourceAsMap();
         Map<String, Object> transformed = transform.apply(new LinkedHashMap<>(source));
         DocumentActionService.IndexRequest request = new DocumentActionService.IndexRequest(destIndex, hit.id(),

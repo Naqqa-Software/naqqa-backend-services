@@ -13,6 +13,29 @@ public final class MatrixStatsState {
         this.comoments = new double[fields.length][fields.length];
     }
 
+    public MatrixStatsState(String[] fields, long count, double[] means, double[][] comoments) {
+        this.fields = fields;
+        this.count = count;
+        this.means = means;
+        this.comoments = comoments;
+    }
+
+    public String[] fieldsValue() {
+        return fields;
+    }
+
+    public long countValue() {
+        return count;
+    }
+
+    public double[] meansValue() {
+        return means;
+    }
+
+    public double[][] comomentsValue() {
+        return comoments;
+    }
+
     public void add(double[] values) {
         count++;
         double[] delta = new double[fields.length];

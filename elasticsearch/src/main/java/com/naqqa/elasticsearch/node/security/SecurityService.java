@@ -1,11 +1,17 @@
 package com.naqqa.elasticsearch.node.security;
 
+import com.naqqa.elasticsearch.cluster.service.ClusterChangedEvent;
+import com.naqqa.elasticsearch.cluster.service.ClusterStateListener;
+import com.naqqa.elasticsearch.cluster.state.MapCustom;
+import com.naqqa.elasticsearch.cluster.state.Metadata;
 import com.naqqa.elasticsearch.http.RestMethod;
 import com.naqqa.elasticsearch.http.RestRequest;
+import com.naqqa.elasticsearch.node.cluster.ClusterStateManager;
 import com.naqqa.elasticsearch.rest.support.RestApiException;
 import com.naqqa.elasticsearch.security.audit.AuditLogger;
 import com.naqqa.elasticsearch.security.audit.AuditSettings;
 import com.naqqa.elasticsearch.security.audit.AuditSink;
+import com.naqqa.elasticsearch.security.authc.ApiKey;
 import com.naqqa.elasticsearch.security.authc.ApiKeyService;
 import com.naqqa.elasticsearch.security.authc.Authentication;
 import com.naqqa.elasticsearch.security.authc.AuthenticationResult;
@@ -32,6 +38,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -40,9 +48,17 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
-public final class SecurityService {
+public final class SecurityService implements ClusterStateListener {
+
+    public static final String USERS_CUSTOM = "security_users";
+    public static final String ROLES_CUSTOM = "security_roles";
+    public static final String API_KEYS_CUSTOM = "security_api_keys";
 
     public static final class AuthenticationException extends RestApiException {
         public AuthenticationException(String message) {
@@ -67,6 +83,7 @@ public final class SecurityService {
     private final Map<String, RoleDescriptor> customRoles = new ConcurrentHashMap<>();
     private final AuditLogger auditLogger;
     private final List<String> realmNames = new ArrayList<>();
+    private volatile ClusterStateManager clusterStateManager;
 
     public SecurityService(boolean enabled, Path configDir, Path auditFile, boolean auditEnabled, String bootstrapPassword) {
         this.enabled = enabled;
@@ -115,6 +132,100 @@ public final class SecurityService {
         return apiKeyService;
     }
 
+    public void bind(ClusterStateManager clusterStateManager) {
+        this.clusterStateManager = clusterStateManager;
+        Metadata metadata = clusterStateManager.state().getMetadata();
+        for (String username : new ArrayList<>(nativeStore.listUsernames())) {
+            if (metadata.mapCustom(USERS_CUSTOM).get(username) == null) {
+                Map<String, Object> doc = nativeStore.getUser(username).orElse(null);
+                if (doc != null) {
+                    mutate("bootstrap-user [" + username + "]", md -> md.toBuilder()
+                        .mutateMapCustom(USERS_CUSTOM, mc -> mc.with(username, doc)).build());
+                }
+            }
+        }
+        syncFromClusterState(clusterStateManager.state().getMetadata());
+        clusterStateManager.addListener(this);
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().getMetadata() != event.previousState().getMetadata()) {
+            syncFromClusterState(event.state().getMetadata());
+        }
+    }
+
+    private void syncFromClusterState(Metadata metadata) {
+        MapCustom users = metadata.mapCustom(USERS_CUSTOM);
+        for (String username : new ArrayList<>(nativeStore.listUsernames())) {
+            if (!users.contains(username)) {
+                nativeStore.removeUser(username);
+            }
+        }
+        for (String username : users.ids()) {
+            Map<String, Object> doc = users.get(username);
+            if (!doc.equals(nativeStore.getUser(username).orElse(null))) {
+                nativeStore.putUser(username, doc);
+            }
+        }
+        MapCustom roles = metadata.mapCustom(ROLES_CUSTOM);
+        for (String name : new ArrayList<>(customRoles.keySet())) {
+            if (!roles.contains(name)) {
+                customRoles.remove(name);
+            }
+        }
+        for (String name : roles.ids()) {
+            try {
+                putRoleLocally(name, roles.get(name));
+            } catch (RuntimeException e) {
+                System.err.println("[security] failed to apply role [" + name + "] from cluster state: " + e);
+            }
+        }
+        MapCustom apiKeys = metadata.mapCustom(API_KEYS_CUSTOM);
+        apiKeyService.removeIfAbsentFrom(apiKeys.ids());
+        for (String id : apiKeys.ids()) {
+            Map<String, Object> doc = apiKeys.get(id);
+            ApiKey existing = apiKeyService.getApiKey(id).orElse(null);
+            boolean invalidated = Boolean.TRUE.equals(doc.get("invalidated"));
+            if (existing != null && existing.invalidated() == invalidated) {
+                continue;
+            }
+            Instant expiration = doc.get("expiration") == null ? null : Instant.ofEpochMilli(((Number) doc.get("expiration")).longValue());
+            ApiKey key = new ApiKey(id, String.valueOf(doc.get("name")), String.valueOf(doc.get("secret_hash")),
+                String.valueOf(doc.get("username")), String.valueOf(doc.get("realm")), List.of(),
+                SettingsMaps.asStringList(doc.get("limited_by")), Instant.ofEpochMilli(((Number) doc.get("creation")).longValue()),
+                expiration, invalidated);
+            apiKeyService.restore(key);
+        }
+    }
+
+    private void mutate(String source, java.util.function.UnaryOperator<Metadata> op) {
+        if (clusterStateManager == null) {
+            return;
+        }
+        try {
+            clusterStateManager.submit(source, cs -> cs.builder().metadata(op.apply(cs.getMetadata())).build())
+                .get(30, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RestApiException(500, cause.getMessage(), cause);
+        } catch (TimeoutException e) {
+            throw new RestApiException(503, "timed out waiting for cluster state update [" + source + "]");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RestApiException(500, "interrupted");
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RestApiException(500, cause.getMessage(), cause);
+        }
+    }
+
     public void putUser(String username, char[] password, List<String> roles, String fullName, String email) {
         Map<String, Object> doc = new LinkedHashMap<>();
         Optional<Map<String, Object>> existing = nativeStore.getUser(username);
@@ -131,6 +242,7 @@ public final class SecurityService {
         doc.put("enabled", true);
         doc.put("metadata", Map.of());
         nativeStore.putUser(username, doc);
+        mutate("put-user [" + username + "]", md -> md.toBuilder().mutateMapCustom(USERS_CUSTOM, mc -> mc.with(username, doc)).build());
     }
 
     public boolean deleteUser(String username) {
@@ -138,6 +250,47 @@ public final class SecurityService {
             return false;
         }
         nativeStore.removeUser(username);
+        mutate("delete-user [" + username + "]", md -> md.toBuilder().mutateMapCustom(USERS_CUSTOM, mc -> mc.without(username)).build());
+        return true;
+    }
+
+    public ApiKeyService.CreatedApiKey createApiKey(User owner, String name, Duration ttl) {
+        ApiKeyService.CreatedApiKey created = apiKeyService.createApiKey(owner, name, List.of(), ttl);
+        ApiKey key = apiKeyService.getApiKey(created.id()).orElseThrow();
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("name", key.name());
+        doc.put("secret_hash", key.secretHash());
+        doc.put("username", key.username());
+        doc.put("realm", key.realmName());
+        doc.put("limited_by", key.limitedByRoleNames());
+        doc.put("creation", key.creationTime().toEpochMilli());
+        if (key.expirationTime() != null) {
+            doc.put("expiration", key.expirationTime().toEpochMilli());
+        }
+        doc.put("invalidated", key.invalidated());
+        mutate("create-api-key [" + created.id() + "]", md -> md.toBuilder()
+            .mutateMapCustom(API_KEYS_CUSTOM, mc -> mc.with(created.id(), doc)).build());
+        return created;
+    }
+
+    public boolean invalidateApiKey(String id) {
+        if (!apiKeyService.invalidateApiKey(id)) {
+            return false;
+        }
+        ApiKey key = apiKeyService.getApiKey(id).orElseThrow();
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("name", key.name());
+        doc.put("secret_hash", key.secretHash());
+        doc.put("username", key.username());
+        doc.put("realm", key.realmName());
+        doc.put("limited_by", key.limitedByRoleNames());
+        doc.put("creation", key.creationTime().toEpochMilli());
+        if (key.expirationTime() != null) {
+            doc.put("expiration", key.expirationTime().toEpochMilli());
+        }
+        doc.put("invalidated", true);
+        mutate("invalidate-api-key [" + id + "]", md -> md.toBuilder()
+            .mutateMapCustom(API_KEYS_CUSTOM, mc -> mc.with(id, doc)).build());
         return true;
     }
 
@@ -156,7 +309,7 @@ public final class SecurityService {
         return out;
     }
 
-    public void putRole(String name, Map<String, Object> body) {
+    private void putRoleLocally(String name, Map<String, Object> body) {
         Set<ClusterPrivilege> cluster = EnumSet.noneOf(ClusterPrivilege.class);
         for (String p : SettingsMaps.asStringList(body.get("cluster"))) {
             try {
@@ -187,8 +340,17 @@ public final class SecurityService {
         customRoles.put(name, new RoleDescriptor(name, cluster, indices, SettingsMaps.asStringList(body.get("run_as"))));
     }
 
+    public void putRole(String name, Map<String, Object> body) {
+        putRoleLocally(name, body);
+        mutate("put-role [" + name + "]", md -> md.toBuilder().mutateMapCustom(ROLES_CUSTOM, mc -> mc.with(name, body)).build());
+    }
+
     public boolean deleteRole(String name) {
-        return customRoles.remove(name) != null;
+        if (customRoles.remove(name) == null) {
+            return false;
+        }
+        mutate("delete-role [" + name + "]", md -> md.toBuilder().mutateMapCustom(ROLES_CUSTOM, mc -> mc.without(name)).build());
+        return true;
     }
 
     public Map<String, Object> getRoles() {

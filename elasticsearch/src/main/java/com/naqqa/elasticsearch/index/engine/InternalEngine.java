@@ -5,6 +5,7 @@ import com.naqqa.elasticsearch.codec.segment.SegmentCommitInfo;
 import com.naqqa.elasticsearch.codec.segment.SegmentInfos;
 import com.naqqa.elasticsearch.common.bytes.BytesReference;
 import com.naqqa.elasticsearch.common.exception.VersionConflictEngineException;
+import com.naqqa.elasticsearch.common.unit.TimeValue;
 import com.naqqa.elasticsearch.common.json.JsonObject;
 import com.naqqa.elasticsearch.common.json.JsonValue;
 import com.naqqa.elasticsearch.common.json.JsonWriter;
@@ -36,8 +37,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public final class InternalEngine extends Engine {
+public final class InternalEngine extends Engine implements IndexingMemoryController.Accountable {
 
     private final Directory directory;
     private final MapperService mapperService;
@@ -48,13 +50,16 @@ public final class InternalEngine extends Engine {
     private final Lock writeLock;
     private final TieredMergePolicy mergePolicy;
     private final AtomicLong segmentCounter;
+    private final IndexingMemoryController memoryController;
 
     private final Object refreshMutex = new Object();
     private final Object viewLock = new Object();
     private final Object mergeMutex = new Object();
     private final Object explicitSeqNoMutex = new Object();
+    private final ReentrantReadWriteLock bufferTransitionLock = new ReentrantReadWriteLock();
 
     private volatile List<SegmentReader> currentReaders;
+    private volatile List<SegmentReader> pendingReaders = List.of();
     private volatile SegmentInfos lastCommit;
     private volatile long lastFlushCheckpoint;
     private volatile boolean closed;
@@ -76,6 +81,7 @@ public final class InternalEngine extends Engine {
         this.lastFlushCheckpoint = tracker.getCheckpoint();
         this.mergePolicy = new TieredMergePolicy(config.maxMergeAtOnce(), config.segmentsPerTier(), config.maxDeletedPctAllowed());
         this.segmentCounter = new AtomicLong(scanMaxSegmentOrdinal(directory) + 1);
+        this.memoryController = config.memoryController();
         this.mergeExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "engine-merge");
             t.setDaemon(true);
@@ -100,6 +106,7 @@ public final class InternalEngine extends Engine {
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(localCheckpoint, maxSeqNo);
         Translog translog = Translog.open(config.translogConfig().translogPath(), config.translogConfig());
         InternalEngine engine = new InternalEngine(config, directory, writeLock, lastCommit, readers, tracker, translog);
+        engine.memoryController.register(engine);
         engine.recoverFromTranslog();
         engine.startBackgroundRefresh();
         return engine;
@@ -157,6 +164,7 @@ public final class InternalEngine extends Engine {
             try {
                 refresh("scheduled");
                 maybeFlushBySize();
+                versionMap.pruneTombstones(TimeValue.timeValueMinutes(60).millis(), 100_000);
             } catch (Exception ignored) {
             }
         }, millis, millis, TimeUnit.MILLISECONDS);
@@ -173,14 +181,14 @@ public final class InternalEngine extends Engine {
                         if (mapperService.documentMapper() != null) {
                             JsonObject src = (JsonObject) JsonValue.parse(idx.source().toBytesArray());
                             ParsedDocument parsed = mapperService.documentMapper().parse(idx.id(), idx.routing(), src);
-                            docBuffer.put(idx.id(), BufferedDoc.indexed(idx.id(), idx.seqNo(), idx.primaryTerm(), idx.version(), parsed));
-                            versionMap.putUnderLock(idx.id(), VersionValue.index(idx.version(), idx.seqNo(), idx.primaryTerm(), null));
+                            bufferPut(idx.id(), VersionValue.index(idx.version(), idx.seqNo(), idx.primaryTerm(), null),
+                                BufferedDoc.indexed(idx.id(), idx.seqNo(), idx.primaryTerm(), idx.version(), parsed));
                         }
                     }
                     case DELETE -> {
                         Operation.Delete del = (Operation.Delete) op;
-                        docBuffer.put(del.id(), BufferedDoc.tombstone(del.id(), del.seqNo(), del.primaryTerm(), del.version()));
-                        versionMap.putUnderLock(del.id(), VersionValue.tombstone(del.version(), del.seqNo(), del.primaryTerm(), null));
+                        bufferPut(del.id(), VersionValue.tombstone(del.version(), del.seqNo(), del.primaryTerm(), null),
+                            BufferedDoc.tombstone(del.id(), del.seqNo(), del.primaryTerm(), del.version()));
                     }
                     case NO_OP -> {
                     }
@@ -194,6 +202,21 @@ public final class InternalEngine extends Engine {
         if (closed) {
             throw new EngineException("engine is closed");
         }
+    }
+
+    private void bufferPut(String id, VersionValue versionValue, BufferedDoc bufferedDoc) {
+        bufferTransitionLock.readLock().lock();
+        try {
+            versionMap.putUnderLock(id, versionValue);
+            docBuffer.put(id, bufferedDoc);
+        } finally {
+            bufferTransitionLock.readLock().unlock();
+        }
+    }
+
+    private void afterBufferMutation() throws IOException {
+        maybeFlushBySize();
+        memoryController.afterBytesChanged(this);
     }
 
     private record CurrentDocInfo(boolean exists, long version, long seqNo, long primaryTerm) {
@@ -214,20 +237,34 @@ public final class InternalEngine extends Engine {
     }
 
     private CurrentDocInfo lookupInReaders(String id) throws IOException {
-        List<SegmentReader> view = currentReaders;
-        for (SegmentReader r : view) {
+        StoredDocCodec.Decoded d = findStoredDocInWriterSegments(id);
+        if (d == null) {
+            return CurrentDocInfo.NOT_FOUND;
+        }
+        return new CurrentDocInfo(true, d.version(), d.seqNo(), d.primaryTerm());
+    }
+
+    private StoredDocCodec.Decoded findStoredDocInWriterSegments(String id) throws IOException {
+        StoredDocCodec.Decoded d = findStoredDoc(pendingReaders, id);
+        if (d != null) {
+            return d;
+        }
+        return findStoredDoc(currentReaders, id);
+    }
+
+    private StoredDocCodec.Decoded findStoredDoc(List<SegmentReader> segments, String id) throws IOException {
+        for (SegmentReader r : segments) {
             r.incRef();
             try {
                 Integer docId = r.findLiveDocForId(SegmentWriter.ID_FIELD, id);
                 if (docId != null) {
-                    StoredDocCodec.Decoded d = StoredDocCodec.decode(r.document(docId));
-                    return new CurrentDocInfo(true, d.version(), d.seqNo(), d.primaryTerm());
+                    return StoredDocCodec.decode(r.document(docId));
                 }
             } finally {
                 r.decRef();
             }
         }
-        return CurrentDocInfo.NOT_FOUND;
+        return null;
     }
 
     @Override
@@ -263,10 +300,9 @@ public final class InternalEngine extends Engine {
         ParsedDocument parsed = mapperService.parse(id, op.routing(), op.source());
         byte[] sourceBytes = JsonWriter.toJsonBytes(JsonValue.wrap(op.source()), false);
         Translog.Location loc = translog.add(new Operation.Index(id, seqNo, primaryTerm, newVersion, BytesReference.of(sourceBytes), op.routing()));
-        versionMap.putUnderLock(id, VersionValue.index(newVersion, seqNo, primaryTerm, loc));
-        docBuffer.put(id, BufferedDoc.indexed(id, seqNo, primaryTerm, newVersion, parsed));
+        bufferPut(id, VersionValue.index(newVersion, seqNo, primaryTerm, loc), BufferedDoc.indexed(id, seqNo, primaryTerm, newVersion, parsed));
         localCheckpointTracker.markSeqNoAsProcessed(seqNo);
-        maybeFlushBySize();
+        afterBufferMutation();
         return IndexResult.success(seqNo, primaryTerm, newVersion, !cur.exists());
     }
 
@@ -292,10 +328,9 @@ public final class InternalEngine extends Engine {
         long seqNo = localCheckpointTracker.generateSeqNo();
         long primaryTerm = engineConfig.primaryTerm();
         Translog.Location loc = translog.add(new Operation.Delete(id, seqNo, primaryTerm, newVersion));
-        versionMap.putUnderLock(id, VersionValue.tombstone(newVersion, seqNo, primaryTerm, loc));
-        docBuffer.put(id, BufferedDoc.tombstone(id, seqNo, primaryTerm, newVersion));
+        bufferPut(id, VersionValue.tombstone(newVersion, seqNo, primaryTerm, loc), BufferedDoc.tombstone(id, seqNo, primaryTerm, newVersion));
         localCheckpointTracker.markSeqNoAsProcessed(seqNo);
-        maybeFlushBySize();
+        afterBufferMutation();
         return DeleteResult.success(seqNo, primaryTerm, newVersion, cur.exists());
     }
 
@@ -367,15 +402,14 @@ public final class InternalEngine extends Engine {
             if (isStaleForDoc(cur, seqNo)) {
                 translog.add(new Operation.Index(id, seqNo, primaryTerm, newVersion, BytesReference.of(sourceBytes), op.routing()));
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
-                maybeFlushBySize();
+                afterBufferMutation();
                 return IndexResult.success(seqNo, primaryTerm, newVersion, false);
             }
             ParsedDocument parsed = mapperService.parse(id, op.routing(), op.source());
             Translog.Location loc = translog.add(new Operation.Index(id, seqNo, primaryTerm, newVersion, BytesReference.of(sourceBytes), op.routing()));
-            versionMap.putUnderLock(id, VersionValue.index(newVersion, seqNo, primaryTerm, loc));
-            docBuffer.put(id, BufferedDoc.indexed(id, seqNo, primaryTerm, newVersion, parsed));
+            bufferPut(id, VersionValue.index(newVersion, seqNo, primaryTerm, loc), BufferedDoc.indexed(id, seqNo, primaryTerm, newVersion, parsed));
             localCheckpointTracker.markSeqNoAsProcessed(seqNo);
-            maybeFlushBySize();
+            afterBufferMutation();
             return IndexResult.success(seqNo, primaryTerm, newVersion, !cur.exists());
         }
     }
@@ -398,14 +432,13 @@ public final class InternalEngine extends Engine {
             if (isStaleForDoc(cur, seqNo)) {
                 translog.add(new Operation.Delete(id, seqNo, primaryTerm, newVersion));
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
-                maybeFlushBySize();
+                afterBufferMutation();
                 return DeleteResult.success(seqNo, primaryTerm, newVersion, false);
             }
             Translog.Location loc = translog.add(new Operation.Delete(id, seqNo, primaryTerm, newVersion));
-            versionMap.putUnderLock(id, VersionValue.tombstone(newVersion, seqNo, primaryTerm, loc));
-            docBuffer.put(id, BufferedDoc.tombstone(id, seqNo, primaryTerm, newVersion));
+            bufferPut(id, VersionValue.tombstone(newVersion, seqNo, primaryTerm, loc), BufferedDoc.tombstone(id, seqNo, primaryTerm, newVersion));
             localCheckpointTracker.markSeqNoAsProcessed(seqNo);
-            maybeFlushBySize();
+            afterBufferMutation();
             return DeleteResult.success(seqNo, primaryTerm, newVersion, cur.exists());
         }
     }
@@ -442,18 +475,9 @@ public final class InternalEngine extends Engine {
         if (vv != null && vv.isDelete()) {
             return GetResult.notFound(id);
         }
-        List<SegmentReader> view = currentReaders;
-        for (SegmentReader r : view) {
-            r.incRef();
-            try {
-                Integer docId = r.findLiveDocForId(SegmentWriter.ID_FIELD, id);
-                if (docId != null) {
-                    StoredDocCodec.Decoded d = StoredDocCodec.decode(r.document(docId));
-                    return GetResult.found(id, d.version(), d.seqNo(), d.primaryTerm(), BytesReference.of(d.source()));
-                }
-            } finally {
-                r.decRef();
-            }
+        StoredDocCodec.Decoded d = findStoredDocInWriterSegments(id);
+        if (d != null) {
+            return GetResult.found(id, d.version(), d.seqNo(), d.primaryTerm(), BytesReference.of(d.source()));
         }
         return GetResult.notFound(id);
     }
@@ -482,11 +506,48 @@ public final class InternalEngine extends Engine {
     @Override
     public RefreshResult refresh(String source) throws IOException {
         ensureOpen();
+        return doWriteBuffer(true);
+    }
+
+    @Override
+    public void writeIndexingBufferToSegment() throws IOException {
+        ensureOpen();
+        doWriteBuffer(false);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return docBuffer.ramBytesUsed();
+    }
+
+    public long versionMapRamBytesUsed() {
+        return versionMap.ramBytesUsed();
+    }
+
+    public int pendingSegmentCount() {
+        return pendingReaders.size();
+    }
+
+    private RefreshResult doWriteBuffer(boolean makeSearchable) throws IOException {
         synchronized (refreshMutex) {
-            Map<String, BufferedDoc> toFlush = docBuffer.beforeRefresh();
+            Map<String, BufferedDoc> toFlush;
+            bufferTransitionLock.writeLock().lock();
+            try {
+                versionMap.beforeRefresh();
+                toFlush = docBuffer.beforeRefresh();
+            } finally {
+                bufferTransitionLock.writeLock().unlock();
+            }
             if (toFlush.isEmpty()) {
-                docBuffer.afterRefresh();
-                return new RefreshResult(false, currentReaders.size());
+                bufferTransitionLock.writeLock().lock();
+                try {
+                    versionMap.afterRefresh();
+                    docBuffer.afterRefresh();
+                } finally {
+                    bufferTransitionLock.writeLock().unlock();
+                }
+                boolean promoted = makeSearchable && promotePendingReaders();
+                return new RefreshResult(promoted, currentReaders.size());
             }
             List<BufferedDoc> liveDocsToWrite = new ArrayList<>();
             for (BufferedDoc bd : toFlush.values()) {
@@ -497,29 +558,69 @@ public final class InternalEngine extends Engine {
             SegmentReader newReader = null;
             if (!liveDocsToWrite.isEmpty()) {
                 String segName = nextSegmentName();
-                com.naqqa.elasticsearch.codec.segment.SegmentInfo info = SegmentWriter.write(directory, segName, liveDocsToWrite);
+                SegmentWriter.write(directory, segName, liveDocsToWrite);
                 newReader = SegmentReader.open(directory, new SegmentCommitInfo(segName, 0, 0));
             }
             synchronized (viewLock) {
-                List<SegmentReader> oldView = currentReaders;
-                for (SegmentReader r : oldView) {
-                    for (String id : toFlush.keySet()) {
-                        Integer docId = r.findLiveDocForId(SegmentWriter.ID_FIELD, id);
-                        if (docId != null) {
-                            r.markDeleted(docId);
-                        }
+                markDeletedAcrossWriterSegments(toFlush.keySet());
+                if (makeSearchable) {
+                    List<SegmentReader> newView = new ArrayList<>(currentReaders);
+                    newView.addAll(pendingReaders);
+                    if (newReader != null) {
+                        newView.add(newReader);
                     }
+                    currentReaders = List.copyOf(newView);
+                    pendingReaders = List.of();
+                } else if (newReader != null) {
+                    List<SegmentReader> newPending = new ArrayList<>(pendingReaders);
+                    newPending.add(newReader);
+                    pendingReaders = List.copyOf(newPending);
                 }
-                List<SegmentReader> newView = new ArrayList<>(oldView);
-                if (newReader != null) {
-                    newView.add(newReader);
-                }
-                currentReaders = List.copyOf(newView);
             }
-            docBuffer.afterRefresh();
+            bufferTransitionLock.writeLock().lock();
+            try {
+                versionMap.afterRefresh();
+                docBuffer.afterRefresh();
+            } finally {
+                bufferTransitionLock.writeLock().unlock();
+            }
             RefreshResult result = new RefreshResult(true, currentReaders.size());
-            scheduleMaybeMerge();
+            if (makeSearchable) {
+                scheduleMaybeMerge();
+            }
             return result;
+        }
+    }
+
+    private boolean promotePendingReaders() {
+        synchronized (viewLock) {
+            if (pendingReaders.isEmpty()) {
+                return false;
+            }
+            List<SegmentReader> newView = new ArrayList<>(currentReaders);
+            newView.addAll(pendingReaders);
+            currentReaders = List.copyOf(newView);
+            pendingReaders = List.of();
+            return true;
+        }
+    }
+
+    private void markDeletedAcrossWriterSegments(java.util.Set<String> ids) throws IOException {
+        for (SegmentReader r : currentReaders) {
+            for (String id : ids) {
+                Integer docId = r.findLiveDocForId(SegmentWriter.ID_FIELD, id);
+                if (docId != null) {
+                    r.markDeleted(docId);
+                }
+            }
+        }
+        for (SegmentReader r : pendingReaders) {
+            for (String id : ids) {
+                Integer docId = r.findLiveDocForId(SegmentWriter.ID_FIELD, id);
+                if (docId != null) {
+                    r.markDeleted(docId);
+                }
+            }
         }
     }
 
@@ -671,7 +772,7 @@ public final class InternalEngine extends Engine {
         int numDeleted = 0;
         for (SegmentReader r : view) {
             numDocs += r.numDocs();
-            numDeleted += (r.maxDoc() - r.numDocs());
+            numDeleted += r.deletedDocCount();
         }
         long translogOps = 0;
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
@@ -702,6 +803,7 @@ public final class InternalEngine extends Engine {
             return;
         }
         closed = true;
+        memoryController.unregister(this);
         if (refreshScheduler != null) {
             refreshScheduler.shutdownNow();
         }
@@ -719,6 +821,13 @@ public final class InternalEngine extends Engine {
                 }
             }
             currentReaders = List.of();
+            for (SegmentReader r : pendingReaders) {
+                try {
+                    r.decRef();
+                } catch (IOException ignored) {
+                }
+            }
+            pendingReaders = List.of();
         }
         translog.close();
         if (writeLock != null) {

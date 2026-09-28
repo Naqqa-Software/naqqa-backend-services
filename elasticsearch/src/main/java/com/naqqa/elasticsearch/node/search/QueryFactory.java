@@ -1,6 +1,10 @@
 package com.naqqa.elasticsearch.node.search;
 
+import com.naqqa.elasticsearch.action.search.IndexNameQuery;
 import com.naqqa.elasticsearch.common.time.DateFormatter;
+import com.naqqa.elasticsearch.index.engine.segment.EngineNestedDocMapping;
+import com.naqqa.elasticsearch.index.engine.segment.EngineVectorAccessorProvider;
+import com.naqqa.elasticsearch.search.vectors.query.VectorSegmentAccessorProvider;
 import com.naqqa.elasticsearch.common.time.DateMathParser;
 import com.naqqa.elasticsearch.index.query.QueryBuilder;
 import com.naqqa.elasticsearch.index.query.QueryParser;
@@ -34,10 +38,31 @@ public final class QueryFactory {
     private static final Set<String> INTEGRAL = Set.of("long", "integer", "short", "byte", "unsigned_long");
     private static final String DEFAULT_DATE_FORMAT = "strict_date_optional_time||epoch_millis";
 
-    private final QueryBuilderToQuery.ConversionContext context;
+    private final ScriptService scriptService;
+    private volatile VectorSegmentAccessorProvider vectorProvider;
+    private volatile QueryBuilderToQuery.ConversionContext context;
 
     public QueryFactory(ScriptService scriptService) {
-        this.context = QueryBuilderToQuery.ConversionContext.EMPTY.withScriptService(scriptService);
+        this.scriptService = scriptService;
+        this.vectorProvider = new EngineVectorAccessorProvider();
+        this.context = buildContext();
+    }
+
+    private QueryBuilderToQuery.ConversionContext buildContext() {
+        return QueryBuilderToQuery.ConversionContext.of(vectorProvider, new EngineNestedDocMapping(List.of()), scriptService);
+    }
+
+    public ScriptService scriptService() {
+        return scriptService;
+    }
+
+    public VectorSegmentAccessorProvider vectorProvider() {
+        return vectorProvider;
+    }
+
+    public void setVectorProvider(VectorSegmentAccessorProvider provider) {
+        this.vectorProvider = provider;
+        this.context = buildContext();
     }
 
     public Query toQuery(Map<String, Object> clause) {
@@ -48,10 +73,64 @@ public final class QueryFactory {
         if (clause == null || clause.isEmpty()) {
             return new MatchAllDocsQuery();
         }
-        if (fieldTypes != null && needsMappingAwareness(clause, fieldTypes)) {
+        validateKnn(clause, fieldTypes, 0);
+        if (needsMappingAwareness(clause, fieldTypes)) {
             return convertAware(clause, fieldTypes);
         }
         return delegate(clause);
+    }
+
+    private void validateKnn(Object node, Function<String, FieldType> fieldTypes, int depth) {
+        if (depth > 32) {
+            return;
+        }
+        if (node instanceof List<?> list) {
+            for (Object o : list) {
+                validateKnn(o, fieldTypes, depth + 1);
+            }
+            return;
+        }
+        if (!(node instanceof Map<?, ?> map)) {
+            return;
+        }
+        for (Map.Entry<?, ?> e : map.entrySet()) {
+            if ("knn".equals(e.getKey()) && e.getValue() instanceof Map<?, ?> body && body.get("field") != null) {
+                String field = String.valueOf(body.get("field"));
+                if (vectorProvider == null) {
+                    throw new RestApiException(400, "knn not supported for this field [" + field + "]");
+                }
+                if (fieldTypes != null) {
+                    FieldType type = fieldTypes.apply(field);
+                    if (type == null) {
+                        throw new RestApiException(400, "failed to create query: field [" + field + "] does not exist in the mapping");
+                    }
+                    if (!"dense_vector".equals(type.type())) {
+                        throw new RestApiException(400, "[knn] queries are only supported on [dense_vector] fields");
+                    }
+                }
+            }
+            if (e.getValue() instanceof Map<?, ?> || e.getValue() instanceof List<?>) {
+                validateKnn(e.getValue(), fieldTypes, depth + 1);
+            }
+        }
+    }
+
+    private static boolean isIndexField(String field) {
+        return IndexFieldMapperName.equals(field);
+    }
+
+    private static final String IndexFieldMapperName = "_index";
+
+    private static Query indexNameQuery(Object value) {
+        List<String> names = new ArrayList<>();
+        if (value instanceof List<?> list) {
+            for (Object o : list) {
+                names.add(String.valueOf(o));
+            }
+        } else if (value != null) {
+            names.add(String.valueOf(value));
+        }
+        return names.isEmpty() ? new MatchNoDocsQuery() : new ConstantScoreQuery(new IndexNameQuery(names));
     }
 
     private Query delegate(Map<String, Object> clause) {
@@ -152,7 +231,14 @@ public final class QueryFactory {
             }
             case "range", "term", "terms", "match" -> {
                 String field = fieldOf(body);
-                return field != null && isDocValueType(fieldTypes.apply(field));
+                if (field != null && isIndexField(field) && !key.equals("range")) {
+                    return true;
+                }
+                return field != null && fieldTypes != null && isDocValueType(fieldTypes.apply(field));
+            }
+            case "prefix", "wildcard" -> {
+                String field = fieldOf(body);
+                return field != null && isIndexField(field);
             }
             default -> {
                 return false;
@@ -233,6 +319,9 @@ public final class QueryFactory {
                 Object raw = body.get(field);
                 Map<String, Object> spec = SettingsMaps.asMap(raw);
                 Object value = spec != null ? spec.get("value") : raw;
+                if (isIndexField(field)) {
+                    return boosted(indexNameQuery(value), spec == null ? 1.0f : boostOf(spec));
+                }
                 return boosted(exactQuery(field, fieldTypes.apply(field), value), spec == null ? 1.0f : boostOf(spec));
             }
             case "match" -> {
@@ -240,11 +329,30 @@ public final class QueryFactory {
                 Object raw = body.get(field);
                 Map<String, Object> spec = SettingsMaps.asMap(raw);
                 Object value = spec != null ? spec.get("query") : raw;
+                if (isIndexField(field)) {
+                    return boosted(indexNameQuery(value), spec == null ? 1.0f : boostOf(spec));
+                }
                 return boosted(exactQuery(field, fieldTypes.apply(field), value), spec == null ? 1.0f : boostOf(spec));
+            }
+            case "prefix", "wildcard" -> {
+                String field = fieldOf(body);
+                Object raw = body.get(field);
+                Map<String, Object> spec = SettingsMaps.asMap(raw);
+                Object value = spec != null ? (spec.get("value") != null ? spec.get("value") : spec.get(key)) : raw;
+                String pattern = String.valueOf(value);
+                if (key.equals("prefix")) {
+                    pattern = pattern + "*";
+                } else {
+                    pattern = pattern.replace('?', '*');
+                }
+                return boosted(indexNameQuery(pattern), spec == null ? 1.0f : boostOf(spec));
             }
             case "terms" -> {
                 String field = fieldOf(body);
                 Object raw = body.get(field);
+                if (isIndexField(field)) {
+                    return boosted(indexNameQuery(raw), boostOf(body));
+                }
                 if (!(raw instanceof List<?> values)) {
                     return delegate(clause);
                 }

@@ -77,6 +77,18 @@ public final class LiveVersionMap {
         return tombstones.size();
     }
 
+    public long ramBytesUsed() {
+        return estimate(current) + estimate(old) + estimate(tombstones);
+    }
+
+    private static long estimate(Map<String, VersionValue> map) {
+        long size = 0L;
+        for (String id : map.keySet()) {
+            size += 96L + (long) id.length() * 2;
+        }
+        return size;
+    }
+
     public int pruneTombstones(long maxAgeMillis, int maxCount) {
         long now = System.currentTimeMillis();
         int pruned = 0;

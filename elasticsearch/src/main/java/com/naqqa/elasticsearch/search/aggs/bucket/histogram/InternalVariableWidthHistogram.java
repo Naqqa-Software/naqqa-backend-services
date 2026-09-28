@@ -36,6 +36,10 @@ public final class InternalVariableWidthHistogram extends InternalAggregation im
         return new InternalVariableWidthHistogram(getName(), cast, targetBuckets, getMetadata());
     }
 
+    public int targetBucketsValue() {
+        return targetBuckets;
+    }
+
     @Override
     public String getType() {
         return "variable_width_histogram";

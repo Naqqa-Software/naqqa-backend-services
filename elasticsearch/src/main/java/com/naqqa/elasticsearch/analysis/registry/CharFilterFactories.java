@@ -37,6 +37,9 @@ public final class CharFilterFactories {
                 String replacement = settings.getString("replacement", "");
                 return of(name, () -> new PatternReplaceCharFilter(pattern, replacement));
             }
+            case "persian":
+            case "persian_charfilter":
+                return of(name, com.naqqa.elasticsearch.analysis.lang.c.PersianCharFilter::new);
             default:
                 throw new IllegalArgumentException("Unknown char_filter type [" + type + "]");
         }

@@ -164,11 +164,12 @@ public final class JdkHttpServerTransport implements HttpServerTransport {
 
     private static String decodePath(String rawPath) {
         StringBuilder sb = new StringBuilder();
-        for (String segment : rawPath.split("/", -1)) {
-            if (sb.length() > 0) {
+        String[] segments = rawPath.split("/", -1);
+        for (int i = 0; i < segments.length; i++) {
+            if (i > 0) {
                 sb.append('/');
             }
-            sb.append(com.naqqa.elasticsearch.http.UrlCodec.decode(segment, false));
+            sb.append(com.naqqa.elasticsearch.http.UrlCodec.decode(segments[i], false));
         }
         return sb.toString();
     }

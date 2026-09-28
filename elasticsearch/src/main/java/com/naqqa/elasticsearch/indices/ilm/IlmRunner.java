@@ -58,6 +58,13 @@ public final class IlmRunner {
         return attachment == null ? null : attachment.state;
     }
 
+    public void restoreState(String index, LifecycleExecutionState state) {
+        Attachment attachment = attachments.get(index);
+        if (attachment != null && state != null) {
+            attachment.state = state;
+        }
+    }
+
     public void retry(String index, long now) {
         Attachment attachment = requireAttachment(index);
         attachment.state = attachment.state.retry(now);

@@ -20,10 +20,12 @@ public final class EngineConfig {
     private final int maxMergeAtOnce;
     private final int segmentsPerTier;
     private final double maxDeletedPctAllowed;
+    private final IndexingMemoryController memoryController;
 
     public EngineConfig(Path shardPath, Directory directory, MapperService mapperService, TranslogConfig translogConfig,
                          TimeValue refreshInterval, ByteSizeValue flushThresholdSize, long primaryTerm,
-                         int maxMergeAtOnce, int segmentsPerTier, double maxDeletedPctAllowed) {
+                         int maxMergeAtOnce, int segmentsPerTier, double maxDeletedPctAllowed,
+                         IndexingMemoryController memoryController) {
         this.shardPath = shardPath;
         this.directory = directory;
         this.mapperService = mapperService;
@@ -34,12 +36,13 @@ public final class EngineConfig {
         this.maxMergeAtOnce = maxMergeAtOnce;
         this.segmentsPerTier = segmentsPerTier;
         this.maxDeletedPctAllowed = maxDeletedPctAllowed;
+        this.memoryController = memoryController != null ? memoryController : IndexingMemoryController.instance();
     }
 
     public static EngineConfig defaultConfig(Path shardPath, Directory directory, MapperService mapperService,
                                               TranslogConfig translogConfig) {
         return new EngineConfig(shardPath, directory, mapperService, translogConfig,
-            TimeValue.timeValueSeconds(1), ByteSizeValue.ofMb(512), 1L, 10, 10, 0.3);
+            TimeValue.timeValueSeconds(1), ByteSizeValue.ofMb(512), 1L, 10, 10, 0.3, IndexingMemoryController.instance());
     }
 
     public Path shardPath() {
@@ -82,13 +85,27 @@ public final class EngineConfig {
         return maxDeletedPctAllowed;
     }
 
+    public IndexingMemoryController memoryController() {
+        return memoryController;
+    }
+
     public EngineConfig withRefreshInterval(TimeValue refreshInterval) {
         return new EngineConfig(shardPath, directory, mapperService, translogConfig, refreshInterval,
-            flushThresholdSize, primaryTerm, maxMergeAtOnce, segmentsPerTier, maxDeletedPctAllowed);
+            flushThresholdSize, primaryTerm, maxMergeAtOnce, segmentsPerTier, maxDeletedPctAllowed, memoryController);
     }
 
     public EngineConfig withFlushThresholdSize(ByteSizeValue flushThresholdSize) {
         return new EngineConfig(shardPath, directory, mapperService, translogConfig, refreshInterval,
-            flushThresholdSize, primaryTerm, maxMergeAtOnce, segmentsPerTier, maxDeletedPctAllowed);
+            flushThresholdSize, primaryTerm, maxMergeAtOnce, segmentsPerTier, maxDeletedPctAllowed, memoryController);
+    }
+
+    public EngineConfig withMemoryController(IndexingMemoryController memoryController) {
+        return new EngineConfig(shardPath, directory, mapperService, translogConfig, refreshInterval,
+            flushThresholdSize, primaryTerm, maxMergeAtOnce, segmentsPerTier, maxDeletedPctAllowed, memoryController);
+    }
+
+    public EngineConfig withTranslogConfig(TranslogConfig translogConfig) {
+        return new EngineConfig(shardPath, directory, mapperService, translogConfig, refreshInterval,
+            flushThresholdSize, primaryTerm, maxMergeAtOnce, segmentsPerTier, maxDeletedPctAllowed, memoryController);
     }
 }

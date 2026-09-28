@@ -134,7 +134,14 @@ public final class TransportService extends AbstractLifecycleComponent {
             throw new ConnectTransportException(node, "handshake failed", unwrap(e));
         }
         openConnections.add(connection);
-        connection.addCloseListener(cause -> openConnections.remove(connection));
+        connection.addCloseListener(cause -> {
+            openConnections.remove(connection);
+            failPendingOn(connection);
+        });
+        if (!connection.isOpen()) {
+            openConnections.remove(connection);
+            throw new ConnectTransportException(node, "connection closed during handshake");
+        }
         return connection;
     }
 
@@ -327,6 +334,15 @@ public final class TransportService extends AbstractLifecycleComponent {
             handleInboundRequest(channel, requestId, status, version, action, payload);
         } else {
             handleInboundResponse(requestId, status, version, action, payload);
+        }
+    }
+
+    private void failPendingOn(Connection connection) {
+        for (Map.Entry<Long, ResponseContext<?>> entry : pendingRequests.entrySet()) {
+            if (entry.getValue().connection == connection) {
+                failPending(entry.getKey(), new ConnectTransportException(connection.node(), "connection closed while waiting for ["
+                    + entry.getValue().action + "]"));
+            }
         }
     }
 

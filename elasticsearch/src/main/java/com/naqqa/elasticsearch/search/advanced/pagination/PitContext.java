@@ -3,6 +3,7 @@ package com.naqqa.elasticsearch.search.advanced.pagination;
 import com.naqqa.elasticsearch.index.engine.EngineSearcher;
 import com.naqqa.elasticsearch.search.advanced.common.SegmentReaderLeafAdapter;
 import com.naqqa.elasticsearch.search.execution.IndexSearcher;
+import com.naqqa.elasticsearch.search.execution.SearchExecutors;
 
 import java.io.IOException;
 
@@ -17,7 +18,7 @@ public final class PitContext {
     PitContext(String id, EngineSearcher engineSearcher, long keepAliveMillis) {
         this.id = id;
         this.engineSearcher = engineSearcher;
-        this.indexSearcher = new IndexSearcher(SegmentReaderLeafAdapter.wrap(engineSearcher.leaves()));
+        this.indexSearcher = new IndexSearcher(SegmentReaderLeafAdapter.wrap(engineSearcher.leaves()), SearchExecutors.shared());
         this.createdAtNanos = System.nanoTime();
         this.expiresAtNanos = createdAtNanos + keepAliveMillis * 1_000_000L;
     }

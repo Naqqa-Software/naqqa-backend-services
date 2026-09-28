@@ -173,12 +173,15 @@ public final class MonitorService {
 
     private static QueryCacheStatsSource queryCacheSource() {
         return new QueryCacheStatsSource() {
-            public long getCacheSize() { return 0L; }
-            public long getCacheCount() { return 0L; }
-            public long getEvictions() { return 0L; }
-            public long getHitCount() { return 0L; }
-            public long getMissCount() { return 0L; }
-            public long getMemorySizeInBytes() { return 0L; }
+            private com.naqqa.elasticsearch.search.execution.QueryCache.Stats s() {
+                return com.naqqa.elasticsearch.search.execution.QueryCaches.shared().stats();
+            }
+            public long getCacheSize() { return s().cacheSize(); }
+            public long getCacheCount() { return s().cacheCount(); }
+            public long getEvictions() { return s().evictions(); }
+            public long getHitCount() { return s().hitCount(); }
+            public long getMissCount() { return s().missCount(); }
+            public long getMemorySizeInBytes() { return s().memorySizeInBytes(); }
         };
     }
 

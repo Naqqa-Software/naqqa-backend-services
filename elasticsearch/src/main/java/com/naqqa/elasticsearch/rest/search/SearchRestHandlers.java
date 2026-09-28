@@ -18,7 +18,9 @@ public final class SearchRestHandlers {
         "typed_keys", "allow_partial_search_results", "preference", "routing", "request_cache",
         "batched_reduce_size", "rest_total_hits_as_int", "max_concurrent_shard_requests",
         "wait_for_completion_timeout", "keep_alive", "keep_on_completion", "min_score", "ignore_unavailable",
-        "ignore_throttled", "allow_no_indices", "expand_wildcards");
+        "ignore_throttled", "allow_no_indices", "expand_wildcards", "sort", "_source", "_source_includes", "_source_excludes",
+        "stored_fields", "docvalue_fields", "seq_no_primary_term", "track_scores", "analyze_wildcard", "lenient",
+        "ccs_minimize_roundtrips", "pre_filter_shard_size", "fields", "include_named_queries_score");
 
     private final SearchActionService service;
 

@@ -43,6 +43,8 @@ import com.naqqa.elasticsearch.node.action.NodeDocumentActionService;
 import com.naqqa.elasticsearch.node.action.NodeIndexAdminActionService;
 import com.naqqa.elasticsearch.node.action.NodeSearchActionService;
 import com.naqqa.elasticsearch.node.cluster.ClusterStateManager;
+import com.naqqa.elasticsearch.node.cluster.NodeConnections;
+import com.naqqa.elasticsearch.node.support.ClusterDocumentActionService;
 import com.naqqa.elasticsearch.node.indices.IndicesService;
 import com.naqqa.elasticsearch.node.indices.LifecycleService;
 import com.naqqa.elasticsearch.node.indices.MetadataIndexService;
@@ -108,6 +110,23 @@ public final class Node extends AbstractLifecycleComponent {
         TimeValue.timeValueSeconds(30), Setting.Property.NODE_SCOPE);
     public static final Setting<Double> BREAKER_TOTAL_LIMIT = Setting.doubleSetting("indices.breaker.total.limit_ratio", 0.95,
         Setting.Property.NODE_SCOPE);
+    public static final Setting<List<String>> DISCOVERY_SEED_HOSTS = Setting.listSetting("discovery.seed_hosts", List.of(),
+        Setting.Property.NODE_SCOPE);
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS = Setting.listSetting("discovery.seed_providers", List.of(),
+        Setting.Property.NODE_SCOPE);
+    public static final Setting<String> DISCOVERY_TYPE = Setting.simpleString("discovery.type", "", Setting.Property.NODE_SCOPE);
+    public static final Setting<List<String>> INITIAL_MASTER_NODES = Setting.listSetting("cluster.initial_master_nodes", List.of(),
+        Setting.Property.NODE_SCOPE);
+    public static final Setting<List<String>> NODE_ROLES = Setting.listSetting("node.roles", List.of("master", "data", "ingest"),
+        Setting.Property.NODE_SCOPE);
+    public static final Setting<TimeValue> FOLLOWER_CHECK_INTERVAL = Setting.timeSetting("cluster.fault_detection.follower_check.interval",
+        TimeValue.timeValueSeconds(1), Setting.Property.NODE_SCOPE);
+    public static final Setting<TimeValue> FOLLOWER_CHECK_TIMEOUT = Setting.timeSetting("cluster.fault_detection.follower_check.timeout",
+        TimeValue.timeValueSeconds(10), Setting.Property.NODE_SCOPE);
+    public static final Setting<Integer> FOLLOWER_CHECK_RETRIES = Setting.intSetting("cluster.fault_detection.follower_check.retry_count",
+        3, Setting.Property.NODE_SCOPE);
+    public static final Setting<TimeValue> PEER_FIND_INTERVAL = Setting.timeSetting("discovery.find_peers_interval",
+        TimeValue.timeValueSeconds(1), Setting.Property.NODE_SCOPE);
 
     private final Settings settings;
     private final List<AutoCloseable> closeables = new ArrayList<>();
@@ -117,6 +136,7 @@ public final class Node extends AbstractLifecycleComponent {
     private CircuitBreakerService breakerService;
     private ClusterSettings clusterSettings;
     private TransportService transportService;
+    private NodeConnections nodeConnections;
     private ClusterStateManager clusterStateManager;
     private IndicesService indicesService;
     private HttpServerTransport httpServer;
@@ -163,6 +183,10 @@ public final class Node extends AbstractLifecycleComponent {
 
     public ClusterStateManager clusterStateManager() {
         return clusterStateManager;
+    }
+
+    public NodeConnections nodeConnections() {
+        return nodeConnections;
     }
 
     public IndicesService indicesService() {
@@ -251,7 +275,9 @@ public final class Node extends AbstractLifecycleComponent {
         clusterSettings = new ClusterSettings(settings, com.naqqa.elasticsearch.common.settings.AbstractScopedSettings.settingsSet(
             NODE_NAME, CLUSTER_NAME, PATH_DATA, PATH_LOGS, PATH_CONF, PATH_REPO, NETWORK_HOST, HTTP_PORT, HTTP_TYPE, TRANSPORT_PORT,
             SECURITY_ENABLED, AUDIT_ENABLED, HTTP_SSL_ENABLED, HTTP_SSL_KEYSTORE, HTTP_SSL_KEYSTORE_PASSWORD, BOOTSTRAP_PASSWORD,
-            DEFAULT_SHARDS, DEFAULT_REPLICAS, ILM_POLL_INTERVAL, ELECTION_TIMEOUT, BREAKER_TOTAL_LIMIT));
+            DEFAULT_SHARDS, DEFAULT_REPLICAS, ILM_POLL_INTERVAL, ELECTION_TIMEOUT, BREAKER_TOTAL_LIMIT, DISCOVERY_SEED_HOSTS,
+            DISCOVERY_SEED_PROVIDERS, DISCOVERY_TYPE, INITIAL_MASTER_NODES, NODE_ROLES, FOLLOWER_CHECK_INTERVAL, FOLLOWER_CHECK_TIMEOUT,
+            FOLLOWER_CHECK_RETRIES, PEER_FIND_INTERVAL));
 
         scriptService = ScriptService.defaults();
 
@@ -271,33 +297,46 @@ public final class Node extends AbstractLifecycleComponent {
         flatSettings.putIfAbsent("node.name", nodeName);
         flatSettings.putIfAbsent("cluster.name", clusterName);
         flatSettings.putIfAbsent("path.data", dataPath.toString());
+        EnumSet<DiscoveryNodeRole> roles = parseRoles(settings);
+        List<String> roleNames = new ArrayList<>();
+        for (DiscoveryNodeRole role : roles) {
+            roleNames.add(role.roleName());
+        }
         nodeInfo = new NodeInfo(nodeId, nodeName, clusterName, host, transportAddress, null,
-            List.of("data", "ingest", "master"), NodeInfo.VERSION, flatSettings);
+            roleNames, NodeInfo.VERSION, flatSettings);
 
-        DiscoveryNode localNode = new DiscoveryNode(nodeId, nodeName, transportAddress, Map.of(),
-            EnumSet.of(DiscoveryNodeRole.MASTER, DiscoveryNodeRole.DATA, DiscoveryNodeRole.INGEST), 1L);
-        clusterStateManager = new ClusterStateManager(clusterName, localNode, dataPath.resolve("_state"), 20L);
+        DiscoveryNode localNode = new DiscoveryNode(nodeId, nodeName, transportAddress, Map.of(), roles, 1L);
+        nodeConnections = new NodeConnections(transportService);
+        track(nodeConnections);
+        ClusterStateManager.DiscoveryConfig discoveryConfig = discoveryConfig(nodeName, configPath);
+        clusterStateManager = new ClusterStateManager(clusterName, localNode, dataPath.resolve("_state"), 20L, discoveryConfig,
+            transportService, nodeConnections);
         track(clusterStateManager);
+        scriptService.bind(clusterStateManager);
 
         AnalysisRegistry analysisRegistry = new AnalysisRegistry();
         Path indicesPath = dataPath.resolve("indices");
-        indicesService = new IndicesService(indicesPath, nodeId, transportService, analysisRegistry, clusterStateManager);
+        indicesService = new IndicesService(indicesPath, nodeId, transportService, analysisRegistry, clusterStateManager,
+            nodeConnections, threadPool);
         track(indicesService);
         clusterStateManager.addApplier(indicesService);
 
         new ShardSearchService(transportService, indicesService::shard);
         new ShardGetService(transportService, indicesService::shard);
-        Map<String, com.naqqa.elasticsearch.transport.DiscoveryNode> transportNodes = new LinkedHashMap<>();
+        Map<String, com.naqqa.elasticsearch.transport.DiscoveryNode> transportNodes = new java.util.concurrent.ConcurrentHashMap<>();
         transportNodes.put(nodeId, transportService.localNode());
+        clusterStateManager.addListener(event -> refreshTransportNodes(event.state(), transportNodes, nodeId));
         SearchCoordinator searchCoordinator = new SearchCoordinator(transportService, transportNodes);
 
         clusterStateManager.start(ELECTION_TIMEOUT.get(settings).millis());
-        for (com.naqqa.elasticsearch.cluster.state.IndexMetadata imd : clusterStateManager.state().getMetadata().getIndices().values()) {
-            if (imd.getState() == com.naqqa.elasticsearch.cluster.state.IndexMetadata.State.OPEN) {
-                try {
-                    indicesService.awaitShardsStarted(imd.getIndex(), 30_000L).get(31, TimeUnit.SECONDS);
-                } catch (java.util.concurrent.TimeoutException e) {
-                    System.err.println("[node] index [" + imd.getIndex() + "] did not recover within 30s");
+        if (!clusterStateManager.isMultiNode()) {
+            for (com.naqqa.elasticsearch.cluster.state.IndexMetadata imd : clusterStateManager.state().getMetadata().getIndices().values()) {
+                if (imd.getState() == com.naqqa.elasticsearch.cluster.state.IndexMetadata.State.OPEN) {
+                    try {
+                        indicesService.awaitShardsStarted(imd.getIndex(), 30_000L).get(31, TimeUnit.SECONDS);
+                    } catch (java.util.concurrent.TimeoutException e) {
+                        System.err.println("[node] index [" + imd.getIndex() + "] did not recover within 30s");
+                    }
                 }
             }
         }
@@ -312,9 +351,20 @@ public final class Node extends AbstractLifecycleComponent {
         MetadataIndexService metadataService = new MetadataIndexService(clusterStateManager, indicesService, analysisRegistry,
             aliasService, DEFAULT_SHARDS.get(settings), DEFAULT_REPLICAS.get(settings), 60_000L);
         metadataService.restoreAliasesFromClusterState();
+        clusterStateManager.addListener(event -> {
+            // Every node keeps its own local AliasService cache, and only the node that happened to
+            // originally handle a create-index/_aliases request populates it directly - being the
+            // elected master does not imply having already seen that update, so all nodes (including
+            // the master) must re-derive it from the authoritative cluster state metadata.
+            if (clusterStateManager.isMultiNode() && event.state().getMetadata() != event.previousState().getMetadata()) {
+                metadataService.restoreAliasesFromClusterState();
+            }
+        });
 
         NodeIndexAdminActionService indexAdmin = new NodeIndexAdminActionService(metadataService, indicesService, templateService,
             templateResolver, dataStreamService, counters, adminExecutor, indicesPath, 30_000L);
+        indexAdmin.syncFromClusterState(clusterStateManager.state().getMetadata());
+        clusterStateManager.addListener(indexAdmin);
 
         RelocationAwareRouter router = new RelocationAwareRouter(clusterStateManager::state, indicesService.replicationGroups());
         UpdateScriptExecutor updateScripts = (scriptDefinition, currentSource) -> {
@@ -327,14 +377,14 @@ public final class Node extends AbstractLifecycleComponent {
             return src instanceof Map<?, ?> m ? com.naqqa.elasticsearch.node.support.SettingsMaps.asMap(m) : currentSource;
         };
         DocumentActionServiceImpl writes = new DocumentActionServiceImpl(router, updateScripts, transportService,
-            (shardId, state) -> transportService.connectToNode(transportNodeFor(state, shardId, transportNodes),
-                com.naqqa.elasticsearch.transport.ConnectionProfile.buildDefault()));
+            (shardId, state) -> nodeConnections.get(transportNodeFor(state, shardId, transportNodes)));
         writes.bulkCoordinator().registerShardHandler(transportService);
 
         PipelineStore pipelineStore = new PipelineStore();
         ProcessorRegistry processorRegistry = new ProcessorRegistry(pipelineStore, new ScriptBackedIngestScriptService(scriptService), null);
         IngestProcessors.registerAll(processorRegistry);
         ingestService = new IngestService(pipelineStore, processorRegistry);
+        ingestService.bind(clusterStateManager);
 
         SearchEngine searchEngine = new SearchEngine(clusterStateManager, indicesService, searchCoordinator,
             new QueryFactory(scriptService), indexAdmin.indexResolver(), counters);
@@ -354,17 +404,18 @@ public final class Node extends AbstractLifecycleComponent {
         documentService.setDynamicMappingHook(dynamicMappingService::onDocument);
         documentService.setRefresher(index -> indexAdmin.refresh(List.of(index)).join());
         snapshotsService = new SnapshotsService(clusterStateManager, indicesService, indexAdmin, indicesPath, repoRoots,
-            dataPath.resolve("_repositories.json"));
+            dataPath.resolve("_repositories.json"), transportService, nodeConnections);
 
         monitorService = new MonitorService(nodeId, nodeName, startTime, List.of(dataPath), counters, indicesService, threadPool,
             transportService, breakerService, taskManager, () -> 0);
 
         lifecycleService = new LifecycleService(new NodeLifecycleActionExecutor(metadataService, indicesService, indexAdmin),
             clusterStateManager::state);
-        clusterStateManager.addListener(lifecycleService);
+        lifecycleService.bind(clusterStateManager);
 
         securityService = new SecurityService(SECURITY_ENABLED.get(settings), configPath, logsPath.resolve("audit.json"),
             AUDIT_ENABLED.get(settings), BOOTSTRAP_PASSWORD.get(settings));
+        securityService.bind(clusterStateManager);
 
         NodeRestFilter.ErrorRenderer errorRenderer = new NodeRestFilter.ErrorRenderer();
         NodeRestFilter filter = new NodeRestFilter(securityService, breakerService, counters, errorRenderer);
@@ -372,7 +423,10 @@ public final class Node extends AbstractLifecycleComponent {
             indicesService, indexAdmin.indexResolver(), monitorService, taskManager, () -> nodeInfo, adminExecutor, filter.usage());
         NodeCatActionService catService = new NodeCatActionService(clusterStateManager, indicesService, indexAdmin.indexResolver(),
             indexAdmin, monitorService, taskManager, snapshotsService, () -> nodeInfo, adminExecutor, dataPath);
-        restServices = new RestServices(documentService, searchService, indexAdmin, clusterService, catService, clusterName, nodeName);
+        ClusterDocumentActionService routedDocuments = new ClusterDocumentActionService(documentService, clusterStateManager,
+            indicesService, transportService, nodeConnections, indexAdmin::dataStreamBackingIndices, indexAdmin::ensureWriteTarget);
+        track(routedDocuments);
+        restServices = new RestServices(routedDocuments, searchService, indexAdmin, clusterService, catService, clusterName, nodeName);
 
         Router restRouter = new Router(filter);
         RestModule.registerAll(restRouter, restServices);
@@ -406,6 +460,67 @@ public final class Node extends AbstractLifecycleComponent {
         maintenance.scheduleWithFixedDelay(lifecycleService::tick, ilmInterval, ilmInterval, TimeUnit.MILLISECONDS);
     }
 
+    private static EnumSet<DiscoveryNodeRole> parseRoles(Settings settings) {
+        List<String> raw = listSetting(settings, NODE_ROLES);
+        EnumSet<DiscoveryNodeRole> roles = EnumSet.noneOf(DiscoveryNodeRole.class);
+        for (String name : raw) {
+            roles.add(DiscoveryNodeRole.fromRoleName(name));
+        }
+        return roles;
+    }
+
+    private static List<String> listSetting(Settings settings, Setting<List<String>> setting) {
+        List<String> values = settings.getAsList(setting.getKey());
+        if (values.isEmpty() && settings.get(setting.getKey()) == null) {
+            values = setting.get(settings);
+        }
+        List<String> out = new ArrayList<>();
+        for (String v : values) {
+            String trimmed = v.trim();
+            if (trimmed.startsWith("[")) {
+                trimmed = trimmed.substring(1);
+            }
+            if (trimmed.endsWith("]")) {
+                trimmed = trimmed.substring(0, trimmed.length() - 1);
+            }
+            trimmed = trimmed.replace("\"", "").trim();
+            if (!trimmed.isEmpty()) {
+                out.add(trimmed);
+            }
+        }
+        return out;
+    }
+
+    private ClusterStateManager.DiscoveryConfig discoveryConfig(String nodeName, Path configPath) {
+        List<String> seedHosts = listSetting(settings, DISCOVERY_SEED_HOSTS);
+        Path seedFile = null;
+        if (listSetting(settings, DISCOVERY_SEED_PROVIDERS).contains("file")) {
+            seedFile = configPath.resolve("unicast_hosts.txt");
+        }
+        List<String> initialMasters = listSetting(settings, INITIAL_MASTER_NODES);
+        if ("single-node".equals(DISCOVERY_TYPE.get(settings)) || (seedHosts.isEmpty() && seedFile == null)) {
+            return new ClusterStateManager.DiscoveryConfig(List.of(), null, initialMasters.isEmpty() ? List.of(nodeName) : initialMasters,
+                1000L, 1000L, 10_000L, 3, 30_000L);
+        }
+        return new ClusterStateManager.DiscoveryConfig(seedHosts, seedFile, initialMasters, PEER_FIND_INTERVAL.get(settings).millis(),
+            FOLLOWER_CHECK_INTERVAL.get(settings).millis(), FOLLOWER_CHECK_TIMEOUT.get(settings).millis(),
+            FOLLOWER_CHECK_RETRIES.get(settings), 30_000L);
+    }
+
+    private static void refreshTransportNodes(ClusterState state, Map<String, com.naqqa.elasticsearch.transport.DiscoveryNode> nodes,
+                                              String localNodeId) {
+        for (DiscoveryNode node : state.getNodes().getNodes().values()) {
+            if (node.getId().equals(localNodeId)) {
+                continue;
+            }
+            try {
+                nodes.put(node.getId(), NodeConnections.toTransportNode(node));
+            } catch (RuntimeException ignored) {
+            }
+        }
+        nodes.keySet().removeIf(id -> !id.equals(localNodeId) && !state.getNodes().nodeExists(id));
+    }
+
     private static com.naqqa.elasticsearch.transport.DiscoveryNode transportNodeFor(ClusterState state,
                                                                                     com.naqqa.elasticsearch.cluster.routing.ShardId shardId,
                                                                                     Map<String, com.naqqa.elasticsearch.transport.DiscoveryNode> known) {
@@ -416,6 +531,10 @@ public final class Node extends AbstractLifecycleComponent {
             throw new IllegalStateException("no assigned primary for " + shardId);
         }
         com.naqqa.elasticsearch.transport.DiscoveryNode node = known.get(primary.currentNodeId());
+        com.naqqa.elasticsearch.cluster.node.DiscoveryNode current = state.getNodes().get(primary.currentNodeId());
+        if (current != null) {
+            node = NodeConnections.toTransportNode(current);
+        }
         if (node == null) {
             com.naqqa.elasticsearch.cluster.node.DiscoveryNode clusterNode = state.getNodes().get(primary.currentNodeId());
             if (clusterNode == null) {

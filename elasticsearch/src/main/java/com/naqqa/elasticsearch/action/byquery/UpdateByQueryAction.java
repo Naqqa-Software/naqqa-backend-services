@@ -78,6 +78,9 @@ public final class UpdateByQueryAction {
                                                            ByQueryOptions options, long[] perDocAttempts,
                                                            AtomicLong retriesAccumulated) throws IOException {
         perDocAttempts[0] = 0;
+        if (id == null || !router.replicationGroups().containsKey(router.resolveShardId(index, id, null))) {
+            return BulkByScrollExecutor.HandlerResult.skipped();
+        }
         DocumentActionService.UpdateRequest request = new DocumentActionService.UpdateRequest(index, id, null, null,
             false, true, options.retryOnConflict(), Map.of("source", "noop"), null, null, options.refresh(), false);
         try {

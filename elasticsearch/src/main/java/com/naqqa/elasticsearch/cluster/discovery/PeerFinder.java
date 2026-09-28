@@ -24,6 +24,7 @@ public final class PeerFinder {
     private long lastRequestTime = -1L;
     private boolean active = true;
     private volatile DiscoveryNode masterHint;
+    private volatile String masterHintSource;
 
     public PeerFinder(DiscoveryNode localNode, ClusterTransport transport, List<SeedHostsProvider> seedHostsProviders,
                        Supplier<DiscoveryNode> currentMasterSupplier, long requestIntervalMillis) {
@@ -56,6 +57,7 @@ public final class PeerFinder {
 
     public void clearMasterHint() {
         masterHint = null;
+        masterHintSource = null;
     }
 
     public void addDiscovered(DiscoveryNode node) {
@@ -97,6 +99,10 @@ public final class PeerFinder {
                     addDiscovered(response.masterNode());
                     if (response.masterNode() != null) {
                         masterHint = response.masterNode();
+                        masterHintSource = target.getId();
+                    } else if (target.getId().equals(masterHintSource)) {
+                        masterHint = null;
+                        masterHintSource = null;
                     }
                     for (DiscoveryNode peer : response.knownPeers()) {
                         addDiscovered(peer);
@@ -105,6 +111,10 @@ public final class PeerFinder {
 
                 @Override
                 public void handleException(Exception e) {
+                    if (target.getId().equals(masterHintSource)) {
+                        masterHint = null;
+                        masterHintSource = null;
+                    }
                 }
             });
     }

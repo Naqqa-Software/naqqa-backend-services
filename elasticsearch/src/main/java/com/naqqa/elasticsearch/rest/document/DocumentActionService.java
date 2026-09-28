@@ -74,6 +74,10 @@ public interface DocumentActionService {
 
     CompletableFuture<Map<String, Object>> reindex(Map<String, Object> requestBody);
 
+    default CompletableFuture<Map<String, Object>> reindex(Map<String, Object> requestBody, Map<String, String> params) {
+        return reindex(requestBody);
+    }
+
     CompletableFuture<Map<String, Object>> termVectors(String index, String id, Map<String, Object> requestBody);
 
     CompletableFuture<Map<String, Object>> multiTermVectors(Map<String, Object> requestBody);

@@ -2,18 +2,33 @@ package com.naqqa.elasticsearch.search.aggs.support;
 
 import com.naqqa.elasticsearch.codec.NumericUtils;
 
+import java.util.function.LongToDoubleFunction;
+
 public final class DoubleValuesSource {
 
     private final LongValuesSource raw;
-    private final boolean sortableDouble;
+    private final LongToDoubleFunction decoder;
 
-    private DoubleValuesSource(LongValuesSource raw, boolean sortableDouble) {
+    private DoubleValuesSource(LongValuesSource raw, LongToDoubleFunction decoder) {
         this.raw = raw;
-        this.sortableDouble = sortableDouble;
+        this.decoder = decoder;
     }
 
     public static DoubleValuesSource of(LongValuesSource raw, boolean floatingPoint) {
-        return new DoubleValuesSource(raw, floatingPoint);
+        return new DoubleValuesSource(raw, floatingPoint ? NumericUtils::sortableLongToDouble : v -> (double) v);
+    }
+
+    public static DoubleValuesSource of(LongValuesSource raw, LongToDoubleFunction decoder) {
+        return new DoubleValuesSource(raw, decoder);
+    }
+
+    public static DoubleValuesSource sortableFloat(LongValuesSource raw) {
+        return new DoubleValuesSource(raw, v -> (double) NumericUtils.sortableIntToFloat((int) v));
+    }
+
+    public static DoubleValuesSource scaled(LongValuesSource raw, double scalingFactor) {
+        double scale = scalingFactor <= 0 ? 1.0 : scalingFactor;
+        return new DoubleValuesSource(raw, v -> v / scale);
     }
 
     public static DoubleValuesSource constant(double value, java.util.function.IntPredicate hasDoc) {
@@ -35,7 +50,7 @@ public final class DoubleValuesSource {
             public long nextValue() {
                 return NumericUtils.doubleToSortableLong(value);
             }
-        }, true);
+        }, NumericUtils::sortableLongToDouble);
     }
 
     public boolean advanceExact(int doc) {
@@ -47,7 +62,6 @@ public final class DoubleValuesSource {
     }
 
     public double nextValue() {
-        long v = raw.nextValue();
-        return sortableDouble ? NumericUtils.sortableLongToDouble(v) : (double) v;
+        return decoder.applyAsDouble(raw.nextValue());
     }
 }

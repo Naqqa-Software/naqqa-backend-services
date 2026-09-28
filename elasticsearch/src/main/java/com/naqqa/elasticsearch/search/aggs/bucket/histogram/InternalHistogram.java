@@ -45,6 +45,26 @@ public final class InternalHistogram extends InternalAggregation implements Mult
         return new InternalHistogram(getName(), cast, interval, offset, minDocCount, boundsMin, boundsMax, getMetadata());
     }
 
+    public double intervalValue() {
+        return interval;
+    }
+
+    public double offsetValue() {
+        return offset;
+    }
+
+    public long getMinDocCount() {
+        return minDocCount;
+    }
+
+    public Double getBoundsMin() {
+        return boundsMin;
+    }
+
+    public Double getBoundsMax() {
+        return boundsMax;
+    }
+
     @Override
     public String getType() {
         return "histogram";

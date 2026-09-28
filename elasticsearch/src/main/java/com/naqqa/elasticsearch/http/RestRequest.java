@@ -3,8 +3,10 @@ package com.naqqa.elasticsearch.http;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class RestRequest {
 
@@ -14,6 +16,7 @@ public final class RestRequest {
     private final Map<String, List<String>> queryParams;
     private final HttpHeaders headers;
     private final byte[] content;
+    private final Set<String> consumedParams = new LinkedHashSet<>();
     private Map<String, String> pathParams = Map.of();
 
     public RestRequest(RestMethod method, String path, String rawUri, Map<String, List<String>> queryParams,
@@ -71,6 +74,7 @@ public final class RestRequest {
     }
 
     public String param(String name, String defaultValue) {
+        consumedParams.add(name);
         String pathValue = pathParams.get(name);
         if (pathValue != null) {
             return pathValue;
@@ -83,16 +87,26 @@ public final class RestRequest {
     }
 
     public boolean hasParam(String name) {
+        consumedParams.add(name);
         return pathParams.containsKey(name) || queryParams.containsKey(name);
     }
 
     public List<String> paramValues(String name) {
+        consumedParams.add(name);
         List<String> values = queryParams.get(name);
         if (values == null) {
             String pathValue = pathParams.get(name);
             return pathValue == null ? Collections.emptyList() : List.of(pathValue);
         }
         return values;
+    }
+
+    public Set<String> queryParamNames() {
+        return queryParams.keySet();
+    }
+
+    public Set<String> consumedParams() {
+        return Collections.unmodifiableSet(consumedParams);
     }
 
     public List<String> paramAsList(String name) {

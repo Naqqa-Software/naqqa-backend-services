@@ -49,6 +49,26 @@ public final class InternalSignificantTerms extends InternalAggregation implemen
         return new InternalSignificantTerms(getName(), cast, subsetSize, supersetSize, heuristic, backgroundFrequency, requiredSize, minDocCount, getMetadata());
     }
 
+    public long subsetSizeValue() {
+        return subsetSize;
+    }
+
+    public long supersetSizeValue() {
+        return supersetSize;
+    }
+
+    public SignificanceHeuristic heuristicValue() {
+        return heuristic;
+    }
+
+    public int requiredSizeValue() {
+        return requiredSize;
+    }
+
+    public long minDocCountValue() {
+        return minDocCount;
+    }
+
     @Override
     public String getType() {
         return "significant_terms";

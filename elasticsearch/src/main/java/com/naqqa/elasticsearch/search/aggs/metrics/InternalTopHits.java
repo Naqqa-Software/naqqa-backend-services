@@ -29,6 +29,14 @@ public final class InternalTopHits extends InternalAggregation {
         return hits;
     }
 
+    public int sizeValue() {
+        return size;
+    }
+
+    public boolean ascendingValue() {
+        return ascending;
+    }
+
     @Override
     public String getType() {
         return "top_hits";

@@ -4,6 +4,7 @@ import com.naqqa.elasticsearch.index.engine.EngineSearcher;
 import com.naqqa.elasticsearch.index.engine.segment.SegmentReader;
 import com.naqqa.elasticsearch.index.engine.segment.StoredDocCodec;
 import com.naqqa.elasticsearch.search.execution.IndexSearcher;
+import com.naqqa.elasticsearch.search.execution.SearchExecutors;
 import com.naqqa.elasticsearch.search.similarity.Similarity;
 
 import java.io.IOException;
@@ -37,8 +38,8 @@ final class EngineSearchContext implements AutoCloseable {
             i++;
         }
         IndexSearcher searcher = similarity == null
-            ? new IndexSearcher(new ArrayList<>(leaves))
-            : new IndexSearcher(new ArrayList<>(leaves), similarity);
+            ? new IndexSearcher(new ArrayList<>(leaves), SearchExecutors.shared())
+            : new IndexSearcher(new ArrayList<>(leaves), similarity, SearchExecutors.shared());
         return new EngineSearchContext(engineSearcher, searcher, leaves, bases);
     }
 

@@ -37,6 +37,8 @@ public final class TokenizerFactories {
                 return of(name, () -> new WhitespaceTokenizer(settings.getInt("max_token_length", 255)));
             case "letter":
                 return of(name, LetterTokenizer::new);
+            case "thai":
+                return of(name, com.naqqa.elasticsearch.analysis.lang.c.ThaiTokenizer::new);
             case "lowercase":
                 return of(name, LowerCaseTokenizer::new);
             case "keyword":

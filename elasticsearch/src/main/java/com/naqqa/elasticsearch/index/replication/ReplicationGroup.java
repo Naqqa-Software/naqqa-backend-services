@@ -344,6 +344,21 @@ public final class ReplicationGroup {
         }
     }
 
+    /**
+     * Replays every operation the primary holds from the current global checkpoint onward to a
+     * single in-sync replica. Used to bring a remaining replica fully up to date whenever it is
+     * (re)attached to a replication group whose primary just changed, so a promotion resyncs every
+     * surviving in-sync replica and not just the one candidate that was promoted.
+     */
+    public void resyncReplica(ShardCopy replica) throws IOException {
+        long fromSeqNo = checkpointTracker.getGlobalCheckpoint() + 1;
+        long term = primary.primaryContext().currentTerm();
+        List<Operation> ops = TranslogResync.opsFrom(primary.indexShard(), fromSeqNo);
+        for (Operation op : ops) {
+            resyncOne(replica, op, term);
+        }
+    }
+
     private void resyncOne(ShardCopy replica, Operation op, long newTerm) {
         ReplicationRequest request = toRequest(op, newTerm);
         Connection connection = connectionTo(replica);

@@ -1,14 +1,28 @@
 package com.naqqa.elasticsearch.ingest;
 
+import com.naqqa.elasticsearch.cluster.service.ClusterChangedEvent;
+import com.naqqa.elasticsearch.cluster.service.ClusterStateListener;
+import com.naqqa.elasticsearch.cluster.state.MapCustom;
+import com.naqqa.elasticsearch.cluster.state.Metadata;
+import com.naqqa.elasticsearch.node.cluster.ClusterStateManager;
+import com.naqqa.elasticsearch.rest.support.RestApiException;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
-public final class IngestService {
+public final class IngestService implements ClusterStateListener {
+
+    public static final String PIPELINES_CUSTOM = "ingest_pipelines";
 
     private final PipelineStore pipelineStore;
     private final ProcessorRegistry registry;
+    private volatile ClusterStateManager clusterStateManager;
 
     public IngestService(PipelineStore pipelineStore, ProcessorRegistry registry) {
         this.pipelineStore = pipelineStore;
@@ -21,6 +35,64 @@ public final class IngestService {
 
     public ProcessorRegistry getRegistry() {
         return registry;
+    }
+
+    public void bind(ClusterStateManager clusterStateManager) {
+        this.clusterStateManager = clusterStateManager;
+        syncFromClusterState(clusterStateManager.state().getMetadata());
+        clusterStateManager.addListener(this);
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().getMetadata() != event.previousState().getMetadata()) {
+            syncFromClusterState(event.state().getMetadata());
+        }
+    }
+
+    private void syncFromClusterState(Metadata metadata) {
+        pipelineStore.syncFrom(metadata.mapCustom(PIPELINES_CUSTOM).asMap(), registry);
+    }
+
+    public void putPipeline(String id, Map<String, Object> config) {
+        PipelineFactory.create(id, new LinkedHashMap<>(config), registry);
+        mutate("put-pipeline [" + id + "]", md -> md.toBuilder().mutateMapCustom(PIPELINES_CUSTOM, mc -> mc.with(id, config)).build());
+        pipelineStore.put(id, config, registry);
+    }
+
+    public void deletePipeline(String id) {
+        if (pipelineStore.get(id) == null) {
+            throw new RestApiException(404, "pipeline [" + id + "] is missing");
+        }
+        mutate("delete-pipeline [" + id + "]", md -> md.toBuilder().mutateMapCustom(PIPELINES_CUSTOM, mc -> mc.without(id)).build());
+        pipelineStore.delete(id);
+    }
+
+    private void mutate(String source, java.util.function.UnaryOperator<Metadata> op) {
+        if (clusterStateManager == null) {
+            return;
+        }
+        try {
+            clusterStateManager.submit(source, cs -> cs.builder().metadata(op.apply(cs.getMetadata())).build())
+                .get(30, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RestApiException(500, cause.getMessage(), cause);
+        } catch (TimeoutException e) {
+            throw new RestApiException(503, "timed out waiting for cluster state update [" + source + "]");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RestApiException(500, "interrupted");
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RestApiException(500, cause.getMessage(), cause);
+        }
     }
 
     public IngestDocument executePipelines(List<String> pipelineIds, IngestDocument document) throws Exception {

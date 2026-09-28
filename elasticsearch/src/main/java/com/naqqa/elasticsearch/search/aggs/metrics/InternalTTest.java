@@ -23,6 +23,10 @@ public final class InternalTTest extends InternalAggregation implements SingleVa
         return test.pValue();
     }
 
+    public TTest testValue() {
+        return test;
+    }
+
     @Override
     public String getType() {
         return "t_test";

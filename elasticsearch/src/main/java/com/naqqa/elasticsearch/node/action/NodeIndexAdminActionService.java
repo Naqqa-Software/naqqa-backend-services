@@ -3,8 +3,12 @@ package com.naqqa.elasticsearch.node.action;
 import com.naqqa.elasticsearch.cluster.routing.IndexRoutingTable;
 import com.naqqa.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import com.naqqa.elasticsearch.cluster.routing.ShardRouting;
+import com.naqqa.elasticsearch.cluster.service.ClusterChangedEvent;
+import com.naqqa.elasticsearch.cluster.service.ClusterStateListener;
 import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.cluster.state.IndexMetadata;
+import com.naqqa.elasticsearch.cluster.state.MapCustom;
+import com.naqqa.elasticsearch.cluster.state.Metadata;
 import com.naqqa.elasticsearch.common.regex.Regex;
 import com.naqqa.elasticsearch.common.unit.ByteSizeValue;
 import com.naqqa.elasticsearch.common.unit.TimeValue;
@@ -61,9 +65,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-public final class NodeIndexAdminActionService implements IndexAdminActionService {
+public final class NodeIndexAdminActionService implements IndexAdminActionService, ClusterStateListener {
 
     private static final Pattern ROLLOVER_SUFFIX = Pattern.compile("^(.*?)-(\\d+)$");
+    public static final String INDEX_TEMPLATES_CUSTOM = "index_templates";
+    public static final String COMPONENT_TEMPLATES_CUSTOM = "component_templates";
+    public static final String LEGACY_TEMPLATES_CUSTOM = "legacy_templates";
+    public static final String DATA_STREAMS_CUSTOM = "data_streams";
 
     private final MetadataIndexService metadataService;
     private final IndicesService indicesService;
@@ -99,27 +107,251 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
     }
 
     public Map<String, Object> aliasFilter(List<String> expressions) {
-        if (expressions == null || expressions.size() != 1) {
+        if (expressions == null || expressions.isEmpty()) {
             return null;
         }
-        String expr = expressions.get(0);
-        if (expr.contains(",") || Regex.isSimpleMatchPattern(expr) || state().getMetadata().index(expr) != null) {
+        List<String> parts = new ArrayList<>();
+        for (String raw : expressions) {
+            for (String p : raw.split(",")) {
+                if (!p.isBlank()) {
+                    parts.add(p.trim());
+                }
+            }
+        }
+        ClusterState state = state();
+        Map<String, List<Map<String, Object>>> filtered = new LinkedHashMap<>();
+        Set<String> unfiltered = new LinkedHashSet<>();
+        for (String expr : parts) {
+            if (expr.startsWith("-")) {
+                continue;
+            }
+            boolean concreteAlias = !Regex.isSimpleMatchPattern(expr) && state.getMetadata().index(expr) == null
+                && !metadataService.aliasService().resolveIndices(expr).isEmpty();
+            if (concreteAlias) {
+                for (String index : metadataService.aliasService().resolveIndices(expr)) {
+                    AliasMetadata alias = metadataService.aliasService().getAliases(index).get(expr);
+                    if (alias != null && alias.hasFilter()) {
+                        List<Map<String, Object>> list = filtered.computeIfAbsent(index, k -> new ArrayList<>());
+                        if (!list.contains(alias.getFilter())) {
+                            list.add(alias.getFilter());
+                        }
+                    } else {
+                        unfiltered.add(index);
+                    }
+                }
+            } else {
+                try {
+                    unfiltered.addAll(indexResolver.resolve(state, List.of(expr), false, true));
+                } catch (RuntimeException ignored) {
+                }
+            }
+        }
+        filtered.keySet().removeAll(unfiltered);
+        if (filtered.isEmpty()) {
             return null;
         }
-        Set<String> indices = metadataService.aliasService().resolveIndices(expr);
-        Map<String, Object> filter = null;
-        for (String index : indices) {
-            AliasMetadata alias = metadataService.aliasService().getAliases(index).get(expr);
-            if (alias == null || !alias.hasFilter()) {
-                return null;
+        if (unfiltered.isEmpty()) {
+            Map<String, Object> single = null;
+            boolean uniform = true;
+            for (List<Map<String, Object>> filters : filtered.values()) {
+                if (filters.size() != 1 || (single != null && !single.equals(filters.get(0)))) {
+                    uniform = false;
+                    break;
+                }
+                single = filters.get(0);
             }
-            if (filter == null) {
-                filter = alias.getFilter();
-            } else if (!filter.equals(alias.getFilter())) {
-                return null;
+            if (uniform) {
+                return single;
             }
         }
-        return filter;
+        List<Object> should = new ArrayList<>();
+        for (Map.Entry<String, List<Map<String, Object>>> e : filtered.entrySet()) {
+            Map<String, Object> anyFilter = new LinkedHashMap<>();
+            anyFilter.put("should", new ArrayList<>(e.getValue()));
+            anyFilter.put("minimum_should_match", 1);
+            should.add(Map.of("bool", Map.of("filter", List.of(Map.of("term", Map.of("_index", e.getKey())),
+                Map.of("bool", anyFilter)))));
+        }
+        if (!unfiltered.isEmpty()) {
+            should.add(Map.of("terms", Map.of("_index", new ArrayList<>(unfiltered))));
+        }
+        Map<String, Object> bool = new LinkedHashMap<>();
+        bool.put("should", should);
+        bool.put("minimum_should_match", 1);
+        return Map.of("bool", bool);
+    }
+
+    private void persistMapCustom(String source, String customName, java.util.function.UnaryOperator<MapCustom> op) {
+        metadataService.await(source, cs -> cs.builder()
+            .metadata(cs.getMetadata().toBuilder().mutateMapCustom(customName, op).build())
+            .build());
+    }
+
+    private void applyComponentTemplateLocally(String name, Map<String, Object> template) {
+        Long version = template.get("version") == null ? null : Long.parseLong(String.valueOf(template.get("version")));
+        ComponentTemplate parsed = new ComponentTemplate(name, parseTemplateBody(SettingsMaps.asMap(template.get("template"))),
+            version, SettingsMaps.asMap(template.get("_meta")));
+        templateService.putComponentTemplate(parsed, false);
+        componentTemplateSources.put(name, new LinkedHashMap<>(template));
+    }
+
+    private void applyIndexTemplateLocally(String name, Map<String, Object> template) {
+        List<String> patterns = SettingsMaps.asStringList(template.get("index_patterns"));
+        if (patterns.isEmpty()) {
+            throw new RestApiException(400, "index template [" + name + "] must define [index_patterns]");
+        }
+        List<String> composedOf = SettingsMaps.asStringList(template.get("composed_of"));
+        for (String component : composedOf) {
+            if (templateService.getComponentTemplate(component) == null) {
+                throw new RestApiException(400, "index template [" + name + "] specifies component templates ["
+                    + component + "] that do not exist");
+            }
+        }
+        long priority = template.get("priority") == null ? 0L : Long.parseLong(String.valueOf(template.get("priority")));
+        Map<String, Object> ds = SettingsMaps.asMap(template.get("data_stream"));
+        String timestampField = null;
+        if (ds != null && ds.get("timestamp_field") instanceof Map<?, ?> tf && tf.get("name") != null) {
+            timestampField = String.valueOf(tf.get("name"));
+        }
+        IndexTemplateV2 parsed = new IndexTemplateV2(name, patterns, composedOf, priority,
+            parseTemplateBody(SettingsMaps.asMap(template.get("template"))), ds != null, timestampField,
+            SettingsMaps.asMap(template.get("_meta")));
+        try {
+            templateService.putIndexTemplate(parsed, false);
+        } catch (RuntimeException e) {
+            throw new RestApiException(400, e.getMessage(), e);
+        }
+        indexTemplateSources.put(name, new LinkedHashMap<>(template));
+    }
+
+    private void applyLegacyTemplateLocally(String name, Map<String, Object> template) {
+        List<String> patterns = SettingsMaps.asStringList(template.get("index_patterns") != null
+            ? template.get("index_patterns") : template.get("template"));
+        int order = template.get("order") == null ? 0 : Integer.parseInt(String.valueOf(template.get("order")));
+        Map<String, Object> section = new LinkedHashMap<>();
+        section.put("settings", template.get("settings"));
+        section.put("mappings", template.get("mappings"));
+        section.put("aliases", template.get("aliases"));
+        templateService.putLegacyTemplate(new LegacyTemplate(name, patterns, order, parseTemplateBody(section)));
+        legacyTemplateSources.put(name, new LinkedHashMap<>(template));
+    }
+
+    private void persistDataStream(DataStream ds) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("generation", ds.getGeneration());
+        body.put("backing_indices", new ArrayList<>(ds.getBackingIndices()));
+        body.put("timestamp_field", ds.getTimestampField());
+        persistMapCustom("persist-data-stream [" + ds.getName() + "]", DATA_STREAMS_CUSTOM, mc -> mc.with(ds.getName(), body));
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().getMetadata() == event.previousState().getMetadata()) {
+            return;
+        }
+        syncFromClusterState(event.state().getMetadata());
+    }
+
+    public void syncFromClusterState(Metadata metadata) {
+        syncComponentTemplates(metadata);
+        syncIndexTemplates(metadata);
+        syncLegacyTemplates(metadata);
+        syncDataStreams(metadata);
+    }
+
+    private void syncComponentTemplates(Metadata metadata) {
+        MapCustom custom = metadata.mapCustom(COMPONENT_TEMPLATES_CUSTOM);
+        for (String name : new ArrayList<>(componentTemplateSources.keySet())) {
+            if (!custom.contains(name)) {
+                componentTemplateSources.remove(name);
+                try {
+                    templateService.deleteComponentTemplate(name);
+                } catch (RuntimeException ignored) {
+                }
+            }
+        }
+        for (String name : custom.ids()) {
+            Map<String, Object> body = custom.get(name);
+            if (body.equals(componentTemplateSources.get(name))) {
+                continue;
+            }
+            try {
+                applyComponentTemplateLocally(name, body);
+            } catch (RuntimeException e) {
+                System.err.println("[indices] failed to apply component template [" + name + "] from cluster state: " + e);
+            }
+        }
+    }
+
+    private void syncIndexTemplates(Metadata metadata) {
+        MapCustom custom = metadata.mapCustom(INDEX_TEMPLATES_CUSTOM);
+        for (String name : new ArrayList<>(indexTemplateSources.keySet())) {
+            if (!custom.contains(name)) {
+                indexTemplateSources.remove(name);
+                try {
+                    templateService.deleteIndexTemplate(name);
+                } catch (RuntimeException ignored) {
+                }
+            }
+        }
+        for (String name : custom.ids()) {
+            Map<String, Object> body = custom.get(name);
+            if (body.equals(indexTemplateSources.get(name))) {
+                continue;
+            }
+            try {
+                applyIndexTemplateLocally(name, body);
+            } catch (RuntimeException e) {
+                System.err.println("[indices] failed to apply index template [" + name + "] from cluster state: " + e);
+            }
+        }
+    }
+
+    private void syncLegacyTemplates(Metadata metadata) {
+        MapCustom custom = metadata.mapCustom(LEGACY_TEMPLATES_CUSTOM);
+        for (String name : new ArrayList<>(legacyTemplateSources.keySet())) {
+            if (!custom.contains(name)) {
+                legacyTemplateSources.remove(name);
+                try {
+                    templateService.deleteLegacyTemplate(name);
+                } catch (RuntimeException ignored) {
+                }
+            }
+        }
+        for (String name : custom.ids()) {
+            Map<String, Object> body = custom.get(name);
+            if (body.equals(legacyTemplateSources.get(name))) {
+                continue;
+            }
+            try {
+                applyLegacyTemplateLocally(name, body);
+            } catch (RuntimeException e) {
+                System.err.println("[indices] failed to apply legacy template [" + name + "] from cluster state: " + e);
+            }
+        }
+    }
+
+    private void syncDataStreams(Metadata metadata) {
+        MapCustom custom = metadata.mapCustom(DATA_STREAMS_CUSTOM);
+        for (String name : new ArrayList<>(dataStreamNames)) {
+            if (!custom.contains(name)) {
+                dataStreamNames.remove(name);
+                dataStreamService.removeIfPresent(name);
+            }
+        }
+        for (String name : custom.ids()) {
+            Map<String, Object> body = custom.get(name);
+            long generation = body.get("generation") == null ? 1L : ((Number) body.get("generation")).longValue();
+            DataStream existing = dataStreamService.get(name);
+            if (existing != null && existing.getGeneration() == generation) {
+                dataStreamNames.add(name);
+                continue;
+            }
+            List<String> backing = SettingsMaps.asStringList(body.get("backing_indices"));
+            String timestampField = body.get("timestamp_field") == null ? null : String.valueOf(body.get("timestamp_field"));
+            dataStreamService.restore(name, new DataStream(name, backing, generation, timestampField));
+            dataStreamNames.add(name);
+        }
     }
 
     public IndexResolver indexResolver() {
@@ -632,6 +864,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
                     }
                 }
             }
+            indicesService.refreshEverywhere(resolved);
             return Map.of("_shards", shardsHeader(totalCopies(resolved), ok));
         });
     }
@@ -1009,10 +1242,18 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
         } else {
             oldIndex = metadataService.aliasService().resolveWriteIndex(target);
             if (oldIndex == null) {
-                if (metadataService.aliasService().resolveIndices(target).isEmpty()) {
+                Set<String> candidates = metadataService.aliasService().resolveIndices(target);
+                if (candidates.isEmpty()) {
+                    candidates = state().getMetadata().resolveIndicesForAlias(target);
+                }
+                if (candidates.isEmpty()) {
                     throw new IndexNotFoundException(target);
                 }
-                throw new RestApiException(400, "rollover target [" + target + "] does not point to a write index");
+                if (candidates.size() == 1) {
+                    oldIndex = candidates.iterator().next();
+                } else {
+                    throw new RestApiException(400, "rollover target [" + target + "] does not point to a write index");
+                }
             }
         }
         RolloverResult result = conditions.isEmpty() ? new RolloverResult(true, List.of())
@@ -1037,7 +1278,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
             if (isDataStream) {
                 IndexMetadata oldMeta = state().getMetadata().index(oldIndex);
                 createIndexInternal(resolvedNew, Map.of(), Map.of(), Map.of(), null, true);
-                dataStreamService.rollover(target);
+                persistDataStream(dataStreamService.rollover(target));
             } else {
                 if (state().getMetadata().index(resolvedNew) != null) {
                     throw new ResourceAlreadyExistsException("index [" + resolvedNew + "] already exists");
@@ -1225,32 +1466,8 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
     @Override
     public CompletableFuture<AckResult> putIndexTemplate(String name, Map<String, Object> template) {
         return async(() -> {
-            List<String> patterns = SettingsMaps.asStringList(template.get("index_patterns"));
-            if (patterns.isEmpty()) {
-                throw new RestApiException(400, "index template [" + name + "] must define [index_patterns]");
-            }
-            List<String> composedOf = SettingsMaps.asStringList(template.get("composed_of"));
-            for (String component : composedOf) {
-                if (templateService.getComponentTemplate(component) == null) {
-                    throw new RestApiException(400, "index template [" + name + "] specifies component templates ["
-                        + component + "] that do not exist");
-                }
-            }
-            long priority = template.get("priority") == null ? 0L : Long.parseLong(String.valueOf(template.get("priority")));
-            Map<String, Object> ds = SettingsMaps.asMap(template.get("data_stream"));
-            String timestampField = null;
-            if (ds != null && ds.get("timestamp_field") instanceof Map<?, ?> tf && tf.get("name") != null) {
-                timestampField = String.valueOf(tf.get("name"));
-            }
-            IndexTemplateV2 parsed = new IndexTemplateV2(name, patterns, composedOf, priority,
-                parseTemplateBody(SettingsMaps.asMap(template.get("template"))), ds != null, timestampField,
-                SettingsMaps.asMap(template.get("_meta")));
-            try {
-                templateService.putIndexTemplate(parsed, false);
-            } catch (RuntimeException e) {
-                throw new RestApiException(400, e.getMessage(), e);
-            }
-            indexTemplateSources.put(name, new LinkedHashMap<>(template));
+            applyIndexTemplateLocally(name, template);
+            persistMapCustom("put-index-template [" + name + "]", INDEX_TEMPLATES_CUSTOM, mc -> mc.with(name, template));
             return new AckResult(true);
         });
     }
@@ -1283,6 +1500,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
                 throw new RestApiException(404, "index_template [" + name + "] missing");
             }
             templateService.deleteIndexTemplate(name);
+            persistMapCustom("delete-index-template [" + name + "]", INDEX_TEMPLATES_CUSTOM, mc -> mc.without(name));
             return new AckResult(true);
         });
     }
@@ -1290,11 +1508,8 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
     @Override
     public CompletableFuture<AckResult> putComponentTemplate(String name, Map<String, Object> template) {
         return async(() -> {
-            Long version = template.get("version") == null ? null : Long.parseLong(String.valueOf(template.get("version")));
-            ComponentTemplate parsed = new ComponentTemplate(name, parseTemplateBody(SettingsMaps.asMap(template.get("template"))),
-                version, SettingsMaps.asMap(template.get("_meta")));
-            templateService.putComponentTemplate(parsed, false);
-            componentTemplateSources.put(name, new LinkedHashMap<>(template));
+            applyComponentTemplateLocally(name, template);
+            persistMapCustom("put-component-template [" + name + "]", COMPONENT_TEMPLATES_CUSTOM, mc -> mc.with(name, template));
             return new AckResult(true);
         });
     }
@@ -1317,6 +1532,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
                 throw new RestApiException(400, e.getMessage(), e);
             }
             componentTemplateSources.remove(name);
+            persistMapCustom("delete-component-template [" + name + "]", COMPONENT_TEMPLATES_CUSTOM, mc -> mc.without(name));
             return new AckResult(true);
         });
     }
@@ -1324,15 +1540,8 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
     @Override
     public CompletableFuture<AckResult> putLegacyTemplate(String name, Map<String, Object> template) {
         return async(() -> {
-            List<String> patterns = SettingsMaps.asStringList(template.get("index_patterns") != null
-                ? template.get("index_patterns") : template.get("template"));
-            int order = template.get("order") == null ? 0 : Integer.parseInt(String.valueOf(template.get("order")));
-            Map<String, Object> section = new LinkedHashMap<>();
-            section.put("settings", template.get("settings"));
-            section.put("mappings", template.get("mappings"));
-            section.put("aliases", template.get("aliases"));
-            templateService.putLegacyTemplate(new LegacyTemplate(name, patterns, order, parseTemplateBody(section)));
-            legacyTemplateSources.put(name, new LinkedHashMap<>(template));
+            applyLegacyTemplateLocally(name, template);
+            persistMapCustom("put-legacy-template [" + name + "]", LEGACY_TEMPLATES_CUSTOM, mc -> mc.with(name, template));
             return new AckResult(true);
         });
     }
@@ -1360,6 +1569,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
                 throw new RestApiException(404, "index_template [" + name + "] missing");
             }
             templateService.deleteLegacyTemplate(name);
+            persistMapCustom("delete-legacy-template [" + name + "]", LEGACY_TEMPLATES_CUSTOM, mc -> mc.without(name));
             return new AckResult(true);
         });
     }
@@ -1411,6 +1621,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
             dataStreamService.delete(name);
             throw e;
         }
+        persistDataStream(ds);
     }
 
     @Override
@@ -1437,6 +1648,7 @@ public final class NodeIndexAdminActionService implements IndexAdminActionServic
                 List<String> backing = new ArrayList<>(dataStreamBackingIndices(ds));
                 dataStreamNames.remove(ds);
                 dataStreamService.delete(ds);
+                persistMapCustom("delete-data-stream [" + ds + "]", DATA_STREAMS_CUSTOM, mc -> mc.without(ds));
                 List<String> existing = new ArrayList<>();
                 for (String b : backing) {
                     if (state().getMetadata().index(b) != null) {

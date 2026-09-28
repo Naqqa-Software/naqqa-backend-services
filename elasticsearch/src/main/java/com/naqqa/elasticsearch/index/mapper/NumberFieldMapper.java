@@ -77,6 +77,10 @@ public final class NumberFieldMapper extends FieldMapper {
         return numberType;
     }
 
+    public double scalingFactor() {
+        return scalingFactor;
+    }
+
     @Override
     protected boolean ignoreMalformed() {
         return ignoreMalformed;

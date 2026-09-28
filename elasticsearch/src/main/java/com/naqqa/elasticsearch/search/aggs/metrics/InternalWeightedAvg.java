@@ -24,6 +24,14 @@ public final class InternalWeightedAvg extends InternalAggregation implements Si
         return weightSum == 0 ? Double.NaN : weightedValueSum / weightSum;
     }
 
+    public double weightedValueSumValue() {
+        return weightedValueSum;
+    }
+
+    public double weightSumValue() {
+        return weightSum;
+    }
+
     @Override
     public String getType() {
         return "weighted_avg";

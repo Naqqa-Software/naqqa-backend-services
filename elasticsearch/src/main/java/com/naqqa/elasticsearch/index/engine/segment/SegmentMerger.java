@@ -12,6 +12,13 @@ import com.naqqa.elasticsearch.codec.fieldinfos.FieldInfosFormat;
 import com.naqqa.elasticsearch.codec.livedocs.FixedBitSet;
 import com.naqqa.elasticsearch.codec.livedocs.LiveDocsFormat;
 import com.naqqa.elasticsearch.codec.norms.NormsWriter;
+import com.naqqa.elasticsearch.codec.points.BKDReader;
+import com.naqqa.elasticsearch.codec.points.BKDWriter;
+import com.naqqa.elasticsearch.codec.points.IntersectVisitor;
+import com.naqqa.elasticsearch.codec.points.Relation;
+import com.naqqa.elasticsearch.codec.termvectors.TermVectorTerm;
+import com.naqqa.elasticsearch.codec.termvectors.TermVectorsReader;
+import com.naqqa.elasticsearch.codec.termvectors.TermVectorsWriter;
 import com.naqqa.elasticsearch.codec.postings.PostingsEnum;
 import com.naqqa.elasticsearch.codec.postings.PostingsFlags;
 import com.naqqa.elasticsearch.codec.postings.PostingsWriter;
@@ -21,6 +28,11 @@ import com.naqqa.elasticsearch.codec.segment.SegmentInfoFormat;
 import com.naqqa.elasticsearch.codec.storedfields.StoredFieldsWriter;
 import com.naqqa.elasticsearch.codec.terms.BlockTermDictWriter;
 import com.naqqa.elasticsearch.codec.terms.TermsEnum;
+import com.naqqa.elasticsearch.search.vectors.VectorSimilarity;
+import com.naqqa.elasticsearch.search.vectors.hnsw.HnswConfig;
+import com.naqqa.elasticsearch.search.vectors.segment.QuantizationMode;
+import com.naqqa.elasticsearch.search.vectors.segment.VectorSegmentMerger;
+import com.naqqa.elasticsearch.search.vectors.segment.VectorSegmentReader;
 import com.naqqa.elasticsearch.store.Directory;
 import com.naqqa.elasticsearch.store.IOContext;
 import com.naqqa.elasticsearch.store.IndexOutput;
@@ -49,7 +61,7 @@ public final class SegmentMerger {
             int maxDoc = r.maxDoc();
             int[] rm = new int[maxDoc];
             for (int d = 0; d < maxDoc; d++) {
-                if (r.isLive(d)) {
+                if (r.isLiveIncludingNested(d)) {
                     rm[d] = mergedMaxDoc++;
                 } else {
                     rm[d] = -1;
@@ -87,12 +99,33 @@ public final class SegmentMerger {
         for (String name : fieldNames) {
             boolean indexed = false;
             boolean hasNorms = false;
+            boolean hasTermVectors = false;
+            int pointDims = 0;
+            int pointBytes = 0;
+            java.util.Map<String, String> attributes = new java.util.LinkedHashMap<>();
             DocValuesType dvType = DocValuesType.NONE;
             int flags = PostingsFlags.OFFSETS;
             for (SegmentReader r : inputs) {
                 FieldInfo fi = r.fieldInfo(name);
                 if (fi == null) {
                     continue;
+                }
+                if (fi.attributes() != null) {
+                    for (java.util.Map.Entry<String, String> a : fi.attributes().entrySet()) {
+                        if (SegmentWriter.TERM_VECTOR_FLAGS_ATTR.equals(a.getKey()) && attributes.containsKey(a.getKey())) {
+                            int merged = Integer.parseInt(attributes.get(a.getKey())) | Integer.parseInt(a.getValue());
+                            attributes.put(a.getKey(), Integer.toString(merged));
+                        } else {
+                            attributes.putIfAbsent(a.getKey(), a.getValue());
+                        }
+                    }
+                }
+                if (fi.hasVectors() && r.termVectorsReader(name) != null) {
+                    hasTermVectors = true;
+                }
+                if (fi.pointDimensionCount() > 0 && r.pointValues(name) != null && pointDims == 0) {
+                    pointDims = fi.pointDimensionCount();
+                    pointBytes = fi.pointNumBytes();
                 }
                 if (fi.indexed()) {
                     indexed = true;
@@ -105,7 +138,8 @@ public final class SegmentMerger {
                     dvType = fi.docValuesType();
                 }
             }
-            outInfos.add(new FieldInfo(name, fieldNumber++, indexed, flags, hasNorms, false, false, dvType, 0, 0, java.util.Map.of()));
+            outInfos.add(new FieldInfo(name, fieldNumber++, indexed, flags, hasNorms, hasTermVectors, false, dvType,
+                pointDims, pointBytes, attributes));
         }
         try (IndexOutput fiOut = dir.createOutput(Codec.fieldInfosFileName(segmentName), IOContext.DEFAULT)) {
             FieldInfosFormat.write(fiOut, outInfos.toArray(new FieldInfo[0]));
@@ -129,6 +163,18 @@ public final class SegmentMerger {
                 case SORTED_SET -> mergeSortedSetDV(dir, segmentName, outFi.name(), inputs, remap, mergedMaxDoc, files);
                 default -> {
                 }
+            }
+        }
+
+        for (FieldInfo outFi : outInfos) {
+            if (outFi.pointDimensionCount() > 0) {
+                mergePoints(dir, segmentName, outFi, inputs, remap, files);
+            }
+            if (outFi.hasVectors()) {
+                mergeTermVectors(dir, segmentName, outFi, inputs, remap, mergedMaxDoc, files);
+            }
+            if (outFi.attributes() != null && outFi.attributes().containsKey(SegmentWriter.VECTOR_ELEMENT_TYPE_ATTR)) {
+                mergeVectors(dir, segmentName, outFi, inputs, remap, mergedMaxDoc, files);
             }
         }
 
@@ -324,6 +370,115 @@ public final class SegmentMerger {
             SortedSetDocValuesWriter.write(out, mergedMaxDoc, values);
         }
         files.add(dvFile);
+    }
+
+    private static void mergePoints(Directory dir, String segmentName, FieldInfo outFi, List<SegmentReader> inputs, int[][] remap,
+                                     Set<String> files) throws IOException {
+        int numDims = outFi.pointDimensionCount();
+        int bytesPerDim = outFi.pointNumBytes();
+        BKDWriter writer = new BKDWriter(numDims, bytesPerDim, BKDWriter.DEFAULT_MAX_POINTS_IN_LEAF);
+        int[] count = {0};
+        for (int i = 0; i < inputs.size(); i++) {
+            BKDReader reader = inputs.get(i).pointValues(outFi.name());
+            if (reader == null || reader.numDims() != numDims || reader.bytesPerDim() != bytesPerDim) {
+                continue;
+            }
+            int[] rm = remap[i];
+            reader.intersect(new IntersectVisitor() {
+                @Override
+                public Relation compare(byte[][] cellMin, byte[][] cellMax) {
+                    return Relation.CELL_CROSSES_QUERY;
+                }
+
+                @Override
+                public void visit(int docId) {
+                }
+
+                @Override
+                public void visit(int docId, byte[] packedValue) {
+                    int newDoc = docId < rm.length ? rm[docId] : -1;
+                    if (newDoc >= 0) {
+                        writer.add(packedValue, newDoc);
+                        count[0]++;
+                    }
+                }
+            });
+        }
+        if (count[0] == 0) {
+            return;
+        }
+        String pointsFile = Codec.pointsFileName(segmentName, outFi.name());
+        try (IndexOutput out = dir.createOutput(pointsFile, IOContext.MERGE)) {
+            writer.finish(out);
+        }
+        files.add(pointsFile);
+    }
+
+    private static void mergeTermVectors(Directory dir, String segmentName, FieldInfo outFi, List<SegmentReader> inputs,
+                                          int[][] remap, int mergedMaxDoc, Set<String> files) throws IOException {
+        TermVectorTerm[][] docs = new TermVectorTerm[mergedMaxDoc][];
+        for (int i = 0; i < inputs.size(); i++) {
+            TermVectorsReader reader = inputs.get(i).termVectorsReader(outFi.name());
+            if (reader == null) {
+                continue;
+            }
+            int[] rm = remap[i];
+            int n = Math.min(rm.length, reader.docCount());
+            for (int d = 0; d < n; d++) {
+                if (rm[d] >= 0) {
+                    docs[rm[d]] = reader.get(d);
+                }
+            }
+        }
+        String flagsAttr = outFi.attributes() == null ? null : outFi.attributes().get(SegmentWriter.TERM_VECTOR_FLAGS_ATTR);
+        int flags = flagsAttr == null ? 0 : Integer.parseInt(flagsAttr);
+        for (TermVectorTerm[] terms : docs) {
+            if (terms == null) {
+                continue;
+            }
+            for (TermVectorTerm t : terms) {
+                if (t.positions() == null) {
+                    flags &= ~TermVectorsWriter.HAS_POSITIONS;
+                }
+                if (t.startOffsets() == null) {
+                    flags &= ~TermVectorsWriter.HAS_OFFSETS;
+                }
+            }
+        }
+        String tvFile = SegmentWriter.termVectorsFileName(segmentName, outFi.name());
+        try (IndexOutput out = dir.createOutput(tvFile, IOContext.MERGE)) {
+            TermVectorsWriter.write(out, flags, docs);
+        }
+        files.add(tvFile);
+    }
+
+    private static void mergeVectors(Directory dir, String segmentName, FieldInfo outFi, List<SegmentReader> inputs, int[][] remap,
+                                      int mergedMaxDoc, Set<String> files) throws IOException {
+        List<VectorSegmentReader> sources = new ArrayList<>();
+        List<int[]> remaps = new ArrayList<>();
+        String elementType = outFi.attributes().get(SegmentWriter.VECTOR_ELEMENT_TYPE_ATTR);
+        for (int i = 0; i < inputs.size(); i++) {
+            SegmentReader r = inputs.get(i);
+            FieldInfo fi = r.fieldInfo(outFi.name());
+            if (fi == null || fi.attributes() == null
+                || !elementType.equals(fi.attributes().get(SegmentWriter.VECTOR_ELEMENT_TYPE_ATTR))) {
+                continue;
+            }
+            VectorSegmentReader vr = r.vectorReader(outFi.name());
+            if (vr != null) {
+                sources.add(vr);
+                remaps.add(remap[i]);
+            }
+        }
+        if (sources.isEmpty()) {
+            return;
+        }
+        String simAttr = outFi.attributes().get(SegmentWriter.VECTOR_SIMILARITY_ATTR);
+        VectorSimilarity similarity = simAttr == null ? sources.get(0).similarity() : VectorSimilarity.fromString(simAttr);
+        String vectorsFile = Codec.vectorsFileName(segmentName, outFi.name());
+        VectorSegmentMerger.merge(dir, vectorsFile, sources, remaps, mergedMaxDoc, similarity, HnswConfig.defaults(),
+            QuantizationMode.NONE);
+        files.add(vectorsFile);
     }
 
     private static int compare(byte[] a, byte[] b) {

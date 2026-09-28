@@ -14,6 +14,13 @@ import java.util.Map;
 public final class DocumentRestHandlers {
 
     private final DocumentActionService service;
+    private java.util.function.Function<List<String>, java.util.concurrent.CompletableFuture<Map<String, Object>>> refresher;
+
+    public DocumentRestHandlers(DocumentActionService service,
+                                java.util.function.Function<List<String>, java.util.concurrent.CompletableFuture<Map<String, Object>>> refresher) {
+        this(service);
+        this.refresher = refresher;
+    }
 
     public DocumentRestHandlers(DocumentActionService service) {
         this.service = service;
@@ -287,7 +294,9 @@ public final class DocumentRestHandlers {
 
     private static final List<String> BY_QUERY_PARAMS = List.of("refresh", "conflicts", "max_docs", "scroll_size",
         "requests_per_second", "wait_for_completion", "timeout", "routing", "slices", "preference", "scroll",
-        "wait_for_active_shards", "pipeline", "q", "df", "default_operator");
+        "wait_for_active_shards", "pipeline", "q", "df", "default_operator", "analyzer", "lenient", "require_alias",
+        "op_type", "retry_on_conflict", "search_timeout", "version_type", "expand_wildcards", "ignore_unavailable",
+        "allow_no_indices", "analyze_wildcard", "_source", "_source_includes", "_source_excludes");
 
     private static Map<String, String> byQueryParams(RestRequest request) {
         Map<String, String> params = new java.util.LinkedHashMap<>();
@@ -324,7 +333,28 @@ public final class DocumentRestHandlers {
     public void reindex(RestRequest request, RestChannel channel) {
         RestUtils.requireContent(request);
         Map<String, Object> body = RestUtils.parseBody(request);
-        Map<String, Object> result = RestUtils.await(service.reindex(body));
+        Map<String, String> params = byQueryParams(request);
+        Map<String, Object> effective = new LinkedHashMap<>(body);
+        if (params.get("max_docs") != null && effective.get("max_docs") == null) {
+            effective.put("max_docs", Long.parseLong(params.get("max_docs").trim()));
+        }
+        if (params.get("conflicts") != null && effective.get("conflicts") == null) {
+            effective.put("conflicts", params.get("conflicts"));
+        }
+        if (params.get("scroll_size") != null && effective.get("source") instanceof Map<?, ?> src && src.get("size") == null) {
+            Map<String, Object> source = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : src.entrySet()) {
+                source.put(String.valueOf(e.getKey()), e.getValue());
+            }
+            source.put("size", Integer.parseInt(params.get("scroll_size").trim()));
+            effective.put("source", source);
+        }
+        Map<String, Object> result = RestUtils.await(service.reindex(effective, params));
+        String refresh = params.get("refresh");
+        if (refresher != null && refresh != null && !"false".equals(refresh) && effective.get("dest") instanceof Map<?, ?> dest
+            && dest.get("index") != null) {
+            RestUtils.await(refresher.apply(List.of(String.valueOf(dest.get("index")))));
+        }
         RestUtils.sendJson(channel, request, 200, result);
     }
 

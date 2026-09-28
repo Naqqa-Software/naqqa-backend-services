@@ -8,13 +8,23 @@ import com.naqqa.elasticsearch.codec.fieldinfos.FieldInfo;
 import com.naqqa.elasticsearch.codec.livedocs.FixedBitSet;
 import com.naqqa.elasticsearch.codec.livedocs.LiveDocsFormat;
 import com.naqqa.elasticsearch.codec.norms.NormsReader;
+import com.naqqa.elasticsearch.codec.points.BKDReader;
+import com.naqqa.elasticsearch.codec.postings.PostingsEnum;
+import com.naqqa.elasticsearch.codec.postings.PostingsFlags;
+import com.naqqa.elasticsearch.codec.termvectors.TermVectorTerm;
+import com.naqqa.elasticsearch.codec.termvectors.TermVectorsReader;
 import com.naqqa.elasticsearch.codec.segment.SegmentCommitInfo;
 import com.naqqa.elasticsearch.codec.segment.SegmentInfo;
 import com.naqqa.elasticsearch.codec.segment.SegmentInfoFormat;
 import com.naqqa.elasticsearch.codec.storedfields.StoredFieldsReader;
 import com.naqqa.elasticsearch.codec.terms.BlockTermDictReader;
 import com.naqqa.elasticsearch.codec.terms.TermsEnum;
+import com.naqqa.elasticsearch.codec.DocIdSetIterator;
 import com.naqqa.elasticsearch.codec.fieldinfos.FieldInfosFormat;
+import com.naqqa.elasticsearch.search.suggest.completion.CompletionSegmentIndex;
+import com.naqqa.elasticsearch.search.vectors.Bits;
+import com.naqqa.elasticsearch.search.vectors.VectorSimilarity;
+import com.naqqa.elasticsearch.search.vectors.segment.VectorSegmentReader;
 import com.naqqa.elasticsearch.store.Directory;
 import com.naqqa.elasticsearch.store.IOContext;
 import com.naqqa.elasticsearch.store.IndexInput;
@@ -27,6 +37,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class SegmentReader {
@@ -41,6 +53,12 @@ public final class SegmentReader {
     private final Map<String, BinaryDocValuesReader> binaryDV;
     private final Map<String, SortedSetDocValuesReader> sortedSetDV;
     private final Map<String, NormsReader> norms;
+    private final Map<String, BKDReader> points;
+    private final Map<String, TermVectorsReader> termVectors;
+    private final Map<String, VectorSegmentReader> vectorReaders = new ConcurrentHashMap<>();
+    private final Map<String, CompletionSegmentIndex> completionIndexes = new ConcurrentHashMap<>();
+    private final String[] nestedPathByDoc;
+    private final FixedBitSet rootDocs;
     private final List<IndexInput> openInputs;
 
     private final Object liveDocsLock = new Object();
@@ -48,6 +66,8 @@ public final class SegmentReader {
     private long delGeneration;
     private int delCount;
     private boolean dirty;
+    private volatile long liveDocsVersion;
+    private final Map<String, long[]> docCountCache = new ConcurrentHashMap<>();
 
     private final AtomicInteger refCount = new AtomicInteger(1);
     private volatile boolean closed;
@@ -57,6 +77,8 @@ public final class SegmentReader {
                            StoredFieldsReader storedFields, Map<String, BlockTermDictReader> termDicts,
                            Map<String, NumericDocValuesReader> numericDV, Map<String, BinaryDocValuesReader> binaryDV,
                            Map<String, SortedSetDocValuesReader> sortedSetDV, Map<String, NormsReader> norms,
+                           Map<String, BKDReader> points, Map<String, TermVectorsReader> termVectors,
+                           String[] nestedPathByDoc, FixedBitSet rootDocs,
                            List<IndexInput> openInputs, FixedBitSet liveDocs, long delGeneration, int delCount) {
         this.directory = directory;
         this.info = info;
@@ -68,6 +90,10 @@ public final class SegmentReader {
         this.binaryDV = binaryDV;
         this.sortedSetDV = sortedSetDV;
         this.norms = norms;
+        this.points = points;
+        this.termVectors = termVectors;
+        this.nestedPathByDoc = nestedPathByDoc;
+        this.rootDocs = rootDocs;
         this.openInputs = openInputs;
         this.liveDocs = liveDocs;
         this.delGeneration = delGeneration;
@@ -107,8 +133,26 @@ public final class SegmentReader {
         Map<String, BinaryDocValuesReader> binaryDV = new HashMap<>();
         Map<String, SortedSetDocValuesReader> sortedSetDV = new HashMap<>();
         Map<String, NormsReader> norms = new HashMap<>();
+        Map<String, BKDReader> points = new HashMap<>();
+        Map<String, TermVectorsReader> termVectors = new HashMap<>();
 
         for (FieldInfo fi : fieldInfos) {
+            if (fi.pointDimensionCount() > 0) {
+                String pointsFile = Codec.pointsFileName(name, fi.name());
+                if (dir.fileExists(pointsFile)) {
+                    IndexInput in = dir.openInput(pointsFile, IOContext.READ);
+                    openInputs.add(in);
+                    points.put(fi.name(), new BKDReader(in));
+                }
+            }
+            if (fi.hasVectors()) {
+                String tvFile = SegmentWriter.termVectorsFileName(name, fi.name());
+                if (dir.fileExists(tvFile)) {
+                    IndexInput in = dir.openInput(tvFile, IOContext.READ);
+                    openInputs.add(in);
+                    termVectors.put(fi.name(), new TermVectorsReader(in));
+                }
+            }
             if (fi.indexed()) {
                 IndexInput dictIn = dir.openInput(Codec.termsDictFileName(name, fi.name()), IOContext.READ);
                 IndexInput postingsIn = dir.openInput(Codec.postingsFileName(name, fi.name()), IOContext.READ);
@@ -156,8 +200,37 @@ public final class SegmentReader {
             liveDocs = FixedBitSet.allSet(info.maxDoc());
         }
 
+        String[] nestedPathByDoc = null;
+        FixedBitSet rootDocs = null;
+        BlockTermDictReader nestedDict = termDicts.get(SegmentWriter.NESTED_PATH_FIELD);
+        if (nestedDict != null) {
+            FieldInfo nfi = byName.get(SegmentWriter.NESTED_PATH_FIELD);
+            int flags = nfi != null ? nfi.indexOptions() : com.naqqa.elasticsearch.codec.postings.PostingsFlags.OFFSETS;
+            TermsEnum te = nestedDict.iterator();
+            byte[] term;
+            while ((term = te.next()) != null) {
+                String path = new String(term, java.nio.charset.StandardCharsets.UTF_8);
+                var pe = te.postings(flags);
+                int doc;
+                while ((doc = pe.nextDoc()) != com.naqqa.elasticsearch.codec.DocIdSetIterator.NO_MORE_DOCS) {
+                    if (nestedPathByDoc == null) {
+                        nestedPathByDoc = new String[info.maxDoc()];
+                    }
+                    nestedPathByDoc[doc] = path;
+                }
+            }
+            if (nestedPathByDoc != null) {
+                rootDocs = new FixedBitSet(info.maxDoc());
+                for (int d = 0; d < info.maxDoc(); d++) {
+                    if (nestedPathByDoc[d] == null) {
+                        rootDocs.set(d);
+                    }
+                }
+            }
+        }
+
         return new SegmentReader(dir, info, fieldInfos, byName, storedFields, termDicts, numericDV, binaryDV, sortedSetDV,
-            norms, openInputs, liveDocs, delGeneration, commitInfo.delCount());
+            norms, points, termVectors, nestedPathByDoc, rootDocs, openInputs, liveDocs, delGeneration, commitInfo.delCount());
     }
 
     public String name() {
@@ -182,11 +255,40 @@ public final class SegmentReader {
 
     public int numDocs() {
         synchronized (liveDocsLock) {
+            if (nestedPathByDoc == null) {
+                return liveDocs.cardinality();
+            }
+            int count = 0;
+            int maxDoc = info.maxDoc();
+            for (int d = 0; d < maxDoc; d++) {
+                if (nestedPathByDoc[d] == null && liveDocs.get(d)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+    }
+
+    public int numDocsIncludingNested() {
+        synchronized (liveDocsLock) {
             return liveDocs.cardinality();
         }
     }
 
+    public int deletedDocCount() {
+        return info.maxDoc() - numDocsIncludingNested();
+    }
+
     public boolean isLive(int docId) {
+        if (nestedPathByDoc != null && nestedPathByDoc[docId] != null) {
+            return false;
+        }
+        synchronized (liveDocsLock) {
+            return liveDocs.get(docId);
+        }
+    }
+
+    public boolean isLiveIncludingNested(int docId) {
         synchronized (liveDocsLock) {
             return liveDocs.get(docId);
         }
@@ -194,13 +296,180 @@ public final class SegmentReader {
 
     public boolean markDeleted(int docId) {
         synchronized (liveDocsLock) {
-            if (liveDocs.get(docId)) {
-                liveDocs.clear(docId);
-                delCount++;
-                dirty = true;
-                return true;
+            if (!liveDocs.get(docId)) {
+                return false;
             }
+            liveDocs.clear(docId);
+            delCount++;
+            dirty = true;
+            if (nestedPathByDoc != null && nestedPathByDoc[docId] == null) {
+                for (int d = docId - 1; d >= 0 && nestedPathByDoc[d] != null; d--) {
+                    if (liveDocs.get(d)) {
+                        liveDocs.clear(d);
+                        delCount++;
+                    }
+                }
+            }
+            liveDocsVersion++;
+            return true;
+        }
+    }
+
+    public boolean hasNestedDocs() {
+        return nestedPathByDoc != null;
+    }
+
+    public boolean isNestedDoc(int docId) {
+        return nestedPathByDoc != null && nestedPathByDoc[docId] != null;
+    }
+
+    public String nestedPath(int docId) {
+        return nestedPathByDoc == null ? null : nestedPathByDoc[docId];
+    }
+
+    public FixedBitSet rootDocs() {
+        FixedBitSet copy = new FixedBitSet(info.maxDoc());
+        for (int d = 0; d < info.maxDoc(); d++) {
+            if (nestedPathByDoc == null || nestedPathByDoc[d] == null) {
+                copy.set(d);
+            }
+        }
+        return copy;
+    }
+
+    public int rootDocOf(int docId) {
+        if (nestedPathByDoc == null) {
+            return docId;
+        }
+        int d = docId;
+        while (d < nestedPathByDoc.length && nestedPathByDoc[d] != null) {
+            d++;
+        }
+        return d < nestedPathByDoc.length ? d : -1;
+    }
+
+    public int firstNestedDocOf(int rootDocId) {
+        if (nestedPathByDoc == null) {
+            return rootDocId;
+        }
+        int d = rootDocId;
+        while (d > 0 && nestedPathByDoc[d - 1] != null) {
+            d--;
+        }
+        return d;
+    }
+
+    public BKDReader pointValues(String field) {
+        return points.get(field);
+    }
+
+    public Set<String> pointFields() {
+        return new TreeSet<>(points.keySet());
+    }
+
+    public TermVectorsReader termVectorsReader(String field) {
+        return termVectors.get(field);
+    }
+
+    public TermVectorTerm[] termVectors(String field, int docId) throws IOException {
+        TermVectorsReader r = termVectors.get(field);
+        if (r == null || docId < 0 || docId >= r.docCount()) {
+            return null;
+        }
+        return r.get(docId);
+    }
+
+    public Map<String, TermVectorTerm[]> termVectors(int docId) throws IOException {
+        Map<String, TermVectorTerm[]> out = new java.util.TreeMap<>();
+        for (Map.Entry<String, TermVectorsReader> e : termVectors.entrySet()) {
+            if (docId >= 0 && docId < e.getValue().docCount()) {
+                TermVectorTerm[] terms = e.getValue().get(docId);
+                if (terms.length > 0) {
+                    out.put(e.getKey(), terms);
+                }
+            }
+        }
+        return out;
+    }
+
+    public Set<String> termVectorFields() {
+        return new TreeSet<>(termVectors.keySet());
+    }
+
+    public int termVectorFlags(String field) {
+        FieldInfo fi = fieldInfoByName.get(field);
+        if (fi == null || fi.attributes() == null) {
+            return 0;
+        }
+        String v = fi.attributes().get(SegmentWriter.TERM_VECTOR_FLAGS_ATTR);
+        return v == null ? 0 : Integer.parseInt(v);
+    }
+
+    public boolean hasVectorField(String field) {
+        FieldInfo fi = fieldInfoByName.get(field);
+        if (fi == null || fi.attributes() == null || !fi.attributes().containsKey(SegmentWriter.VECTOR_ELEMENT_TYPE_ATTR)) {
             return false;
+        }
+        try {
+            return directory.fileExists(Codec.vectorsFileName(info.name(), field));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    public Set<String> vectorFields() {
+        Set<String> out = new TreeSet<>();
+        for (FieldInfo fi : fieldInfos) {
+            if (fi.attributes() != null && fi.attributes().containsKey(SegmentWriter.VECTOR_ELEMENT_TYPE_ATTR)) {
+                out.add(fi.name());
+            }
+        }
+        return out;
+    }
+
+    public VectorSimilarity vectorSimilarity(String field) {
+        FieldInfo fi = fieldInfoByName.get(field);
+        if (fi == null || fi.attributes() == null) {
+            return null;
+        }
+        String v = fi.attributes().get(SegmentWriter.VECTOR_SIMILARITY_ATTR);
+        return v == null ? null : VectorSimilarity.fromString(v);
+    }
+
+    public VectorSegmentReader vectorReader(String field) throws IOException {
+        VectorSegmentReader cached = vectorReaders.get(field);
+        if (cached != null) {
+            return cached;
+        }
+        if (!hasVectorField(field)) {
+            return null;
+        }
+        synchronized (vectorReaders) {
+            cached = vectorReaders.get(field);
+            if (cached != null) {
+                return cached;
+            }
+            int maxDoc = info.maxDoc();
+            VectorSegmentReader r = VectorSegmentReader.open(directory, Codec.vectorsFileName(info.name(), field), maxDoc,
+                vectorSimilarity(field), Bits.fromPredicate(d -> d >= 0 && d < maxDoc && isLive(d), maxDoc));
+            vectorReaders.put(field, r);
+            return r;
+        }
+    }
+
+    public CompletionSegmentIndex completionIndex(String field) throws IOException {
+        CompletionSegmentIndex cached = completionIndexes.get(field);
+        if (cached != null) {
+            return cached;
+        }
+        synchronized (completionIndexes) {
+            cached = completionIndexes.get(field);
+            if (cached != null) {
+                return cached;
+            }
+            CompletionSegmentIndex built = CompletionSegmentIndex.build(this, field);
+            completionIndexes.put(field, built);
+            return built;
         }
     }
 
@@ -244,6 +513,56 @@ public final class SegmentReader {
     public TermsEnum terms(String field) throws IOException {
         BlockTermDictReader d = termDicts.get(field);
         return d == null ? null : d.iterator();
+    }
+
+    public long numTerms(String field) {
+        BlockTermDictReader d = termDicts.get(field);
+        return d == null ? 0 : d.numTerms();
+    }
+
+    public long sumDocFreq(String field) {
+        BlockTermDictReader d = termDicts.get(field);
+        return d == null ? 0 : d.sumDocFreq();
+    }
+
+    public long sumTotalTermFreq(String field) {
+        BlockTermDictReader d = termDicts.get(field);
+        return d == null ? 0 : d.sumTotalTermFreq();
+    }
+
+    public int docCount(String field) throws IOException {
+        BlockTermDictReader d = termDicts.get(field);
+        if (d == null) {
+            return 0;
+        }
+        long version = liveDocsVersion;
+        long[] cached = docCountCache.get(field);
+        if (cached != null && cached[0] == version) {
+            return (int) cached[1];
+        }
+        int count = computeDocCount(field);
+        docCountCache.put(field, new long[] {version, count});
+        return count;
+    }
+
+    private int computeDocCount(String field) throws IOException {
+        int maxDoc = info.maxDoc();
+        BlockTermDictReader dict = termDicts.get(field);
+        FieldInfo fi = fieldInfoByName.get(field);
+        int postingsFlags = fi != null ? fi.indexOptions() : PostingsFlags.FREQS;
+        FixedBitSet seen = new FixedBitSet(Math.max(maxDoc, 1));
+        TermsEnum te = dict.iterator();
+        byte[] t;
+        while ((t = te.next()) != null) {
+            PostingsEnum postings = te.postings(postingsFlags);
+            int doc;
+            while ((doc = postings.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                if (doc < maxDoc && isLive(doc)) {
+                    seen.set(doc);
+                }
+            }
+        }
+        return seen.cardinality();
     }
 
     public boolean lookupId(String field, String id) throws IOException {
@@ -319,6 +638,7 @@ public final class SegmentReader {
             return;
         }
         closed = true;
+        com.naqqa.elasticsearch.search.execution.QueryCaches.shared().onSegmentClosed(this);
         IOException first = null;
         for (IndexInput in : openInputs) {
             try {

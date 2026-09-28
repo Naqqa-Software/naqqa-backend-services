@@ -80,6 +80,21 @@ public final class Coordinator {
         transport.registerHandler("internal:coordination/prevote", this::handlePreVoteRpc);
         transport.registerHandler("internal:coordination/publish", this::handlePublishRpc);
         transport.registerHandler("internal:coordination/commit", this::handleCommitRpc);
+        transport.registerHandler(LeaderChecker.ACTION, this::handleLeaderCheckRpc);
+    }
+
+    private void handleLeaderCheckRpc(DiscoveryNode from, java.io.DataInput in, ClusterTransport.TransportChannel channel)
+        throws java.io.IOException {
+        CheckRequest.readFrom(in);
+        if (mode != Mode.LEADER) {
+            channel.sendError(new IllegalStateException("node [" + localNode.getId() + "] is not the elected master"));
+            return;
+        }
+        if (!coordinationState.getLastAcceptedState().getNodes().nodeExists(from.getId())) {
+            channel.sendError(new IllegalStateException("node [" + from.getId() + "] is not a member of the cluster"));
+            return;
+        }
+        channel.sendResponse(new CheckResponse(coordinationState.getCurrentTerm()));
     }
 
     public Mode getMode() {
@@ -550,6 +565,10 @@ public final class Coordinator {
     private void handlePreVoteRpc(DiscoveryNode from, java.io.DataInput in, ClusterTransport.TransportChannel channel)
         throws java.io.IOException {
         PreVoteRequest request = PreVoteRequest.readFrom(in);
+        if (mode == Mode.LEADER || (mode == Mode.FOLLOWER && currentMaster != null)) {
+            channel.sendError(new IllegalStateException("rejecting pre-vote from [" + from.getId() + "]: an elected master is already known"));
+            return;
+        }
         channel.sendResponse(coordinationState.handlePreVoteRequest(request));
     }
 
@@ -560,6 +579,7 @@ public final class Coordinator {
             PublishResponse response = coordinationState.handlePublishRequest(request);
             if (mode != Mode.FOLLOWER || currentMaster == null || !currentMaster.getId().equals(from.getId())) {
                 mode = Mode.FOLLOWER;
+                activeRound = null;
                 currentMaster = from;
                 lastKnownMasterHint = from;
                 leaderChecker.setLeader(from, coordinationState.getCurrentTerm());

@@ -26,6 +26,9 @@ public final class CatTableRenderer {
     }
 
     public static RestResponse render(RestRequest request, CatActionService.CatTable table) {
+        if (request.paramAsBoolean("help", false)) {
+            return renderHelp(table.columns());
+        }
         List<String> columns = resolveColumns(request, table.columns());
         List<Map<String, String>> rows = new ArrayList<>();
         for (Map<String, String> row : table.rows()) {
@@ -64,6 +67,14 @@ public final class CatTableRenderer {
                 values.add(row.getOrDefault(col, ""));
             }
             appendLine(sb, columns, widths, values);
+        }
+        return RestResponse.text(200, sb.toString());
+    }
+
+    private static RestResponse renderHelp(List<String> columns) {
+        StringBuilder sb = new StringBuilder();
+        for (String column : columns) {
+            sb.append(column).append(" | ").append(column).append(" | \n");
         }
         return RestResponse.text(200, sb.toString());
     }

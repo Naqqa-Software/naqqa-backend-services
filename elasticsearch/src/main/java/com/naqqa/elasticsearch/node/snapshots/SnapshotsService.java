@@ -1,17 +1,28 @@
 package com.naqqa.elasticsearch.node.snapshots;
 
+import com.naqqa.elasticsearch.cluster.node.DiscoveryNode;
+import com.naqqa.elasticsearch.cluster.routing.IndexRoutingTable;
+import com.naqqa.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import com.naqqa.elasticsearch.cluster.routing.ShardRouting;
+import com.naqqa.elasticsearch.cluster.service.ClusterChangedEvent;
+import com.naqqa.elasticsearch.cluster.service.ClusterStateListener;
 import com.naqqa.elasticsearch.cluster.state.ClusterState;
 import com.naqqa.elasticsearch.cluster.state.IndexMetadata;
+import com.naqqa.elasticsearch.cluster.state.MapCustom;
+import com.naqqa.elasticsearch.cluster.state.Metadata;
 import com.naqqa.elasticsearch.common.json.JsonValue;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
 import com.naqqa.elasticsearch.node.action.NodeIndexAdminActionService;
 import com.naqqa.elasticsearch.node.cluster.ClusterStateManager;
+import com.naqqa.elasticsearch.node.cluster.NodeConnections;
+import com.naqqa.elasticsearch.node.cluster.Wire;
 import com.naqqa.elasticsearch.node.indices.IndexService;
 import com.naqqa.elasticsearch.node.indices.IndicesService;
 import com.naqqa.elasticsearch.node.indices.MetadataIndexService;
 import com.naqqa.elasticsearch.node.support.IndexResolver;
 import com.naqqa.elasticsearch.node.support.SettingsMaps;
 import com.naqqa.elasticsearch.rest.support.RestApiException;
+import com.naqqa.elasticsearch.transport.TransportService;
 import com.naqqa.elasticsearch.snapshots.blobstore.FsBlobStore;
 import com.naqqa.elasticsearch.snapshots.model.ShardId;
 import com.naqqa.elasticsearch.snapshots.model.SnapshotInfo;
@@ -44,9 +55,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import java.util.zip.CRC32;
 
-public final class SnapshotsService {
+public final class SnapshotsService implements ClusterStateListener {
 
     public static final String MAPPINGS_SETTING = "index.snapshot_source_mappings";
+    public static final String REPOSITORIES_CUSTOM = "snapshot_repositories";
+    public static final String SHARD_LIST_ACTION = "internal:admin/snapshot/shard_list";
+    public static final String SHARD_FILE_ACTION = "internal:admin/snapshot/shard_file";
+    public static final String SHARD_WRITE_ACTION = "internal:admin/snapshot/shard_write";
 
     public record RepositoryEntry(String name, String type, Map<String, Object> settings, Repository repository) {
     }
@@ -57,64 +72,143 @@ public final class SnapshotsService {
     private final IndexResolver indexResolver;
     private final Path indicesPath;
     private final List<Path> repoRoots;
-    private final Path registryFile;
     private final Map<String, RepositoryEntry> repositories = new ConcurrentHashMap<>();
+    private final TransportService transportService;
+    private final NodeConnections connections;
 
     public SnapshotsService(ClusterStateManager clusterStateManager, IndicesService indicesService,
                             NodeIndexAdminActionService indexAdmin, Path indicesPath, List<Path> repoRoots, Path registryFile) {
+        this(clusterStateManager, indicesService, indexAdmin, indicesPath, repoRoots, registryFile, null, null);
+    }
+
+    public SnapshotsService(ClusterStateManager clusterStateManager, IndicesService indicesService,
+                            NodeIndexAdminActionService indexAdmin, Path indicesPath, List<Path> repoRoots, Path registryFile,
+                            TransportService transportService, NodeConnections connections) {
         this.clusterStateManager = clusterStateManager;
         this.indicesService = indicesService;
         this.indexAdmin = indexAdmin;
         this.indexResolver = indexAdmin.indexResolver();
         this.indicesPath = indicesPath;
         this.repoRoots = repoRoots;
-        this.registryFile = registryFile;
-        loadRegistry();
+        this.transportService = transportService;
+        this.connections = connections;
+        if (transportService != null) {
+            Wire.register(transportService, SHARD_LIST_ACTION, this::handleShardList);
+            Wire.register(transportService, SHARD_FILE_ACTION, this::handleShardFile);
+            Wire.register(transportService, SHARD_WRITE_ACTION, this::handleShardWrite);
+        }
+        syncFromClusterState(clusterStateManager.state().getMetadata());
+        clusterStateManager.addListener(this);
+    }
+
+    private java.util.concurrent.CompletableFuture<byte[]> handleShardList(byte[] payload) throws IOException {
+        Map<String, Object> req = Wire.decode(payload);
+        String index = String.valueOf(req.get("index"));
+        int shard = ((Number) req.get("shard")).intValue();
+        IndexService service = indicesService.indexService(index);
+        List<String> files = List.of();
+        if (service != null) {
+            IndexShard indexShard = service.shard(shard);
+            if (indexShard != null) {
+                indexShard.flush(true);
+            }
+            files = new DirectoryShardSnapshotSource(service.shardPath(shard).resolve("index")).listSegmentFiles();
+        }
+        return java.util.concurrent.CompletableFuture.completedFuture(Wire.encode(Map.of("files", files)));
+    }
+
+    private java.util.concurrent.CompletableFuture<byte[]> handleShardFile(byte[] payload) throws IOException {
+        Map<String, Object> req = Wire.decode(payload);
+        String index = String.valueOf(req.get("index"));
+        int shard = ((Number) req.get("shard")).intValue();
+        String name = String.valueOf(req.get("name"));
+        IndexService service = indicesService.indexService(index);
+        if (service == null) {
+            throw new RestApiException(500, "index [" + index + "] has no local shard [" + shard + "] to read for snapshot");
+        }
+        byte[] data = Files.readAllBytes(service.shardPath(shard).resolve("index").resolve(name));
+        return java.util.concurrent.CompletableFuture.completedFuture(Wire.encode(Map.of("data", data)));
+    }
+
+    private java.util.concurrent.CompletableFuture<byte[]> handleShardWrite(byte[] payload) throws IOException {
+        Map<String, Object> req = Wire.decode(payload);
+        String uuid = String.valueOf(req.get("uuid"));
+        int shard = ((Number) req.get("shard")).intValue();
+        String name = String.valueOf(req.get("name"));
+        byte[] data = (byte[]) req.get("data");
+        Path dir = indicesPath.resolve(uuid).resolve(Integer.toString(shard)).resolve("index");
+        Files.createDirectories(dir);
+        Files.write(dir.resolve(name), data);
+        return java.util.concurrent.CompletableFuture.completedFuture(Wire.encode(Map.of("ok", true)));
+    }
+
+    private DiscoveryNode nodeHoldingShard(ClusterState state, String index, int shardNum) {
+        IndexRoutingTable irt = state.getRoutingTable().index(index);
+        IndexShardRoutingTable table = irt == null ? null : irt.shard(shardNum);
+        if (table == null) {
+            return null;
+        }
+        ShardRouting primary = table.primaryShard();
+        if (primary != null && primary.active() && primary.currentNodeId() != null) {
+            return state.getNodes().get(primary.currentNodeId());
+        }
+        for (ShardRouting sr : table.getShards()) {
+            if (sr.active() && sr.currentNodeId() != null) {
+                return state.getNodes().get(sr.currentNodeId());
+            }
+        }
+        return null;
     }
 
     public Map<String, RepositoryEntry> repositories() {
         return repositories;
     }
 
-    @SuppressWarnings("unchecked")
-    private void loadRegistry() {
-        if (!Files.exists(registryFile)) {
-            return;
-        }
-        try {
-            Object parsed = JsonValue.parse(Files.readAllBytes(registryFile)).toJava();
-            Map<String, Object> map = SettingsMaps.asMap(parsed);
-            if (map == null) {
-                return;
-            }
-            for (Map.Entry<String, Object> e : map.entrySet()) {
-                Map<String, Object> def = SettingsMaps.asMap(e.getValue());
-                if (def == null) {
-                    continue;
-                }
-                try {
-                    register(e.getKey(), String.valueOf(def.get("type")), SettingsMaps.asMap(def.get("settings")), false, false);
-                } catch (RuntimeException ex) {
-                    System.err.println("[snapshots] failed to restore repository [" + e.getKey() + "]: " + ex.getMessage());
-                }
-            }
-        } catch (IOException | RuntimeException e) {
-            System.err.println("[snapshots] failed to read repository registry: " + e);
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().getMetadata() != event.previousState().getMetadata()) {
+            syncFromClusterState(event.state().getMetadata());
         }
     }
 
-    private synchronized void saveRegistry() {
-        Map<String, Object> out = new TreeMap<>();
-        for (RepositoryEntry entry : repositories.values()) {
-            out.put(entry.name(), Map.of("type", entry.type(), "settings", entry.settings()));
+    private void syncFromClusterState(Metadata metadata) {
+        MapCustom custom = metadata.mapCustom(REPOSITORIES_CUSTOM);
+        for (String name : new ArrayList<>(repositories.keySet())) {
+            if (!custom.contains(name)) {
+                repositories.remove(name);
+            }
         }
+        for (String name : custom.ids()) {
+            Map<String, Object> def = custom.get(name);
+            RepositoryEntry existing = repositories.get(name);
+            String type = String.valueOf(def.get("type"));
+            Map<String, Object> settings = SettingsMaps.asMap(def.get("settings"));
+            if (existing != null && existing.type().equals(type) && existing.settings().equals(settings)) {
+                continue;
+            }
+            try {
+                registerLocally(name, type, settings, false);
+            } catch (RuntimeException e) {
+                System.err.println("[snapshots] failed to apply repository [" + name + "] from cluster state: " + e.getMessage());
+            }
+        }
+    }
+
+    private void mutate(String source, java.util.function.UnaryOperator<Metadata> op) {
         try {
-            Files.createDirectories(registryFile.getParent());
-            Path tmp = registryFile.resolveSibling(registryFile.getFileName() + ".tmp");
-            Files.write(tmp, JsonValue.wrap(out).toString().getBytes(StandardCharsets.UTF_8));
-            Files.move(tmp, registryFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            throw new RestApiException(500, "failed to persist repository registry: " + e.getMessage(), e);
+            clusterStateManager.submit(source, cs -> cs.builder().metadata(op.apply(cs.getMetadata())).build())
+                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RestApiException(500, cause.getMessage(), cause);
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw new RestApiException(503, "timed out waiting for cluster state update [" + source + "]");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RestApiException(500, "interrupted");
         }
     }
 
@@ -136,7 +230,7 @@ public final class SnapshotsService {
             + repoRoots);
     }
 
-    public void register(String name, String type, Map<String, Object> settings, boolean verify, boolean persist) {
+    private void registerLocally(String name, String type, Map<String, Object> settings, boolean verify) {
         if (name == null || name.isEmpty() || name.startsWith("_") || name.contains(" ")) {
             throw new RestApiException(400, "Invalid repository name [" + name + "]");
         }
@@ -162,8 +256,15 @@ public final class SnapshotsService {
             }
         }
         repositories.put(name, new RepositoryEntry(name, type, new LinkedHashMap<>(s), repository));
+    }
+
+    public void register(String name, String type, Map<String, Object> settings, boolean verify, boolean persist) {
+        registerLocally(name, type, settings, verify);
         if (persist) {
-            saveRegistry();
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("type", type);
+            body.put("settings", settings == null ? Map.of() : settings);
+            mutate("put-repository [" + name + "]", md -> md.toBuilder().mutateMapCustom(REPOSITORIES_CUSTOM, mc -> mc.with(name, body)).build());
         }
     }
 
@@ -171,7 +272,7 @@ public final class SnapshotsService {
         if (repositories.remove(name) == null) {
             throw new RestApiException(404, "[" + name + "] missing");
         }
-        saveRegistry();
+        mutate("delete-repository [" + name + "]", md -> md.toBuilder().mutateMapCustom(REPOSITORIES_CUSTOM, mc -> mc.without(name)).build());
     }
 
     public RepositoryEntry repository(String name) {
@@ -200,17 +301,26 @@ public final class SnapshotsService {
         List<String> indices = indexResolver.resolve(state, indexExpressions, false, false);
         Map<ShardId, ShardSnapshotSource> sources = new LinkedHashMap<>();
         for (String index : indices) {
+            IndexMetadata imd = state.getMetadata().index(index);
             IndexService service = indicesService.indexService(index);
-            if (service == null) {
-                throw new RestApiException(500, "index [" + index + "] has no local shards to snapshot");
-            }
-            for (Map.Entry<Integer, IndexShard> e : new TreeMap<>(service.shards()).entrySet()) {
-                try {
-                    e.getValue().flush(true);
-                } catch (IOException ex) {
-                    throw new RestApiException(500, "failed to flush " + index + "[" + e.getKey() + "]: " + ex.getMessage(), ex);
+            int numberOfShards = imd == null ? (service == null ? 0 : service.shards().size()) : imd.getNumberOfShards();
+            for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
+                IndexShard localShard = service == null ? null : service.shard(shardNum);
+                if (localShard != null) {
+                    try {
+                        localShard.flush(true);
+                    } catch (IOException ex) {
+                        throw new RestApiException(500, "failed to flush " + index + "[" + shardNum + "]: " + ex.getMessage(), ex);
+                    }
+                    sources.put(new ShardId(index, shardNum), new DirectoryShardSnapshotSource(service.shardPath(shardNum).resolve("index")));
+                    continue;
                 }
-                sources.put(new ShardId(index, e.getKey()), new DirectoryShardSnapshotSource(service.shardPath(e.getKey()).resolve("index")));
+                DiscoveryNode owner = nodeHoldingShard(state, index, shardNum);
+                if (owner == null || transportService == null) {
+                    throw new RestApiException(500, "index [" + index + "] shard [" + shardNum
+                        + "] has no available copy on this or any other node to snapshot");
+                }
+                sources.put(new ShardId(index, shardNum), new RemoteShardSnapshotSource(owner, index, shardNum));
             }
         }
         try {
@@ -404,6 +514,73 @@ public final class SnapshotsService {
                 } catch (IOException e) {
                     throw new RestApiException(500, "failed to checksum [" + n + "]: " + e.getMessage(), e);
                 }
+                return Long.toHexString(crc.getValue());
+            });
+        }
+    }
+
+    /**
+     * A {@link ShardSnapshotSource} for a shard whose only available copy lives on a remote node.
+     * Segment file listings and bytes are fetched on demand over the transport layer so the
+     * coordinating node's repository code can snapshot shards it does not hold locally.
+     */
+    private final class RemoteShardSnapshotSource implements ShardSnapshotSource {
+        private final DiscoveryNode node;
+        private final String index;
+        private final int shard;
+        private final Map<String, byte[]> cache = new ConcurrentHashMap<>();
+        private final Map<String, String> checksums = new ConcurrentHashMap<>();
+        private List<String> files;
+
+        RemoteShardSnapshotSource(DiscoveryNode node, String index, int shard) {
+            this.node = node;
+            this.index = index;
+            this.shard = shard;
+        }
+
+        @Override
+        public synchronized List<String> listSegmentFiles() {
+            if (files == null) {
+                try {
+                    Map<String, Object> response = Wire.decode(Wire.sendSync(transportService, connections.get(node), SHARD_LIST_ACTION,
+                        Wire.encode(Map.of("index", index, "shard", shard)), 30_000L));
+                    files = SettingsMaps.asStringList(response.get("files"));
+                } catch (Exception e) {
+                    throw new RestApiException(500, "failed to list shard files on [" + node.getName() + "]: " + e.getMessage(), e);
+                }
+            }
+            return files;
+        }
+
+        private byte[] fetch(String name) {
+            return cache.computeIfAbsent(name, n -> {
+                try {
+                    Map<String, Object> response = Wire.decode(Wire.sendSync(transportService, connections.get(node), SHARD_FILE_ACTION,
+                        Wire.encode(Map.of("index", index, "shard", shard, "name", n)), 60_000L));
+                    return (byte[]) response.get("data");
+                } catch (Exception e) {
+                    throw new RestApiException(500, "failed to fetch shard file [" + n + "] from [" + node.getName() + "]: "
+                        + e.getMessage(), e);
+                }
+            });
+        }
+
+        @Override
+        public InputStream openFile(String name) {
+            return new java.io.ByteArrayInputStream(fetch(name));
+        }
+
+        @Override
+        public long fileLength(String name) {
+            return fetch(name).length;
+        }
+
+        @Override
+        public String fileChecksum(String name) {
+            return checksums.computeIfAbsent(name, n -> {
+                CRC32 crc = new CRC32();
+                byte[] data = fetch(n);
+                crc.update(data, 0, data.length);
                 return Long.toHexString(crc.getValue());
             });
         }

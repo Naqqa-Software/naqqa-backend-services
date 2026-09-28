@@ -304,7 +304,7 @@ public final class QueryBuilderToQuery {
             List<CompositeFunctionScoreQuery.FunctionEntry> entries =
                 List.of(new CompositeFunctionScoreQuery.FunctionEntry(null, spec, null));
             return new CompositeFunctionScoreQuery(inner, entries, CompositeFunctionScoreQuery.ScoreCombine.MULTIPLY,
-                CompositeFunctionScoreQuery.BoostCombine.REPLACE, null, null);
+                CompositeFunctionScoreQuery.BoostCombine.REPLACE, null, ss.minScore());
         }
         if (builder instanceof FunctionScoreQueryBuilder fs) {
             return convertFunctionScore(fs, ctx);
@@ -341,6 +341,12 @@ public final class QueryBuilderToQuery {
                 case MAX -> JoinScoreMode.MAX;
                 case NONE -> JoinScoreMode.NONE;
             };
+            if (ctx.parentChildMapping() instanceof com.naqqa.elasticsearch.index.engine.segment.EngineNestedDocMapping engine) {
+                com.naqqa.elasticsearch.index.engine.segment.EngineNestedDocMapping scoped = engine.path() == null
+                    ? engine.forPath(n.path()) : engine.forPath(n.path(), engine.path());
+                Query child = convert(n.query(), ctx.withParentChildMapping(scoped));
+                return scoped.nestedQuery(child, mode);
+            }
             return new NestedQuery(convert(n.query(), ctx), ctx.parentChildMapping(), mode);
         }
         if (builder instanceof HasChildQueryBuilder h) {
@@ -393,6 +399,10 @@ public final class QueryBuilderToQuery {
     private static void requireParentChildMapping(ConversionContext ctx, String queryName) {
         if (ctx.parentChildMapping() == null) {
             throw new IllegalArgumentException("[" + queryName + "] queries require a ParentChildDocMapping supplied via ConversionContext");
+        }
+        if (!"nested".equals(queryName)
+            && ctx.parentChildMapping() instanceof com.naqqa.elasticsearch.index.engine.segment.EngineNestedDocMapping) {
+            throw new IllegalArgumentException("[" + queryName + "] queries require a join field mapping which is not available");
         }
     }
 

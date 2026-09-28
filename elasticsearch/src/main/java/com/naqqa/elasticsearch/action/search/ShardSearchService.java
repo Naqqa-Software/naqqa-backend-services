@@ -6,6 +6,7 @@ import com.naqqa.elasticsearch.common.io.stream.StreamOutput;
 import com.naqqa.elasticsearch.index.engine.EngineSearcher;
 import com.naqqa.elasticsearch.index.engine.segment.StoredDocCodec;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
+import com.naqqa.elasticsearch.node.search.QueryFactory;
 import com.naqqa.elasticsearch.search.aggs.InternalAggregationStreams;
 import com.naqqa.elasticsearch.search.aggs.InternalAggregations;
 import com.naqqa.elasticsearch.search.aggs.support.MultiBucketConsumer;
@@ -90,6 +91,7 @@ public final class ShardSearchService {
     private void handleQuery(ShardQueryRequest request, TransportChannel channel) throws Exception {
         long startNanos = System.nanoTime();
         IndexShard shard = shard(request.shardId());
+        Function<String, QueryFactory.FieldType> fieldTypes = AggsPhase.fieldTypesFrom(shard.mapperService());
         EngineSearcher engineSearcher = shard.acquireSearcher();
         EngineSearchContext ctx = EngineSearchContext.open(engineSearcher, null);
         boolean release = true;
@@ -106,7 +108,7 @@ public final class ShardSearchService {
             if (request.size() == 0) {
                 if (aggsClause != null) {
                     MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(request.maxBuckets());
-                    AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), null, aggsClause, bucketConsumer);
+                    AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), null, aggsClause, bucketConsumer, fieldTypes);
                     aggregationsResult = result.aggregations;
                     totalHits = new TotalHits(result.matchedDocCount, TotalHits.Relation.EQUAL_TO);
                 } else {
@@ -116,7 +118,7 @@ public final class ShardSearchService {
                 ShardFieldCollector collector = new ShardFieldCollector(request.sort(), topN);
                 if (aggsClause != null) {
                     MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(request.maxBuckets());
-                    AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause, bucketConsumer);
+                    AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause, bucketConsumer, fieldTypes);
                     aggregationsResult = result.aggregations;
                 } else {
                     searcher.search(request.query(), collector);
@@ -129,7 +131,7 @@ public final class ShardSearchService {
                 TopScoreDocCollector collector = TopScoreDocCollector.create(topN);
                 if (aggsClause != null) {
                     MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(request.maxBuckets());
-                    AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause, bucketConsumer);
+                    AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause, bucketConsumer, fieldTypes);
                     aggregationsResult = result.aggregations;
                 } else {
                     searcher.search(request.query(), collector);

@@ -4,6 +4,7 @@ import com.naqqa.elasticsearch.index.engine.EngineSearcher;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
 import com.naqqa.elasticsearch.search.advanced.common.SegmentReaderLeafAdapter;
 import com.naqqa.elasticsearch.search.execution.IndexSearcher;
+import com.naqqa.elasticsearch.search.execution.SearchExecutors;
 import com.naqqa.elasticsearch.search.execution.Sort;
 import com.naqqa.elasticsearch.search.query.Query;
 
@@ -38,7 +39,7 @@ public final class ScrollService implements AutoCloseable {
 
     public ScrollContext.ScrollPage open(IndexShard shard, Query query, Sort sort, int batchSize, long keepAliveMillis) throws IOException {
         EngineSearcher engineSearcher = shard.acquireSearcher();
-        IndexSearcher searcher = new IndexSearcher(SegmentReaderLeafAdapter.wrap(engineSearcher.leaves()));
+        IndexSearcher searcher = new IndexSearcher(SegmentReaderLeafAdapter.wrap(engineSearcher.leaves()), SearchExecutors.shared());
         return open(searcher, query, sort, batchSize, keepAliveMillis, engineSearcher);
     }
 

@@ -102,6 +102,11 @@ public final class Metadata implements Writeable {
         return (T) customs.get(name);
     }
 
+    public MapCustom mapCustom(String name) {
+        Custom c = customs.get(name);
+        return c instanceof MapCustom mc ? mc : MapCustom.empty(name);
+    }
+
     public Set<String> resolveIndicesForAlias(String alias) {
         Set<String> result = new java.util.LinkedHashSet<>();
         for (IndexMetadata imd : indices.values()) {
@@ -148,6 +153,10 @@ public final class Metadata implements Writeable {
         }
         coordinationMetadata.writeTo(out);
         StreamUtils.writeVInt(out, customs.size());
+        for (Custom custom : customs.values()) {
+            StreamUtils.writeString(out, custom.getWriteableName());
+            custom.writeTo(out);
+        }
     }
 
     public static Metadata readFrom(DataInput in) throws IOException {
@@ -187,8 +196,13 @@ public final class Metadata implements Writeable {
         }
         CoordinationMetadata coordinationMetadata = CoordinationMetadata.readFrom(in);
         int customCount = StreamUtils.readVInt(in);
+        Map<String, Custom> customs = new LinkedHashMap<>();
+        for (int i = 0; i < customCount; i++) {
+            String name = StreamUtils.readString(in);
+            customs.put(name, MapCustom.readFrom(name, in));
+        }
         return new Metadata(clusterUUID, version, persistent, transientSettings, indices, legacy, components,
-            templates, dataStreams, coordinationMetadata, Map.of());
+            templates, dataStreams, coordinationMetadata, customs);
     }
 
     public static final class Builder {
@@ -280,6 +294,13 @@ public final class Metadata implements Writeable {
 
         public Builder putCustom(String name, Custom custom) {
             this.customs.put(name, custom);
+            return this;
+        }
+
+        public Builder mutateMapCustom(String name, java.util.function.UnaryOperator<MapCustom> op) {
+            Custom existing = this.customs.get(name);
+            MapCustom current = existing instanceof MapCustom mc ? mc : MapCustom.empty(name);
+            this.customs.put(name, op.apply(current));
             return this;
         }
 

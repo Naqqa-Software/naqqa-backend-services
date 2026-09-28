@@ -36,6 +36,10 @@ public final class InternalRareTerms extends InternalAggregation implements Mult
         return new InternalRareTerms(getName(), cast, maxDocCount, getMetadata());
     }
 
+    public long maxDocCountValue() {
+        return maxDocCount;
+    }
+
     @Override
     public String getType() {
         return "rare_terms";

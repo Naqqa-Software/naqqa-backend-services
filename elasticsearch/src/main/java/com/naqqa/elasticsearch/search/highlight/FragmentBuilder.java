@@ -33,6 +33,9 @@ final class FragmentBuilder {
         if (matches.isEmpty()) {
             return noMatchFallback(text, request);
         }
+        if (request.numberOfFragments() <= 0) {
+            return List.of(applyTags(renderFragment(text, new Fragment(0, text.length(), matches, 0)), request));
+        }
         List<Fragment> candidates = windowFragments(text, matches, request);
         candidates.sort((a, b) -> {
             if (a.score != b.score) {

@@ -50,6 +50,30 @@ public final class PainlessScriptEngine implements ScriptEngine {
     }
 
     @Override
+    public void validate(String source) {
+        try {
+            Parser.parse(source);
+        } catch (PainlessParseException e) {
+            throw new ScriptException("compile error", e, List.of(), source, type(), new ScriptException.Position(e.pos(), e.pos(), e.pos()));
+        }
+        RuntimeException securityFailure = null;
+        for (ScriptContext context : List.of(ScriptContext.FIELD, ScriptContext.UPDATE, ScriptContext.SCORE, ScriptContext.INGEST,
+            ScriptContext.AGGS_MAP, ScriptContext.FILTER, ScriptContext.TEMPLATE)) {
+            try {
+                new TypeChecker(Parser.parse(source), context).check();
+                return;
+            } catch (PainlessSecurityException e) {
+                securityFailure = e;
+            } catch (PainlessTypeException | PainlessParseException e) {
+                continue;
+            }
+        }
+        if (securityFailure != null) {
+            throw new ScriptException("compile error", securityFailure, List.of(), source, type());
+        }
+    }
+
+    @Override
     public boolean supports(ScriptContext context) {
         return true;
     }

@@ -26,6 +26,11 @@ final class NodeChannels implements Connection {
         for (ConnectionProfile.ChannelType type : channelsByType.keySet()) {
             roundRobin.put(type, new AtomicInteger());
         }
+        for (TcpChannel[] channels : channelsByType.values()) {
+            for (TcpChannel channel : channels) {
+                channel.addCloseListener(cause -> close());
+            }
+        }
     }
 
     @Override

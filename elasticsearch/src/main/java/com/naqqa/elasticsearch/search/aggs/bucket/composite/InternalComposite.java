@@ -39,6 +39,14 @@ public final class InternalComposite extends InternalAggregation implements Mult
         return new InternalComposite(getName(), cast, size, ascending, getMetadata());
     }
 
+    public int sizeValue() {
+        return size;
+    }
+
+    public List<Boolean> ascendingValue() {
+        return ascending;
+    }
+
     @Override
     public String getType() {
         return "composite";

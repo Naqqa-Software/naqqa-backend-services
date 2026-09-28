@@ -27,10 +27,18 @@ public final class IndexMetadata implements Writeable {
     private final Map<String, AliasMetadata> aliases;
     private final Map<Integer, Set<String>> inSyncAllocationIds;
     private final Map<Integer, Long> primaryTerms;
+    private final Map<String, Map<String, String>> customData;
 
     public IndexMetadata(String index, String indexUUID, long version, State state, Settings settings,
                           Map<String, Object> mappings, Map<String, AliasMetadata> aliases,
                           Map<Integer, Set<String>> inSyncAllocationIds, Map<Integer, Long> primaryTerms) {
+        this(index, indexUUID, version, state, settings, mappings, aliases, inSyncAllocationIds, primaryTerms, Map.of());
+    }
+
+    public IndexMetadata(String index, String indexUUID, long version, State state, Settings settings,
+                          Map<String, Object> mappings, Map<String, AliasMetadata> aliases,
+                          Map<Integer, Set<String>> inSyncAllocationIds, Map<Integer, Long> primaryTerms,
+                          Map<String, Map<String, String>> customData) {
         this.index = index;
         this.indexUUID = indexUUID;
         this.version = version;
@@ -40,6 +48,11 @@ public final class IndexMetadata implements Writeable {
         this.aliases = Map.copyOf(aliases);
         this.inSyncAllocationIds = Map.copyOf(inSyncAllocationIds);
         this.primaryTerms = Map.copyOf(primaryTerms);
+        Map<String, Map<String, String>> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, String>> e : customData.entrySet()) {
+            copy.put(e.getKey(), Map.copyOf(e.getValue()));
+        }
+        this.customData = Map.copyOf(copy);
     }
 
     public String getIndex() {
@@ -94,6 +107,14 @@ public final class IndexMetadata implements Writeable {
         return primaryTerms;
     }
 
+    public Map<String, String> getCustomData(String key) {
+        return customData.getOrDefault(key, Map.of());
+    }
+
+    public Map<String, Map<String, String>> getCustomData() {
+        return customData;
+    }
+
     public Builder builder() {
         return new Builder(this);
     }
@@ -127,6 +148,15 @@ public final class IndexMetadata implements Writeable {
             StreamUtils.writeVInt(out, entry.getKey());
             out.writeLong(entry.getValue());
         }
+        StreamUtils.writeVInt(out, customData.size());
+        for (Map.Entry<String, Map<String, String>> entry : customData.entrySet()) {
+            StreamUtils.writeString(out, entry.getKey());
+            StreamUtils.writeVInt(out, entry.getValue().size());
+            for (Map.Entry<String, String> kv : entry.getValue().entrySet()) {
+                StreamUtils.writeString(out, kv.getKey());
+                StreamUtils.writeString(out, kv.getValue());
+            }
+        }
     }
 
     public static IndexMetadata readFrom(DataInput in) throws IOException {
@@ -158,7 +188,18 @@ public final class IndexMetadata implements Writeable {
         for (int i = 0; i < termCount; i++) {
             terms.put(StreamUtils.readVInt(in), in.readLong());
         }
-        return new IndexMetadata(index, uuid, version, state, settings, mappings, aliases, inSync, terms);
+        int customDataCount = StreamUtils.readVInt(in);
+        Map<String, Map<String, String>> customData = new LinkedHashMap<>();
+        for (int i = 0; i < customDataCount; i++) {
+            String key = StreamUtils.readString(in);
+            int entryCount = StreamUtils.readVInt(in);
+            Map<String, String> values = new LinkedHashMap<>();
+            for (int j = 0; j < entryCount; j++) {
+                values.put(StreamUtils.readString(in), StreamUtils.readString(in));
+            }
+            customData.put(key, values);
+        }
+        return new IndexMetadata(index, uuid, version, state, settings, mappings, aliases, inSync, terms, customData);
     }
 
     public static final class Builder {
@@ -171,6 +212,7 @@ public final class IndexMetadata implements Writeable {
         private Map<String, AliasMetadata> aliases = new LinkedHashMap<>();
         private Map<Integer, Set<String>> inSyncAllocationIds = new LinkedHashMap<>();
         private Map<Integer, Long> primaryTerms = new LinkedHashMap<>();
+        private Map<String, Map<String, String>> customData = new LinkedHashMap<>();
 
         private Builder(String index) {
             this.index = index;
@@ -187,6 +229,10 @@ public final class IndexMetadata implements Writeable {
             this.aliases = new LinkedHashMap<>(source.aliases);
             this.inSyncAllocationIds = new LinkedHashMap<>(source.inSyncAllocationIds);
             this.primaryTerms = new LinkedHashMap<>(source.primaryTerms);
+            this.customData = new LinkedHashMap<>();
+            for (Map.Entry<String, Map<String, String>> e : source.customData.entrySet()) {
+                this.customData.put(e.getKey(), new LinkedHashMap<>(e.getValue()));
+            }
         }
 
         public Builder settings(Settings settings) {
@@ -229,6 +275,16 @@ public final class IndexMetadata implements Writeable {
             return this;
         }
 
+        public Builder putCustomData(String key, Map<String, String> values) {
+            this.customData.put(key, new LinkedHashMap<>(values));
+            return this;
+        }
+
+        public Builder removeCustomData(String key) {
+            this.customData.remove(key);
+            return this;
+        }
+
         public IndexMetadata build() {
             Map<Integer, Long> terms = new LinkedHashMap<>(primaryTerms);
             int numShards = settings.getAsInt("index.number_of_shards", 1);
@@ -236,7 +292,7 @@ public final class IndexMetadata implements Writeable {
                 terms.putIfAbsent(i, 1L);
             }
             return new IndexMetadata(index, indexUUID, version, state, settings, mappings, aliases,
-                inSyncAllocationIds, terms);
+                inSyncAllocationIds, terms, customData);
         }
     }
 }

@@ -1,6 +1,5 @@
 package com.naqqa.elasticsearch.search.advanced.common;
 
-import com.naqqa.elasticsearch.codec.DocIdSetIterator;
 import com.naqqa.elasticsearch.codec.docvalues.NumericDocValuesReader;
 import com.naqqa.elasticsearch.codec.docvalues.SortedDocValuesReader;
 import com.naqqa.elasticsearch.codec.docvalues.SortedNumericDocValuesReader;
@@ -9,8 +8,6 @@ import com.naqqa.elasticsearch.codec.fieldinfos.FieldInfo;
 import com.naqqa.elasticsearch.codec.livedocs.FixedBitSet;
 import com.naqqa.elasticsearch.codec.norms.NormsReader;
 import com.naqqa.elasticsearch.codec.points.BKDReader;
-import com.naqqa.elasticsearch.codec.postings.PostingsEnum;
-import com.naqqa.elasticsearch.codec.postings.PostingsFlags;
 import com.naqqa.elasticsearch.codec.terms.TermsEnum;
 import com.naqqa.elasticsearch.index.engine.segment.SegmentReader;
 import com.naqqa.elasticsearch.search.execution.LeafReader;
@@ -18,13 +15,10 @@ import com.naqqa.elasticsearch.search.execution.LeafReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
-public final class SegmentReaderLeafAdapter implements LeafReader {
+public final class SegmentReaderLeafAdapter implements LeafReader, com.naqqa.elasticsearch.index.engine.segment.SegmentReaderSource {
 
     private final SegmentReader segmentReader;
-    private final Map<String, FieldStats> statsCache = new ConcurrentHashMap<>();
 
     public SegmentReaderLeafAdapter(SegmentReader segmentReader) {
         this.segmentReader = segmentReader;
@@ -38,6 +32,7 @@ public final class SegmentReaderLeafAdapter implements LeafReader {
         return out;
     }
 
+    @Override
     public SegmentReader segmentReader() {
         return segmentReader;
     }
@@ -105,72 +100,26 @@ public final class SegmentReaderLeafAdapter implements LeafReader {
 
     @Override
     public BKDReader pointValues(String field) {
-        return null;
+        return segmentReader.pointValues(field);
     }
 
     @Override
-    public long sumTotalTermFreq(String field) throws IOException {
-        return stats(field).sumTotalTermFreq;
+    public long sumTotalTermFreq(String field) {
+        return segmentReader.sumTotalTermFreq(field);
     }
 
     @Override
-    public long sumDocFreq(String field) throws IOException {
-        return stats(field).sumDocFreq;
+    public long sumDocFreq(String field) {
+        return segmentReader.sumDocFreq(field);
     }
 
     @Override
-    public long numTerms(String field) throws IOException {
-        return stats(field).numTerms;
+    public long numTerms(String field) {
+        return segmentReader.numTerms(field);
     }
 
     @Override
     public int docCount(String field) throws IOException {
-        return stats(field).docCount;
-    }
-
-    private FieldStats stats(String field) throws IOException {
-        FieldStats cached = statsCache.get(field);
-        if (cached != null) {
-            return cached;
-        }
-        TermsEnum te = segmentReader.terms(field);
-        int numTerms = 0;
-        long sumDocFreq = 0;
-        long sumTotalTermFreq = 0;
-        FixedBitSet seen = new FixedBitSet(Math.max(segmentReader.maxDoc(), 1));
-        com.naqqa.elasticsearch.codec.fieldinfos.FieldInfo fieldInfo = segmentReader.fieldInfo(field);
-        int postingsFlags = fieldInfo != null ? fieldInfo.indexOptions() : PostingsFlags.FREQS;
-        if (te != null) {
-            byte[] t;
-            while ((t = te.next()) != null) {
-                numTerms++;
-                sumDocFreq += te.docFreq();
-                sumTotalTermFreq += te.totalTermFreq();
-                PostingsEnum postings = te.postings(postingsFlags);
-                int doc;
-                while ((doc = postings.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    if (doc < segmentReader.maxDoc() && segmentReader.isLive(doc)) {
-                        seen.set(doc);
-                    }
-                }
-            }
-        }
-        FieldStats result = new FieldStats(numTerms, sumDocFreq, sumTotalTermFreq, seen.cardinality());
-        statsCache.put(field, result);
-        return result;
-    }
-
-    private static final class FieldStats {
-        final int numTerms;
-        final long sumDocFreq;
-        final long sumTotalTermFreq;
-        final int docCount;
-
-        FieldStats(int numTerms, long sumDocFreq, long sumTotalTermFreq, int docCount) {
-            this.numTerms = numTerms;
-            this.sumDocFreq = sumDocFreq;
-            this.sumTotalTermFreq = sumTotalTermFreq;
-            this.docCount = docCount;
-        }
+        return segmentReader.docCount(field);
     }
 }

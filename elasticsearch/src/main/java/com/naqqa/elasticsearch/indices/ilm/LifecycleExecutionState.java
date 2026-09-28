@@ -113,4 +113,10 @@ public final class LifecycleExecutionState {
         return new LifecycleExecutionState(phase, phaseTime, action, actionTime, actionIndex, STEP_EXECUTE, now,
             null, null, retryCount + 1);
     }
+
+    public static LifecycleExecutionState of(PhaseName phase, Long phaseTime, String action, Long actionTime, int actionIndex,
+                                              String step, Long stepTime, String failedStep, String stepInfo, int retryCount) {
+        return new LifecycleExecutionState(phase, phaseTime, action, actionTime, actionIndex, step, stepTime, failedStep,
+            stepInfo, retryCount);
+    }
 }

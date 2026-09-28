@@ -24,6 +24,14 @@ public final class InternalRate extends InternalAggregation implements SingleVal
         return divisor == 0 ? Double.NaN : sum / divisor;
     }
 
+    public double sumValue() {
+        return sum;
+    }
+
+    public double divisorValue() {
+        return divisor;
+    }
+
     @Override
     public String getType() {
         return "rate";

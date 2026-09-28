@@ -52,6 +52,10 @@ public final class ScriptScoreQueryBuilder extends AbstractQueryBuilder {
         return script;
     }
 
+    public Float minScore() {
+        return minScore;
+    }
+
     @Override
     protected void doToInnerMap(Map<String, Object> inner) {
         inner.put("query", query.toMap());

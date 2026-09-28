@@ -24,6 +24,22 @@ public final class InternalPercentileRanks extends InternalAggregation {
         this.histogram = histogram;
     }
 
+    public PercentilesMethod methodValue() {
+        return method;
+    }
+
+    public double[] valuesValue() {
+        return values;
+    }
+
+    public TDigest digestValue() {
+        return digest;
+    }
+
+    public DoubleHdrHistogram histogramValue() {
+        return histogram;
+    }
+
     public double rank(double value) {
         if (method == PercentilesMethod.TDIGEST) {
             return digest.totalWeight() == 0 ? Double.NaN : digest.cdf(value) * 100.0;

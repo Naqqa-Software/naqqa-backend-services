@@ -414,6 +414,12 @@ public final class SearchCoordinator {
     }
 
     private Connection connectionFor(String nodeId) {
+        Connection cached = connections.get(nodeId);
+        DiscoveryNode known = nodes.get(nodeId);
+        if (cached != null && (!cached.isOpen() || (known != null && !known.address().equals(cached.node().address())))) {
+            connections.remove(nodeId, cached);
+            cached.close();
+        }
         return connections.computeIfAbsent(nodeId, id -> {
             DiscoveryNode node = nodes.get(id);
             if (node == null) {

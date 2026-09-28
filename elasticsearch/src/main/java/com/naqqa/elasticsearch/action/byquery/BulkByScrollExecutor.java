@@ -25,13 +25,19 @@ final class BulkByScrollExecutor {
     }
 
     enum Kind {
-        UPDATED, CREATED, DELETED, NOOP, FAILED
+        UPDATED, CREATED, DELETED, NOOP, FAILED,
+        /** The hit's primary shard is not held locally on this node; a peer will handle it. */
+        SKIPPED
     }
 
     record HandlerResult(Kind kind, boolean versionConflict, String failureReason) {
 
         static HandlerResult of(Kind kind) {
             return new HandlerResult(kind, false, null);
+        }
+
+        static HandlerResult skipped() {
+            return new HandlerResult(Kind.SKIPPED, false, null);
         }
 
         static HandlerResult conflict() {
@@ -94,7 +100,11 @@ final class BulkByScrollExecutor {
             }
 
             int from = restartFromZeroEachBatch ? 0 : (int) consumed;
-            SearchRequest request = new SearchRequest(index, query).from(from).size(options.batchSize())
+            int batchSize = options.batchSize();
+            if (options.maxDocs() > 0) {
+                batchSize = (int) Math.max(1, Math.min(batchSize, options.maxDocs() - consumed));
+            }
+            SearchRequest request = new SearchRequest(index, query).from(from).size(batchSize)
                 .timeoutMillis(options.timeoutMillis());
             if (options.preference() != null) {
                 request.preference(options.preference());
@@ -102,6 +112,9 @@ final class BulkByScrollExecutor {
             SearchResponse response = searcher.search(routingTableSupplier.get(), request);
             if (!sawTotal) {
                 total = response.totalHits().value();
+                if (options.maxDocs() > 0) {
+                    total = Math.min(total, options.maxDocs());
+                }
                 sawTotal = true;
             }
             List<SearchResponse.Hit> hits = response.hits();
@@ -125,6 +138,9 @@ final class BulkByScrollExecutor {
                     case CREATED -> created++;
                     case DELETED -> deleted++;
                     case NOOP -> noops++;
+                    case SKIPPED -> {
+                        // not owned by this node; a broadcast to the owning node handles it
+                    }
                     case FAILED -> {
                         Map<String, Object> failure = Map.of("index", index, "reason", String.valueOf(result.failureReason()));
                         failures.add(failure);

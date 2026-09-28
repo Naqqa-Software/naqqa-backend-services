@@ -62,6 +62,9 @@ public final class DeleteByQueryAction {
     }
 
     private BulkByScrollExecutor.HandlerResult deleteOne(String index, String id, ByQueryOptions options) throws IOException {
+        if (id == null || !router.replicationGroups().containsKey(router.resolveShardId(index, id, null))) {
+            return BulkByScrollExecutor.HandlerResult.skipped();
+        }
         DocumentActionService.DeleteRequest request = new DocumentActionService.DeleteRequest(index, id, null, null,
             null, null, null, options.refresh());
         DocumentActionService.DeleteResult result = deleteAction.execute(request);

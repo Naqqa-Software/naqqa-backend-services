@@ -4,8 +4,10 @@ public final class FrenchSnowballStemmer extends SnowballSupport {
 
     private static final String V = "aeiouyâàëéêèïîôûù";
     private static final String KEEP_WITH_S = "aiouès";
+    private static final String ELISION_CHARS = "cdjlmnstz";
+    private static final String OUX_ENDING = "bhjlnp";
 
-    private static final Among START = Among.of(g("col", "par", "tap"));
+    private static final Among START = Among.of(g("col", "par", "tap"), g("ni"));
 
     private static final Among POSTLUDE = Among.of(
         g("I"), g("U"), g("Y"), g("He"), g("Hi"), g("H"), g(""));
@@ -25,7 +27,8 @@ public final class FrenchSnowballStemmer extends SnowballSupport {
         g("issement", "issements"),
         g("amment"),
         g("emment"),
-        g("ment", "ments"));
+        g("ment", "ments"),
+        g("oux"));
 
     private static final Among EMENT = Among.of(
         g("iv"), g("eus"), g("abl", "iqU"), g("ièr", "Ièr"));
@@ -41,12 +44,14 @@ public final class FrenchSnowballStemmer extends SnowballSupport {
 
     private static final Among VERB = Among.of(
         g("ions"),
-        g("é", "ée", "ées", "és", "èrent", "er", "era", "erai",
-            "eraIent", "erais", "erait", "eras", "erez", "eriez", "erions",
-            "erons", "eront", "ez", "iez"),
-        g("âmes", "ât", "âtes", "a", "ai", "aIent", "ais", "ait", "ant",
-            "ante", "antes", "ants", "as", "asse", "assent", "asses", "assiez",
-            "assions"));
+        g("era", "ée", "erai", "er", "eras", "ées", "eais", "erais",
+            "erions", "erons", "és", "erait", "eraIent", "èrent", "eront",
+            "ez", "iez", "eriez", "erez", "é"),
+        g("a", "asse", "ante", "ai", "as", "âmes", "asses", "antes", "âtes",
+            "ants", "ait", "ant", "aIent", "assent", "ât", "assions", "assiez"),
+        g("ais", "aise", "aises"));
+
+    private static final Among VERB_EXCEPTION = Among.of(g("al"), g("épl", "auv"));
 
     private static final Among RESIDUAL = Among.of(
         g("ion"), g("ier", "ière", "Ier", "Ière"), g("e"));
@@ -63,6 +68,8 @@ public final class FrenchSnowballStemmer extends SnowballSupport {
     @Override
     protected void run() {
         int c = cursor;
+        elisions();
+        cursor = c;
         prelude();
         cursor = c;
         markRegions();
@@ -77,6 +84,22 @@ public final class FrenchSnowballStemmer extends SnowballSupport {
         unAccent();
         cursor = limitBackward;
         postlude();
+    }
+
+    private boolean elisions() {
+        bra = cursor;
+        if (!inGrouping(ELISION_CHARS) && !eqS("qu")) {
+            return false;
+        }
+        if (!eqS("'")) {
+            return false;
+        }
+        ket = cursor;
+        if (cursor >= limit) {
+            return false;
+        }
+        sliceDel();
+        return true;
     }
 
     private void prelude() {
@@ -171,17 +194,25 @@ public final class FrenchSnowballStemmer extends SnowballSupport {
         p1 = limit;
         p2 = limit;
         int c = cursor;
-        if (inGrouping(V) && inGrouping(V) && next()) {
-            pV = cursor;
-        } else {
-            cursor = c;
-            if (findAmong(START) != 0) {
+        pv:
+        {
+            if (inGrouping(V) && inGrouping(V) && next()) {
                 pV = cursor;
-            } else {
-                cursor = c;
-                if (next() && goPastIn(V)) {
-                    pV = cursor;
-                }
+                break pv;
+            }
+            cursor = c;
+            int a = findAmong(START);
+            if (a == 1) {
+                pV = cursor;
+                break pv;
+            }
+            if (a == 2 && inGrouping(V)) {
+                pV = cursor;
+                break pv;
+            }
+            cursor = c;
+            if (next() && goPastIn(V)) {
+                pV = cursor;
             }
         }
         cursor = c;
@@ -421,6 +452,12 @@ public final class FrenchSnowballStemmer extends SnowballSupport {
                 sliceFrom("ent");
                 return false;
             }
+            case 16 -> {
+                if (!inGroupingB(OUX_ENDING)) {
+                    return false;
+                }
+                sliceFrom("ou");
+            }
             default -> {
                 int v = limit - cursor;
                 if (!inGroupingB(V)) {
@@ -528,37 +565,56 @@ public final class FrenchSnowballStemmer extends SnowballSupport {
         }
         int lb = limitBackward;
         limitBackward = pV;
-        try {
-            ket = cursor;
-            int a = findAmongB(VERB);
-            if (a == 0) {
+        ket = cursor;
+        int a = findAmongB(VERB);
+        if (a == 0) {
+            limitBackward = lb;
+            return false;
+        }
+        bra = cursor;
+        limitBackward = lb;
+        switch (a) {
+            case 1 -> {
+                if (!r2()) {
+                    return false;
+                }
+                sliceDel();
+            }
+            case 2 -> sliceDel();
+            case 3 -> {
+                int v = limit - cursor;
+                if (eqSB("e") && rv()) {
+                    bra = cursor;
+                } else {
+                    cursor = limit - v;
+                }
+                sliceDel();
+            }
+            default -> {
+                int v = limit - cursor;
+                if (verbExceptionBlocks()) {
+                    return false;
+                }
+                cursor = limit - v;
+                sliceDel();
+            }
+        }
+        return true;
+    }
+
+    private boolean verbExceptionBlocks() {
+        int b = findAmongB(VERB_EXCEPTION);
+        if (b == 0) {
+            return false;
+        }
+        if (b == 1) {
+            if (cursor <= limitBackward) {
                 return false;
             }
-            bra = cursor;
-            switch (a) {
-                case 1 -> {
-                    if (!r2()) {
-                        return false;
-                    }
-                    sliceDel();
-                }
-                case 2 -> sliceDel();
-                default -> {
-                    sliceDel();
-                    int v = limit - cursor;
-                    ket = cursor;
-                    if (eqSB("e")) {
-                        bra = cursor;
-                        sliceDel();
-                    } else {
-                        cursor = limit - v;
-                    }
-                }
-            }
-            return true;
-        } finally {
-            limitBackward = lb;
+            cursor--;
+            return cursor <= limitBackward;
         }
+        return true;
     }
 
     private void residualSuffix() {

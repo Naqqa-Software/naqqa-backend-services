@@ -115,15 +115,7 @@ public final class IndexService {
         Path shardPath = shardPath(shardId);
         Files.createDirectories(shardPath);
         com.naqqa.elasticsearch.cluster.state.Settings s = metadata.getSettings();
-        TranslogConfig translogConfig = TranslogConfig.defaultConfig(shardPath.resolve("translog"));
-        String durability = s.get("index.translog.durability");
-        if ("async".equalsIgnoreCase(durability)) {
-            translogConfig = translogConfig.withDurability(Durability.ASYNC);
-        }
-        String syncInterval = s.get("index.translog.sync_interval");
-        if (syncInterval != null) {
-            translogConfig = translogConfig.withSyncInterval(TimeValue.parseTimeValue(syncInterval, "index.translog.sync_interval"));
-        }
+        TranslogConfig translogConfig = newTranslogConfig(shardId);
         EngineConfig config = EngineConfig.defaultConfig(shardPath, new FSDirectory(shardPath.resolve("index")),
             mapperService, translogConfig);
         String refresh = s.get("index.refresh_interval");
@@ -138,6 +130,31 @@ public final class IndexService {
         shards.put(shardId, shard);
         translogConfigs.put(shardId, translogConfig);
         return shard;
+    }
+
+    TranslogConfig newTranslogConfig(int shardId) {
+        com.naqqa.elasticsearch.cluster.state.Settings s = metadata.getSettings();
+        TranslogConfig translogConfig = TranslogConfig.defaultConfig(shardPath(shardId).resolve("translog"));
+        String durability = s.get("index.translog.durability");
+        if ("async".equalsIgnoreCase(durability)) {
+            translogConfig = translogConfig.withDurability(Durability.ASYNC);
+        }
+        String syncInterval = s.get("index.translog.sync_interval");
+        if (syncInterval != null) {
+            translogConfig = translogConfig.withSyncInterval(TimeValue.parseTimeValue(syncInterval, "index.translog.sync_interval"));
+        }
+        return translogConfig;
+    }
+
+    void installShard(int shardId, IndexShard shard, TranslogConfig translogConfig) {
+        IndexShard previous = shards.put(shardId, shard);
+        translogConfigs.put(shardId, translogConfig);
+        if (previous != null && previous != shard) {
+            try {
+                previous.close();
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     void closeShard(int shardId) {

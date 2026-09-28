@@ -44,6 +44,18 @@ public final class ApiKeyService {
         return Optional.ofNullable(keys.get(id));
     }
 
+    public Map<String, ApiKey> allKeys() {
+        return keys;
+    }
+
+    public void restore(ApiKey key) {
+        keys.put(key.id(), key);
+    }
+
+    public void removeIfAbsentFrom(java.util.Set<String> knownIds) {
+        keys.keySet().removeIf(id -> !knownIds.contains(id));
+    }
+
     public boolean invalidateApiKey(String id) {
         ApiKey key = keys.get(id);
         if (key == null) {

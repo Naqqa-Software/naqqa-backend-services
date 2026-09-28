@@ -64,6 +64,80 @@ public final class SearchEngine {
         return queryFactory;
     }
 
+    public String nodeId() {
+        return clusterStateManager.localNode() == null ? "_na_" : clusterStateManager.localNode().getId();
+    }
+
+    public void setVectorAccessorProvider(com.naqqa.elasticsearch.search.vectors.query.VectorSegmentAccessorProvider provider) {
+        queryFactory.setVectorProvider(provider);
+    }
+
+    public Map<String, Object> search(List<String> indices, Map<String, Object> body, Map<String, String> params,
+                                      Map<String, Object> aliasFilter) throws IOException {
+        SearchSpec spec = SearchSpec.parse(body, params);
+        boolean indexScopedFilter = aliasFilter != null && containsIndexClause(aliasFilter);
+        if (!spec.requiresRichExecution() && !indexScopedFilter) {
+            Map<String, Object> effective = body == null ? new LinkedHashMap<>() : body;
+            if (aliasFilter != null && !aliasFilter.isEmpty()) {
+                effective = new LinkedHashMap<>(effective);
+                effective.put("query", SearchExecutor.withFilter(spec.hasQuery ? spec.queryClause : null, aliasFilter));
+            }
+            ParsedSearch parsed = parse(indices, effective, params);
+            SearchResponse response = execute(indices, parsed);
+            return render(response, parsed, params);
+        }
+        long start = counters.query.start();
+        boolean ok = false;
+        Map<ShardId, EngineSearcher> searchers = new LinkedHashMap<>();
+        try {
+            for (Map.Entry<ShardId, IndexShard> e : shardsFor(indices).entrySet()) {
+                searchers.put(e.getKey(), e.getValue().acquireSearcher());
+            }
+            Map<String, Object> out = new SearchExecutor(this).execute(indices, searchers, spec, aliasFilter);
+            ok = true;
+            return out;
+        } finally {
+            for (EngineSearcher s : searchers.values()) {
+                try {
+                    s.close();
+                } catch (IOException ignored) {
+                }
+            }
+            counters.query.end(start, ok);
+        }
+    }
+
+    public Map<String, Object> searchOnSearchers(List<String> indices, Map<ShardId, EngineSearcher> searchers, Map<String, Object> body,
+                                                 Map<String, String> params) throws IOException {
+        long start = counters.query.start();
+        boolean ok = false;
+        try {
+            SearchSpec spec = SearchSpec.parse(body, params);
+            Map<String, Object> out = new SearchExecutor(this).execute(indices, searchers, spec, null);
+            ok = true;
+            return out;
+        } finally {
+            counters.query.end(start, ok);
+        }
+    }
+
+    private static boolean containsIndexClause(Object node) {
+        if (node instanceof Map<?, ?> m) {
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                if ("_index".equals(e.getKey()) || containsIndexClause(e.getValue())) {
+                    return true;
+                }
+            }
+        } else if (node instanceof List<?> l) {
+            for (Object o : l) {
+                if (containsIndexClause(o)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public IndicesService indicesService() {
         return indicesService;
     }
@@ -238,7 +312,7 @@ public final class SearchEngine {
         return null;
     }
 
-    private static Map<String, Object> fieldDefinition(Map<String, Object> mapping, String field) {
+    static Map<String, Object> fieldDefinition(Map<String, Object> mapping, String field) {
         Map<String, Object> current = mapping;
         String[] parts = field.split("\\.");
         Map<String, Object> def = null;

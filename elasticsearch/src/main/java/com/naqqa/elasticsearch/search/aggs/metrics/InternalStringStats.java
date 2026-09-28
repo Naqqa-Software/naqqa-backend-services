@@ -26,6 +26,30 @@ public final class InternalStringStats extends InternalAggregation {
         this.showDistribution = showDistribution;
     }
 
+    public long countValue() {
+        return count;
+    }
+
+    public long minLengthValue() {
+        return minLength;
+    }
+
+    public long maxLengthValue() {
+        return maxLength;
+    }
+
+    public double sumLengthValue() {
+        return sumLength;
+    }
+
+    public long[] charFreqValue() {
+        return charFreq;
+    }
+
+    public boolean showDistributionValue() {
+        return showDistribution;
+    }
+
     public double entropy() {
         long total = 0;
         for (long f : charFreq) {

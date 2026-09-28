@@ -31,6 +31,7 @@ public final class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder {
         Object validationMethod = value.remove("validation_method");
         Object type = value.remove("type");
         Map.Entry<String, Object> field = QueryParseUtils.singleField(NAME, value);
+        value.remove(field.getKey());
         Map<String, Object> params = QueryParseUtils.asMap(field.getValue(), NAME);
         GeoPoint topLeft;
         GeoPoint bottomRight;

@@ -22,6 +22,10 @@ public final class InternalGeoBounds extends InternalAggregation {
         this.right = right;
     }
 
+    public double[] boundsValues() {
+        return new double[] {top, bottom, left, right};
+    }
+
     @Override
     public String getType() {
         return "geo_bounds";

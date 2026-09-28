@@ -26,7 +26,7 @@ public final class TieredMergePolicy {
             if (maxDoc == 0) {
                 continue;
             }
-            double pct = 1.0 - ((double) r.numDocs() / maxDoc);
+            double pct = (double) r.deletedDocCount() / maxDoc;
             if (pct > maxDeletedPctAllowed) {
                 deletesExceeded = true;
                 break;

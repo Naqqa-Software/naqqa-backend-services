@@ -22,6 +22,10 @@ public final class InternalBoxplot extends InternalAggregation {
         return Boxplot.compute(digest);
     }
 
+    public TDigest digestValue() {
+        return digest;
+    }
+
     @Override
     public String getType() {
         return "boxplot";

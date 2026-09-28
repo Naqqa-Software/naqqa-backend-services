@@ -5,10 +5,36 @@ import com.naqqa.elasticsearch.codec.docvalues.SortedDocValuesReader;
 import com.naqqa.elasticsearch.codec.docvalues.SortedNumericDocValuesReader;
 import com.naqqa.elasticsearch.codec.docvalues.SortedSetDocValuesReader;
 import com.naqqa.elasticsearch.common.bytes.BytesRef;
+import com.naqqa.elasticsearch.common.geo.GeoPoint;
 
 public final class DocValuesAdapters {
 
     private DocValuesAdapters() {
+    }
+
+    public static GeoPointValuesSource geoPointValues(NumericDocValuesReader reader) {
+        return new GeoPointValuesSource() {
+            private boolean present;
+
+            @Override
+            public boolean advanceExact(int doc) {
+                present = reader.advanceExact(doc);
+                return present;
+            }
+
+            @Override
+            public int docValueCount() {
+                return present ? 1 : 0;
+            }
+
+            @Override
+            public GeoPoint nextValue() {
+                long encoded = reader.longValue();
+                float lat = Float.intBitsToFloat((int) (encoded >>> 32));
+                float lon = Float.intBitsToFloat((int) encoded);
+                return new GeoPoint(lat, lon);
+            }
+        };
     }
 
     public static LongValuesSource of(SortedNumericDocValuesReader reader) {

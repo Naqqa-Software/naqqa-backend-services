@@ -83,6 +83,10 @@ public final class ByQueryActionService {
     }
 
     public CompletableFuture<Map<String, Object>> reindex(Map<String, Object> requestBody) {
+        return reindex(requestBody, Map.of());
+    }
+
+    public CompletableFuture<Map<String, Object>> reindex(Map<String, Object> requestBody, Map<String, String> params) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 if (requestBody == null) {
@@ -97,9 +101,15 @@ public final class ByQueryActionService {
                 String destIndex = String.valueOf(dest.get("index"));
                 Map<String, Object> queryClause = asMap(source.get("query"));
                 String opType = dest.get("op_type") != null ? String.valueOf(dest.get("op_type")) : ByQueryOptions.DEFAULT.opType();
-                long maxDocs = requestBody.get("max_docs") != null ? Long.parseLong(String.valueOf(requestBody.get("max_docs"))) : -1L;
-                ByQueryOptions options = new ByQueryOptions(ByQueryOptions.DEFAULT.batchSize(), ByQueryOptions.DEFAULT.requestsPerSecond(),
-                    maxDocs, ByQueryOptions.DEFAULT.timeoutMillis(), null, "false", 0, true, opType);
+                ByQueryOptions fromParams = ByQueryOptions.fromParams(params);
+                long maxDocs = requestBody.get("max_docs") != null ? Long.parseLong(String.valueOf(requestBody.get("max_docs")))
+                    : fromParams.maxDocs();
+                boolean abortOnConflict = requestBody.get("conflicts") != null
+                    ? !"proceed".equalsIgnoreCase(String.valueOf(requestBody.get("conflicts"))) : fromParams.abortOnConflict();
+                int batchSize = source.get("size") != null ? Integer.parseInt(String.valueOf(source.get("size"))) : fromParams.batchSize();
+                ByQueryOptions options = new ByQueryOptions(batchSize, fromParams.requestsPerSecond(), maxDocs,
+                    fromParams.timeoutMillis(), fromParams.preference(), "false", fromParams.retryOnConflict(), abortOnConflict,
+                    dest.get("op_type") != null ? opType : fromParams.opType());
                 UnaryOperator<Map<String, Object>> transform = buildTransform(requestBody.get("script"));
                 return reindexAction.execute(sourceIndex, queryClause, destIndex, transform, options).toMap();
             } catch (IOException e) {

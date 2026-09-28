@@ -1,6 +1,5 @@
 package com.naqqa.elasticsearch.node.action;
 
-import com.naqqa.elasticsearch.action.search.SearchResponse;
 import com.naqqa.elasticsearch.cluster.routing.ShardId;
 import com.naqqa.elasticsearch.common.json.JsonValue;
 import com.naqqa.elasticsearch.index.engine.EngineSearcher;
@@ -108,18 +107,18 @@ public final class NodeSearchActionService implements SearchActionService, AutoC
 
     private Map<String, Object> doSearch(List<String> indices, Map<String, Object> requestBody, Map<String, String> params) {
         try {
-            Map<String, Object> body = withAliasFilter(indices, requestBody == null ? new LinkedHashMap<>() : requestBody);
-            Map<String, Object> pit = SettingsMaps.asMap(body.get("pit"));
+            Map<String, Object> raw = requestBody == null ? new LinkedHashMap<>() : requestBody;
+            Map<String, Object> pit = SettingsMaps.asMap(raw.get("pit"));
             if (pit != null && pit.get("id") != null) {
-                return searchWithPit(String.valueOf(pit.get("id")), body, params);
+                return searchWithPit(String.valueOf(pit.get("id")), raw, params);
             }
             List<String> resolved = engine.resolve(indices, params);
-            SearchEngine.ParsedSearch parsed = engine.parse(resolved, body, params);
             if (params != null && params.get("scroll") != null) {
+                Map<String, Object> body = withAliasFilter(indices, raw);
+                SearchEngine.ParsedSearch parsed = engine.parse(resolved, body, params);
                 return openScroll(resolved, parsed, params.get("scroll"));
             }
-            SearchResponse response = engine.execute(resolved, parsed);
-            return engine.render(response, parsed, params);
+            return engine.search(resolved, raw, params, aliasFilters.apply(indices));
         } catch (IOException e) {
             throw wrap(e);
         }
@@ -529,9 +528,7 @@ public final class NodeSearchActionService implements SearchActionService, AutoC
         }
         Map<String, Object> bodyWithoutPit = new LinkedHashMap<>(body);
         bodyWithoutPit.remove("pit");
-        SearchEngine.ParsedSearch parsed = engine.parse(state.indices(), bodyWithoutPit, params);
-        SearchResponse response = engine.executeOnSearchers(searchers, parsed);
-        Map<String, Object> rendered = engine.render(response, parsed, params);
+        Map<String, Object> rendered = new LinkedHashMap<>(engine.searchOnSearchers(state.indices(), searchers, bodyWithoutPit, params));
         rendered.put("pit_id", pitId);
         return rendered;
     }

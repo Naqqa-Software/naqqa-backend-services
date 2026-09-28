@@ -3,7 +3,9 @@ package com.naqqa.elasticsearch.action.search;
 import com.naqqa.elasticsearch.cluster.routing.ShardId;
 import com.naqqa.elasticsearch.index.engine.EngineSearcher;
 import com.naqqa.elasticsearch.index.engine.segment.StoredDocCodec;
+import com.naqqa.elasticsearch.index.mapper.MapperService;
 import com.naqqa.elasticsearch.index.shard.IndexShard;
+import com.naqqa.elasticsearch.node.search.QueryFactory;
 import com.naqqa.elasticsearch.search.aggs.InternalAggregations;
 import com.naqqa.elasticsearch.search.aggs.ReduceContext;
 import com.naqqa.elasticsearch.search.aggs.support.MultiBucketConsumer;
@@ -22,7 +24,9 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public final class LocalSearchExecutor {
 
@@ -49,6 +53,11 @@ public final class LocalSearchExecutor {
 
     public static SearchResponse search(Map<ShardId, IndexShard> shards, SearchRequest request) throws IOException {
         Map<ShardId, EngineSearcher> searchers = new java.util.LinkedHashMap<>();
+        Map<String, MapperService> mapperServices = new java.util.LinkedHashMap<>();
+        for (Map.Entry<ShardId, IndexShard> e : shards.entrySet()) {
+            mapperServices.putIfAbsent(e.getKey().index(), e.getValue().mapperService());
+        }
+        Function<String, QueryFactory.FieldType> fieldTypes = mergedFieldTypes(mapperServices);
         List<SearchResponse.Failure> failures = new ArrayList<>();
         try {
             for (Map.Entry<ShardId, IndexShard> e : shards.entrySet()) {
@@ -58,7 +67,7 @@ public final class LocalSearchExecutor {
                     failures.add(new SearchResponse.Failure(e.getKey(), null, ex.getClass().getSimpleName() + ": " + ex.getMessage()));
                 }
             }
-            SearchResponse response = searchOpen(searchers, request);
+            SearchResponse response = searchOpen(searchers, request, fieldTypes);
             if (failures.isEmpty()) {
                 return response;
             }
@@ -79,6 +88,28 @@ public final class LocalSearchExecutor {
     }
 
     public static SearchResponse searchOpen(Map<ShardId, EngineSearcher> searchers, SearchRequest request) throws IOException {
+        return searchOpen(searchers, request, null);
+    }
+
+    private static Function<String, QueryFactory.FieldType> mergedFieldTypes(Map<String, MapperService> mapperServices) {
+        Map<String, Function<String, QueryFactory.FieldType>> resolvers = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, MapperService> e : mapperServices.entrySet()) {
+            resolvers.put(e.getKey(), AggsPhase.fieldTypesFrom(e.getValue()));
+        }
+        Map<String, Optional<QueryFactory.FieldType>> cache = new java.util.HashMap<>();
+        return field -> cache.computeIfAbsent(field, f -> {
+            for (Function<String, QueryFactory.FieldType> resolver : resolvers.values()) {
+                QueryFactory.FieldType type = resolver.apply(f);
+                if (type != null) {
+                    return Optional.of(type);
+                }
+            }
+            return Optional.empty();
+        }).orElse(null);
+    }
+
+    public static SearchResponse searchOpen(Map<ShardId, EngineSearcher> searchers, SearchRequest request,
+                                              Function<String, QueryFactory.FieldType> fieldTypes) throws IOException {
         long startNanos = System.nanoTime();
         int topN = request.from() + request.size();
         List<ShardHit> all = new ArrayList<>();
@@ -91,6 +122,7 @@ public final class LocalSearchExecutor {
         {
             for (int ordinal = 0; ordinal < order.size(); ordinal++) {
                 ShardId shardId = order.get(ordinal);
+                SegmentOwnership.register(searchers.get(shardId), shardId.index());
                 EngineSearchContext ctx = EngineSearchContext.open(searchers.get(shardId), null);
                 contexts.add(ctx);
                 IndexSearcher searcher = ctx.indexSearcher();
@@ -99,7 +131,7 @@ public final class LocalSearchExecutor {
                 if (topN == 0) {
                     if (aggsClause != null) {
                         AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), null, aggsClause,
-                            new MultiBucketConsumer(request.maxBuckets()));
+                            new MultiBucketConsumer(request.maxBuckets()), fieldTypes);
                         shardAggs.add(result.aggregations);
                         totalHits = new TotalHits(result.matchedDocCount, TotalHits.Relation.EQUAL_TO);
                     } else {
@@ -109,7 +141,7 @@ public final class LocalSearchExecutor {
                     ShardFieldCollector collector = new ShardFieldCollector(request.sort(), topN);
                     if (aggsClause != null) {
                         AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause,
-                            new MultiBucketConsumer(request.maxBuckets()));
+                            new MultiBucketConsumer(request.maxBuckets()), fieldTypes);
                         shardAggs.add(result.aggregations);
                     } else {
                         searcher.search(request.query(), collector);
@@ -122,7 +154,7 @@ public final class LocalSearchExecutor {
                     TopScoreDocCollector collector = TopScoreDocCollector.create(topN);
                     if (aggsClause != null) {
                         AggsPhase.Result result = AggsPhase.execute(searcher, request.query(), collector, aggsClause,
-                            new MultiBucketConsumer(request.maxBuckets()));
+                            new MultiBucketConsumer(request.maxBuckets()), fieldTypes);
                         shardAggs.add(result.aggregations);
                     } else {
                         searcher.search(request.query(), collector);

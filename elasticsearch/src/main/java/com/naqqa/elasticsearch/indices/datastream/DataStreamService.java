@@ -49,6 +49,14 @@ public final class DataStreamService {
         }
     }
 
+    public synchronized void removeIfPresent(String name) {
+        dataStreams.remove(name);
+    }
+
+    public synchronized void restore(String name, DataStream dataStream) {
+        dataStreams.put(name, dataStream);
+    }
+
     public synchronized DataStream get(String name) {
         return dataStreams.get(name);
     }

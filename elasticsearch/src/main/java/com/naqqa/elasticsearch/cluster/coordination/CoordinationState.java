@@ -83,8 +83,8 @@ public final class CoordinationState {
     }
 
     public synchronized PreVoteResponse handlePreVoteRequest(PreVoteRequest request) {
-        if (request.currentTerm() > currentTerm) {
-            currentTerm = request.currentTerm();
+        if (request.currentTerm() - 1 > currentTerm) {
+            currentTerm = request.currentTerm() - 1;
             persist();
         }
         return new PreVoteResponse(currentTerm, lastAcceptedState.term(), lastAcceptedState.getVersion());

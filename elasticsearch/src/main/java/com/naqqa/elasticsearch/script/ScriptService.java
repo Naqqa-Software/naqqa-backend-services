@@ -1,15 +1,27 @@
 package com.naqqa.elasticsearch.script;
 
+import com.naqqa.elasticsearch.cluster.service.ClusterChangedEvent;
+import com.naqqa.elasticsearch.cluster.service.ClusterStateListener;
+import com.naqqa.elasticsearch.cluster.state.Metadata;
+import com.naqqa.elasticsearch.node.cluster.ClusterStateManager;
+import com.naqqa.elasticsearch.rest.support.RestApiException;
 import com.naqqa.elasticsearch.script.expression.ExpressionScriptEngine;
 import com.naqqa.elasticsearch.script.mustache.MustacheScriptEngine;
 import com.naqqa.elasticsearch.script.painless.PainlessScriptEngine;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 
-public final class ScriptService {
+public final class ScriptService implements ClusterStateListener {
+
+    public static final String STORED_SCRIPTS_CUSTOM = "stored_scripts";
 
     private record CacheKey(String lang, String context, String source) {}
 
@@ -22,6 +34,7 @@ public final class ScriptService {
     private final LinkedHashMap<CacheKey, CacheEntry> cache;
     private final ReentrantLock cacheLock = new ReentrantLock();
     private long compilationCount;
+    private volatile ClusterStateManager clusterStateManager;
 
     public ScriptService(ScriptSettings settings) {
         this.settings = settings == null ? ScriptSettings.defaults() : settings;
@@ -48,12 +61,51 @@ public final class ScriptService {
         engines.put(engine.type(), engine);
     }
 
-    public void putStoredScript(String id, StoredScriptSource source) {
+    public void bind(ClusterStateManager clusterStateManager) {
+        this.clusterStateManager = clusterStateManager;
+        syncFromClusterState(clusterStateManager.state().getMetadata());
+        clusterStateManager.addListener(this);
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().getMetadata() != event.previousState().getMetadata()) {
+            syncFromClusterState(event.state().getMetadata());
+        }
+    }
+
+    private void syncFromClusterState(Metadata metadata) {
+        com.naqqa.elasticsearch.cluster.state.MapCustom custom = metadata.mapCustom(STORED_SCRIPTS_CUSTOM);
+        for (String id : new ArrayList<>(storedScripts.keySet())) {
+            if (!custom.contains(id)) {
+                storedScripts.remove(id);
+            }
+        }
+        for (String id : custom.ids()) {
+            StoredScriptSource parsed = StoredScriptSource.parse(Map.of("script", custom.get(id)));
+            if (parsed.equals(storedScripts.get(id))) {
+                continue;
+            }
+            try {
+                putStoredScriptLocal(id, parsed);
+            } catch (RuntimeException e) {
+                System.err.println("[script] failed to apply stored script [" + id + "] from cluster state: " + e);
+            }
+        }
+    }
+
+    private void putStoredScriptLocal(String id, StoredScriptSource source) {
         if (!engines.containsKey(source.lang())) {
             throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.lang() + "]");
         }
         engines.get(source.lang()).validate(source.source());
         storedScripts.put(id, source);
+    }
+
+    public void putStoredScript(String id, StoredScriptSource source) {
+        putStoredScriptLocal(id, source);
+        mutate("put-stored-script [" + id + "]", md -> md.toBuilder()
+            .mutateMapCustom(STORED_SCRIPTS_CUSTOM, mc -> mc.with(id, source.toMap())).build());
     }
 
     public StoredScriptSource getStoredScript(String id) {
@@ -71,6 +123,35 @@ public final class ScriptService {
     public void deleteStoredScript(String id) {
         if (storedScripts.remove(id) == null) {
             throw new IllegalArgumentException("stored script [" + id + "] does not exist");
+        }
+        mutate("delete-stored-script [" + id + "]", md -> md.toBuilder()
+            .mutateMapCustom(STORED_SCRIPTS_CUSTOM, mc -> mc.without(id)).build());
+    }
+
+    private void mutate(String source, java.util.function.UnaryOperator<Metadata> op) {
+        if (clusterStateManager == null) {
+            return;
+        }
+        try {
+            clusterStateManager.submit(source, cs -> cs.builder().metadata(op.apply(cs.getMetadata())).build())
+                .get(30, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RestApiException(500, cause.getMessage(), cause);
+        } catch (TimeoutException e) {
+            throw new RestApiException(503, "timed out waiting for cluster state update [" + source + "]");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RestApiException(500, "interrupted");
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RestApiException(500, cause.getMessage(), cause);
         }
     }
 

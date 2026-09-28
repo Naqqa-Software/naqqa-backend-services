@@ -20,6 +20,10 @@ public final class FixedBitSet {
         return numBits;
     }
 
+    public long ramBytesUsed() {
+        return 16L + (long) bits.length * 8L;
+    }
+
     public boolean get(int index) {
         int wordNum = index >> 6;
         long bitmask = 1L << (index & 0x3F);

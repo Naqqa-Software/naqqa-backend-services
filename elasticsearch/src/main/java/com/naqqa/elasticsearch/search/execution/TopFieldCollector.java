@@ -19,7 +19,7 @@ public final class TopFieldCollector implements Collector {
     private final int numHits;
     private final int totalHitsThreshold;
     private final boolean needsScore;
-    private final PriorityQueue<Entry> pq;
+    private final PriorityQueue<FieldDoc> pq;
     private long hitCount;
     private TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
 
@@ -38,13 +38,13 @@ public final class TopFieldCollector implements Collector {
         this.needsScore = Arrays.stream(sort.fields()).anyMatch(f -> f.type() == SortField.Type.SCORE);
         this.pq = new PriorityQueue<>(Math.max(numHits, 1), false) {
             @Override
-            protected boolean lessThan(Entry a, Entry b) {
-                return compareEntries(a, b) > 0;
+            protected boolean lessThan(FieldDoc a, FieldDoc b) {
+                return compareFieldDocs(sort, a, b) > 0;
             }
         };
     }
 
-    private int compareEntries(Entry a, Entry b) {
+    public static int compareFieldDocs(Sort sort, FieldDoc a, FieldDoc b) {
         SortField[] fields = sort.fields();
         for (int i = 0; i < fields.length; i++) {
             int cmp = compareField(fields[i], a, b, i);
@@ -55,7 +55,7 @@ public final class TopFieldCollector implements Collector {
         return Integer.compare(a.doc, b.doc);
     }
 
-    private static int compareField(SortField f, Entry a, Entry b, int idx) {
+    private static int compareField(SortField f, FieldDoc a, FieldDoc b, int idx) {
         int cmp = switch (f.type()) {
             case DOC -> Integer.compare(a.doc, b.doc);
             case SCORE -> -Float.compare(a.score, b.score);
@@ -112,7 +112,7 @@ public final class TopFieldCollector implements Collector {
                     };
                 }
                 if (numHits > 0) {
-                    pq.insertWithOverflow(new Entry(context.docBase() + doc, score, values));
+                    pq.insertWithOverflow(new FieldDoc(context.docBase() + doc, score, values));
                 }
             }
         };
@@ -124,7 +124,7 @@ public final class TopFieldCollector implements Collector {
 
     public TopDocs topDocs() {
         int size = pq.size();
-        Entry[] arr = pq.drainToArrayHighestFirst(new Entry[size]);
+        FieldDoc[] arr = pq.drainToArrayHighestFirst(new FieldDoc[size]);
         ScoreDoc[] docs = new ScoreDoc[arr.length];
         for (int i = 0; i < arr.length; i++) {
             docs[i] = new ScoreDoc(arr[i].doc, arr[i].score);
@@ -132,15 +132,9 @@ public final class TopFieldCollector implements Collector {
         return new TopDocs(new TotalHits(hitCount, relation), docs);
     }
 
-    private static final class Entry {
-        final int doc;
-        final float score;
-        final Object[] values;
-
-        Entry(int doc, float score, Object[] values) {
-            this.doc = doc;
-            this.score = score;
-            this.values = values;
-        }
+    public FieldTopDocs fieldTopDocs() {
+        int size = pq.size();
+        FieldDoc[] arr = pq.drainToArrayHighestFirst(new FieldDoc[size]);
+        return new FieldTopDocs(new TotalHits(hitCount, relation), arr);
     }
 }

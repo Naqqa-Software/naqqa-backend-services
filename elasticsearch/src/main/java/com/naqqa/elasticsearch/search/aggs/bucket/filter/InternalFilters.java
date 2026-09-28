@@ -36,6 +36,10 @@ public final class InternalFilters extends InternalAggregation implements MultiB
         return new InternalFilters(getName(), cast, keyed, getMetadata());
     }
 
+    public boolean isKeyedValue() {
+        return keyed;
+    }
+
     @Override
     public String getType() {
         return "filters";

@@ -59,7 +59,7 @@ public abstract class SnowballSupport implements Stemmer {
             this.results = results;
         }
 
-        static Among of(String[]... groups) {
+        public static Among of(String[]... groups) {
             int n = 0;
             for (String[] g : groups) {
                 n += g.length;

@@ -12,6 +12,7 @@ public final class TopScoreDocCollector implements Collector {
 
     private final int numHits;
     private final int totalHitsThreshold;
+    private final MaxScoreAccumulator minScoreAcc;
     private final PriorityQueue<ScoreDoc> pq;
     private long hitCount;
     private TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
@@ -21,12 +22,17 @@ public final class TopScoreDocCollector implements Collector {
     }
 
     public static TopScoreDocCollector create(int numHits, int totalHitsThreshold) {
-        return new TopScoreDocCollector(numHits, totalHitsThreshold);
+        return new TopScoreDocCollector(numHits, totalHitsThreshold, null);
     }
 
-    private TopScoreDocCollector(int numHits, int totalHitsThreshold) {
+    static TopScoreDocCollector createShared(int numHits, int totalHitsThreshold, MaxScoreAccumulator minScoreAcc) {
+        return new TopScoreDocCollector(numHits, totalHitsThreshold, minScoreAcc);
+    }
+
+    private TopScoreDocCollector(int numHits, int totalHitsThreshold, MaxScoreAccumulator minScoreAcc) {
         this.numHits = numHits;
         this.totalHitsThreshold = totalHitsThreshold;
+        this.minScoreAcc = minScoreAcc;
         this.pq = new PriorityQueue<>(Math.max(numHits, 1), false) {
             @Override
             protected boolean lessThan(ScoreDoc a, ScoreDoc b) {
@@ -54,9 +60,17 @@ public final class TopScoreDocCollector implements Collector {
             @Override
             public void setScorer(Scorer scorer) throws IOException {
                 this.scorer = scorer;
-                if (numHits > 0 && pq.size() >= numHits) {
-                    scorer.setMinCompetitiveScore(pq.top().score);
+                float bound = localMinScore();
+                if (minScoreAcc != null) {
+                    bound = Math.max(bound, minScoreAcc.rawMaxScore());
                 }
+                if (numHits > 0 && bound != Float.NEGATIVE_INFINITY) {
+                    scorer.setMinCompetitiveScore(bound);
+                }
+            }
+
+            private float localMinScore() {
+                return (numHits > 0 && pq.size() >= numHits) ? pq.top().score : Float.NEGATIVE_INFINITY;
             }
 
             @Override
@@ -69,7 +83,12 @@ public final class TopScoreDocCollector implements Collector {
                 if (numHits > 0) {
                     pq.insertWithOverflow(new ScoreDoc(context.docBase() + doc, score));
                     if (pq.size() >= numHits) {
-                        scorer.setMinCompetitiveScore(pq.top().score);
+                        float bound = pq.top().score;
+                        if (minScoreAcc != null) {
+                            minScoreAcc.accumulate(context.docBase() + doc, bound);
+                            bound = Math.max(bound, minScoreAcc.rawMaxScore());
+                        }
+                        scorer.setMinCompetitiveScore(bound);
                     }
                 }
             }

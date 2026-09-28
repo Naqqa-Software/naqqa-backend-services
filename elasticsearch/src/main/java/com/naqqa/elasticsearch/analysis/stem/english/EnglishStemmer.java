@@ -15,10 +15,12 @@ public final class EnglishStemmer implements Stemmer {
     };
 
     private static final String[] EXCEPTION2_WORDS = {
-        "inning", "outing", "canning", "herring", "earring", "proceed", "exceed", "succeed"
+        "inning", "outing", "canning", "herring", "earring", "evening", "proceed", "exceed", "succeed"
     };
 
-    private static final String[] REGION_PREFIXES = {"gener", "commun", "arsen"};
+    private static final String[] REGION_PREFIXES = {
+        "arsen", "commun", "emerg", "gener", "inter", "later", "organ", "past", "univers"
+    };
 
     private static final String[] STEP1B_SUFFIXES = {"eedly", "ingly", "edly", "eed", "ing", "ed"};
 
@@ -27,7 +29,7 @@ public final class EnglishStemmer implements Stemmer {
         "tional", "biliti", "lessli",
         "entli", "ation", "alism", "aliti", "ousli", "iviti", "fulli",
         "enci", "anci", "abli", "izer", "ator", "alli",
-        "bli", "ogi",
+        "bli", "ogist", "ogi",
         "li"
     };
 
@@ -36,7 +38,7 @@ public final class EnglishStemmer implements Stemmer {
         "tion", "ble", "less",
         "ent", "ate", "al", "al", "ous", "ive", "ful",
         "ence", "ance", "able", "ize", "ate", "al",
-        "ble", null,
+        "ble", "og", null,
         null
     };
 
@@ -260,7 +262,10 @@ public final class EnglishStemmer implements Stemmer {
         if (end >= 3 && !isVowelWXY(b[end - 1]) && isVowel(b[end - 2]) && !isVowel(b[end - 3])) {
             return true;
         }
-        return end == 2 && !isVowel(b[1]) && isVowel(b[0]);
+        if (end == 2 && !isVowel(b[1]) && isVowel(b[0])) {
+            return true;
+        }
+        return end == 4 && b[0] == 'p' && b[1] == 'a' && b[2] == 's' && b[3] == 't';
     }
 
     private void step1a() {
@@ -304,6 +309,10 @@ public final class EnglishStemmer implements Stemmer {
             }
             return;
         }
+        if (index == 4 && start == 2 && b[1] == 'y' && !isVowel(b[0])) {
+            replaceSuffix(4, "ie");
+            return;
+        }
         boolean vowel = false;
         for (int i = 0; i < start; i++) {
             if (isVowel(b[i])) {
@@ -317,7 +326,8 @@ public final class EnglishStemmer implements Stemmer {
         n = start;
         if (endsWith("at") || endsWith("bl") || endsWith("iz")) {
             b[n++] = 'e';
-        } else if (n >= 2 && b[n - 1] == b[n - 2] && isDoubleCandidate(b[n - 1])) {
+        } else if (n >= 2 && b[n - 1] == b[n - 2] && isDoubleCandidate(b[n - 1])
+            && !(n == 3 && (b[0] == 'a' || b[0] == 'e' || b[0] == 'o'))) {
             n--;
         } else if (n == p1 && shortV(n)) {
             b[n++] = 'e';

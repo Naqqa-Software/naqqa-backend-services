@@ -24,6 +24,10 @@ public final class InternalMedianAbsoluteDeviation extends InternalAggregation i
         return MedianAbsoluteDeviation.compute(digest);
     }
 
+    public TDigest digestValue() {
+        return digest;
+    }
+
     @Override
     public String getType() {
         return "median_absolute_deviation";

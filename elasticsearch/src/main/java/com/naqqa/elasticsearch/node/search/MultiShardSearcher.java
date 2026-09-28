@@ -9,6 +9,7 @@ import com.naqqa.elasticsearch.index.shard.IndexShard;
 import com.naqqa.elasticsearch.search.advanced.common.SegmentReaderLeafAdapter;
 import com.naqqa.elasticsearch.search.execution.IndexSearcher;
 import com.naqqa.elasticsearch.search.execution.LeafReader;
+import com.naqqa.elasticsearch.search.execution.SearchExecutors;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,6 +35,7 @@ public final class MultiShardSearcher implements Closeable {
         this.owned = owned;
         int base = 0;
         for (Map.Entry<ShardId, EngineSearcher> e : engineSearchers.entrySet()) {
+            com.naqqa.elasticsearch.action.search.SegmentOwnership.register(e.getValue(), e.getKey().index());
             for (SegmentReader sr : e.getValue().leaves()) {
                 segments.add(sr);
                 segmentShards.add(e.getKey());
@@ -42,7 +44,7 @@ public final class MultiShardSearcher implements Closeable {
             }
         }
         List<LeafReader> leaves = SegmentReaderLeafAdapter.wrap(segments);
-        this.searcher = new IndexSearcher(leaves);
+        this.searcher = new IndexSearcher(leaves, SearchExecutors.shared());
     }
 
     public static MultiShardSearcher open(Map<ShardId, IndexShard> shards) throws IOException {

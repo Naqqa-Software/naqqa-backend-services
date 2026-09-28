@@ -387,6 +387,11 @@ public final class NodeDocumentActionService implements DocumentActionService {
 
     @Override
     public CompletableFuture<Map<String, Object>> reindex(Map<String, Object> requestBody) {
+        return reindex(requestBody, Map.of());
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> reindex(Map<String, Object> requestBody, Map<String, String> params) {
         Map<String, Object> dest = requestBody == null ? null : com.naqqa.elasticsearch.node.support.SettingsMaps.asMap(requestBody.get("dest"));
         if (dest != null && dest.get("index") != null) {
             try {
@@ -395,7 +400,9 @@ public final class NodeDocumentActionService implements DocumentActionService {
                 return CompletableFuture.failedFuture(e);
             }
         }
-        return byQuery.reindex(requestBody);
+        String destIndex = dest == null || dest.get("index") == null ? null : String.valueOf(dest.get("index"));
+        CompletableFuture<Map<String, Object>> future = byQuery.reindex(requestBody, params);
+        return destIndex == null ? future : refreshAfter(future, destIndex, params);
     }
 
     @Override

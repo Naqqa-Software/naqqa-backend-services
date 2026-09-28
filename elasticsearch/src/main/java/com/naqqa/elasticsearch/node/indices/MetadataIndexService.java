@@ -179,7 +179,7 @@ public final class MetadataIndexService {
         Map<String, AliasMetadata> aliases = new LinkedHashMap<>();
         for (com.naqqa.elasticsearch.indices.alias.AliasMetadata a : spec.aliases().values()) {
             aliases.put(a.getAlias(), new AliasMetadata(a.getAlias(), a.getIndexRouting(), a.getSearchRouting(),
-                a.isWriteIndexExplicit() && a.isWriteIndex()));
+                a.isWriteIndex(), a.isWriteIndexExplicit(), a.getFilter()));
         }
         Map<Integer, Long> primaryTerms = new LinkedHashMap<>();
         int shards = settings.getAsInt("index.number_of_shards", 1);
@@ -483,7 +483,7 @@ public final class MetadataIndexService {
                 Map<String, AliasMetadata> desired = new LinkedHashMap<>();
                 for (com.naqqa.elasticsearch.indices.alias.AliasMetadata a : aliasService.getAliases(imd.getIndex()).values()) {
                     desired.put(a.getAlias(), new AliasMetadata(a.getAlias(), a.getIndexRouting(), a.getSearchRouting(),
-                        a.isWriteIndexExplicit() && a.isWriteIndex()));
+                        a.isWriteIndex(), a.isWriteIndexExplicit(), a.getFilter()));
                 }
                 if (!sameAliases(desired, imd.getAliases())) {
                     changed = true;
@@ -504,7 +504,9 @@ public final class MetadataIndexService {
             AliasMetadata mine = e.getValue();
             if (!java.util.Objects.equals(mine.getIndexRouting(), other.getIndexRouting())
                 || !java.util.Objects.equals(mine.getSearchRouting(), other.getSearchRouting())
-                || mine.isWriteIndex() != other.isWriteIndex()) {
+                || mine.isWriteIndex() != other.isWriteIndex()
+                || mine.isWriteIndexExplicit() != other.isWriteIndexExplicit()
+                || !mine.getFilter().equals(other.getFilter())) {
                 return false;
             }
         }
@@ -518,8 +520,11 @@ public final class MetadataIndexService {
             for (AliasMetadata a : imd.getAliases().values()) {
                 AliasAction.Builder b = AliasAction.add().index(imd.getIndex()).alias(a.getAlias())
                     .indexRouting(a.getIndexRouting()).searchRouting(a.getSearchRouting());
-                if (a.isWriteIndex()) {
-                    b.writeIndex(true);
+                if (a.hasFilter()) {
+                    b.filter(a.getFilter());
+                }
+                if (a.isWriteIndexExplicit()) {
+                    b.writeIndex(a.isWriteIndex());
                 }
                 actions.add(b.build());
             }

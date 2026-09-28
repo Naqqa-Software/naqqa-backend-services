@@ -22,6 +22,10 @@ public final class InternalExtendedStats extends InternalStats {
         return sumOfSquares;
     }
 
+    public double sigmaValue() {
+        return sigma;
+    }
+
     public double variance() {
         if (count == 0) {
             return Double.NaN;

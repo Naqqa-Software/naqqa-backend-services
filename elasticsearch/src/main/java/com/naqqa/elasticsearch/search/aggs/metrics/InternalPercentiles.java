@@ -24,6 +24,22 @@ public final class InternalPercentiles extends InternalAggregation {
         this.histogram = histogram;
     }
 
+    public PercentilesMethod methodValue() {
+        return method;
+    }
+
+    public double[] percentsValue() {
+        return percents;
+    }
+
+    public TDigest digestValue() {
+        return digest;
+    }
+
+    public DoubleHdrHistogram histogramValue() {
+        return histogram;
+    }
+
     public double percentile(double p) {
         if (method == PercentilesMethod.TDIGEST) {
             return digest.totalWeight() == 0 ? Double.NaN : digest.quantile(p / 100.0);

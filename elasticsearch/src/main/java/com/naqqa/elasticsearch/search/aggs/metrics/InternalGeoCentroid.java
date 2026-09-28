@@ -29,6 +29,10 @@ public final class InternalGeoCentroid extends InternalAggregation {
         return count;
     }
 
+    public double[] sums() {
+        return new double[] {latSum, lonSum};
+    }
+
     @Override
     public String getType() {
         return "geo_centroid";

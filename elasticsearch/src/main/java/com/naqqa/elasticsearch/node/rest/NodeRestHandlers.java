@@ -122,7 +122,7 @@ public final class NodeRestHandlers {
         String id = request.param("id");
         Map<String, Object> body = RestUtils.parseBody(request);
         try {
-            ingestService.getPipelineStore().put(id, body, ingestService.getRegistry());
+            ingestService.putPipeline(id, body);
         } catch (RestApiException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -149,9 +149,7 @@ public final class NodeRestHandlers {
 
     private void deletePipeline(RestRequest request, RestChannel channel) {
         String id = request.param("id");
-        if (!ingestService.getPipelineStore().delete(id)) {
-            throw new RestApiException(404, "pipeline [" + id + "] is missing");
-        }
+        ingestService.deletePipeline(id);
         ok(request, channel, ack());
     }
 
@@ -387,8 +385,7 @@ public final class NodeRestHandlers {
             ttl = Duration.ofMillis(com.naqqa.elasticsearch.common.unit.TimeValue.parseTimeValue(
                 String.valueOf(body.get("expiration")), "expiration").millis());
         }
-        ApiKeyService.CreatedApiKey created = securityService.apiKeyService().createApiKey(authentication.effectiveUser(), name,
-            List.of(), ttl);
+        ApiKeyService.CreatedApiKey created = securityService.createApiKey(authentication.effectiveUser(), name, ttl);
         String encoded = created.credentials().substring("ApiKey ".length());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", created.id());
@@ -408,7 +405,7 @@ public final class NodeRestHandlers {
         }
         List<String> invalidated = new ArrayList<>();
         for (String id : ids) {
-            if (securityService.apiKeyService().invalidateApiKey(id)) {
+            if (securityService.invalidateApiKey(id)) {
                 invalidated.add(id);
             }
         }

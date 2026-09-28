@@ -29,6 +29,14 @@ public final class InternalTopMetrics extends InternalAggregation {
         return topMetrics;
     }
 
+    public int sizeValue() {
+        return size;
+    }
+
+    public boolean ascendingValue() {
+        return ascending;
+    }
+
     @Override
     public String getType() {
         return "top_metrics";
