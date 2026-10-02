@@ -31,6 +31,13 @@ public final class Mapping {
         String[] parts = fullPath.split("\\.");
         Mapper current = root;
         for (String part : parts) {
+            if (current instanceof FieldMapper parent) {
+                current = parent.getMultiField(part);
+                if (current == null) {
+                    return null;
+                }
+                continue;
+            }
             if (!(current instanceof ObjectMapper om)) {
                 return null;
             }

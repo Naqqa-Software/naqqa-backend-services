@@ -48,6 +48,11 @@ public final class AutomatonQuery extends MultiTermQuery {
     }
 
     @Override
+    protected boolean allowConstantScoreRewrite() {
+        return !description.startsWith("fuzzy:");
+    }
+
+    @Override
     protected TermsEnum getTermsEnum(TermsEnum termsEnum) throws IOException {
         switch (compiled.getType()) {
             case NONE:

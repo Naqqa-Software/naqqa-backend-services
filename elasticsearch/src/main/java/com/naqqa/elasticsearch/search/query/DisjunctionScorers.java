@@ -25,6 +25,9 @@ public final class DisjunctionScorers {
 
     static final class DisjunctionSumScorer extends Scorer {
         private final Scorer[] scorers;
+        private final int[] heap;
+        private final int[] stack;
+        private final int[] matched;
         private final int minShouldMatch;
         private int doc = -1;
         private float score;
@@ -34,12 +37,43 @@ public final class DisjunctionScorers {
         DisjunctionSumScorer(Weight weight, List<Scorer> scorers, int minShouldMatch) {
             super(weight);
             this.scorers = scorers.toArray(new Scorer[0]);
+            this.heap = new int[this.scorers.length];
+            this.stack = new int[this.scorers.length];
+            this.matched = new int[this.scorers.length];
             this.minShouldMatch = minShouldMatch;
             long cost = 0;
-            for (Scorer s : this.scorers) {
-                cost += s.cost();
+            for (int i = 0; i < this.scorers.length; i++) {
+                cost += this.scorers[i].cost();
+                heap[i] = i;
             }
             this.costEstimate = cost;
+            for (int i = (heap.length >>> 1) - 1; i >= 0; i--) {
+                siftDown(i);
+            }
+        }
+
+        private int heapDoc(int i) {
+            return scorers[heap[i]].docID();
+        }
+
+        private void siftDown(int i) {
+            int node = heap[i];
+            int nodeDoc = scorers[node].docID();
+            int n = heap.length;
+            while (true) {
+                int left = (i << 1) + 1;
+                if (left >= n) {
+                    break;
+                }
+                int right = left + 1;
+                int child = right < n && heapDoc(right) < heapDoc(left) ? right : left;
+                if (heapDoc(child) >= nodeDoc) {
+                    break;
+                }
+                heap[i] = heap[child];
+                i = child;
+            }
+            heap[i] = node;
         }
 
         public int matchCount() {
@@ -69,26 +103,38 @@ public final class DisjunctionScorers {
 
         private int doNext(int target) throws IOException {
             while (true) {
-                int candidate = NO_MORE_DOCS;
-                for (Scorer s : scorers) {
-                    if (s.docID() < target) {
-                        s.advance(target);
-                    }
-                    if (s.docID() < candidate) {
-                        candidate = s.docID();
-                    }
+                while (heapDoc(0) < target) {
+                    scorers[heap[0]].advance(target);
+                    siftDown(0);
                 }
+                int candidate = heapDoc(0);
                 if (candidate == NO_MORE_DOCS) {
                     doc = NO_MORE_DOCS;
                     return NO_MORE_DOCS;
                 }
                 int count = 0;
-                float total = 0f;
-                for (Scorer s : scorers) {
-                    if (s.docID() == candidate) {
-                        count++;
-                        total += s.score();
+                int top = 0;
+                stack[top++] = 0;
+                while (top > 0) {
+                    int i = stack[--top];
+                    if (heapDoc(i) != candidate) {
+                        continue;
                     }
+                    matched[count++] = heap[i];
+                    int left = (i << 1) + 1;
+                    if (left < heap.length) {
+                        stack[top++] = left;
+                        if (left + 1 < heap.length) {
+                            stack[top++] = left + 1;
+                        }
+                    }
+                }
+                if (count > 1) {
+                    java.util.Arrays.sort(matched, 0, count);
+                }
+                float total = 0f;
+                for (int k = 0; k < count; k++) {
+                    total += scorers[matched[k]].score();
                 }
                 if (count >= minShouldMatch) {
                     doc = candidate;

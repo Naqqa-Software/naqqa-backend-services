@@ -241,13 +241,14 @@ public final class SearchEngine {
             queryClause = Map.of("query_string", qs);
         }
         java.util.function.Function<String, QueryFactory.FieldType> types = fieldTypes(indices);
-        Query query = queryFactory.toQuery(queryClause, types);
+        java.util.function.Function<String, com.naqqa.elasticsearch.analysis.Analyzer> analyzers = searchAnalyzers(indices);
+        Query query = queryFactory.toQuery(queryClause, types, analyzers);
         Map<String, Object> postFilter = SettingsMaps.asMap(b.get("post_filter"));
         Map<String, Object> aggs = SettingsMaps.asMap(b.get("aggs") != null ? b.get("aggs") : b.get("aggregations"));
         if (postFilter != null && aggs == null) {
             BooleanQuery.Builder combined = BooleanQuery.builder();
             combined.add(query, BooleanQuery.Occur.MUST);
-            combined.add(queryFactory.toQuery(postFilter, types), BooleanQuery.Occur.FILTER);
+            combined.add(queryFactory.toQuery(postFilter, types, analyzers), BooleanQuery.Occur.FILTER);
             query = combined.build();
         }
         int from = intValue(p.get("from") != null ? p.get("from") : b.get("from"), 0);
@@ -338,7 +339,26 @@ public final class SearchEngine {
     }
 
     public Query toQuery(List<String> indices, Map<String, Object> clause) {
-        return queryFactory.toQuery(clause, fieldTypes(indices));
+        return queryFactory.toQuery(clause, fieldTypes(indices), searchAnalyzers(indices));
+    }
+
+    public java.util.function.Function<String, com.naqqa.elasticsearch.analysis.Analyzer> searchAnalyzers(List<String> indices) {
+        Map<String, java.util.Optional<com.naqqa.elasticsearch.analysis.Analyzer>> cache = new java.util.HashMap<>();
+        return field -> cache.computeIfAbsent(field, f -> java.util.Optional.ofNullable(lookupSearchAnalyzer(indices, f))).orElse(null);
+    }
+
+    private com.naqqa.elasticsearch.analysis.Analyzer lookupSearchAnalyzer(List<String> indices, String field) {
+        for (String index : indices) {
+            IndexService service = indicesService.indexService(index);
+            if (service == null || service.mapperService().documentMapper() == null) {
+                continue;
+            }
+            FieldMapper mapper = service.mapperService().documentMapper().mapping().fieldMapper(field);
+            if (mapper instanceof TextFieldMapper text && text.searchAnalyzer() != null) {
+                return text.searchAnalyzer();
+            }
+        }
+        return null;
     }
 
     public java.util.function.Function<String, QueryFactory.FieldType> fieldTypes(List<String> indices) {

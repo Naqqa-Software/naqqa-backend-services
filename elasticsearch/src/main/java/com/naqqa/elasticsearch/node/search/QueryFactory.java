@@ -69,6 +69,11 @@ public final class QueryFactory {
         return toQuery(clause, null);
     }
 
+    public Query toQuery(Map<String, Object> clause, Function<String, FieldType> fieldTypes,
+                         Function<String, com.naqqa.elasticsearch.analysis.Analyzer> searchAnalyzers) {
+        return toQuery(QueryTextAnalyzer.rewrite(clause, searchAnalyzers), fieldTypes);
+    }
+
     public Query toQuery(Map<String, Object> clause, Function<String, FieldType> fieldTypes) {
         if (clause == null || clause.isEmpty()) {
             return new MatchAllDocsQuery();

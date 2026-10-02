@@ -74,7 +74,8 @@ final class SearchExecutor {
         }
         applyIndexBoosts(spec, shards);
         validateSorts(spec, shards);
-        Function<Map<String, Object>, Query> parse = clause -> engine.queryFactory().toQuery(clause, allTypes);
+        Function<String, com.naqqa.elasticsearch.analysis.Analyzer> allAnalyzers = engine.searchAnalyzers(indices);
+        Function<Map<String, Object>, Query> parse = clause -> engine.queryFactory().toQuery(clause, allTypes, allAnalyzers);
         Map<String, Object> mainClause = withFilter(spec.hasQuery ? spec.queryClause : null, aliasFilter);
         Query mainQuery = parse.apply(mainClause);
         Query userQuery = spec.hasQuery ? parse.apply(spec.queryClause) : null;

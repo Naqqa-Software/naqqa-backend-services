@@ -5,6 +5,7 @@ import com.naqqa.elasticsearch.common.geo.DistanceUnit;
 import com.naqqa.elasticsearch.common.geo.GeoDistance;
 import com.naqqa.elasticsearch.common.geo.GeoPoint;
 import com.naqqa.elasticsearch.common.geo.geometry.Geometry;
+import com.naqqa.elasticsearch.common.unit.Fuzziness;
 import com.naqqa.elasticsearch.index.query.AbstractQueryBuilder;
 import com.naqqa.elasticsearch.index.query.BoolQueryBuilder;
 import com.naqqa.elasticsearch.index.query.BoostingQueryBuilder;
@@ -784,17 +785,37 @@ public final class QueryBuilderToQuery {
             return m.zeroTermsQuery() == com.naqqa.elasticsearch.index.query.ZeroTermsQuery.ALL
                 ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
         }
+        Map<String, Object> params = m.fuzziness() == null ? Map.of() : extractParams(m, m.fieldName());
+        int prefixLength = params.containsKey("prefix_length") ? QueryParseUtils.asInt(params.get("prefix_length")) : 0;
+        boolean transpositions = !params.containsKey("fuzzy_transpositions") || QueryParseUtils.asBoolean(params.get("fuzzy_transpositions"));
         if (tokens.length == 1) {
-            return new TermQuery(new Term(m.fieldName(), tokens[0]));
+            return matchTermQuery(m.fieldName(), tokens[0], m.fuzziness(), prefixLength, transpositions);
         }
         BooleanQuery.Occur occur = m.operator() == Operator.AND ? BooleanQuery.Occur.MUST : BooleanQuery.Occur.SHOULD;
         BooleanQuery.Builder b = BooleanQuery.builder();
         for (String token : tokens) {
-            b.add(new TermQuery(new Term(m.fieldName(), token)), occur);
+            b.add(matchTermQuery(m.fieldName(), token, m.fuzziness(), prefixLength, transpositions), occur);
         }
         if (occur == BooleanQuery.Occur.SHOULD && m.minimumShouldMatch() != null) {
             b.setMinimumShouldMatch(m.minimumShouldMatch().resolve(tokens.length));
         }
+        return b.build();
+    }
+
+    private static Query matchTermQuery(String field, String token, Fuzziness fuzziness, int prefixLength, boolean transpositions) {
+        TermQuery exact = new TermQuery(new Term(field, token));
+        if (fuzziness == null) {
+            return exact;
+        }
+        int edits = fuzziness.asDistance(token);
+        if (edits <= 0) {
+            return exact;
+        }
+        int prefix = Math.min(Math.max(prefixLength, 0), token.length());
+        BooleanQuery.Builder b = BooleanQuery.builder();
+        b.add(exact, BooleanQuery.Occur.SHOULD);
+        b.add(AutomatonQuery.fuzzy(field, token, edits, prefix, transpositions), BooleanQuery.Occur.SHOULD);
+        b.setMinimumShouldMatch(1);
         return b.build();
     }
 
@@ -849,6 +870,9 @@ public final class QueryBuilderToQuery {
         Operator operator = params.containsKey("operator") ? Operator.fromString(String.valueOf(params.get("operator"))) : Operator.OR;
         int slop = params.containsKey("slop") ? QueryParseUtils.asInt(params.get("slop")) : 0;
         Float tieBreakerParam = params.containsKey("tie_breaker") ? QueryParseUtils.asFloat(params.get("tie_breaker")) : null;
+        Fuzziness fuzziness = QueryParseUtils.asFuzziness(params.get("fuzziness"));
+        int prefixLength = params.containsKey("prefix_length") ? QueryParseUtils.asInt(params.get("prefix_length")) : 0;
+        boolean transpositions = !params.containsKey("fuzzy_transpositions") || QueryParseUtils.asBoolean(params.get("fuzzy_transpositions"));
         List<Query> perField = new ArrayList<>();
         for (String field : m.fields().isEmpty() ? List.of("_all") : new ArrayList<>(m.fields().keySet())) {
             Float boost = m.fields().get(field);
@@ -856,7 +880,7 @@ public final class QueryBuilderToQuery {
                 case PHRASE -> convertMatchPhrase(field, text, slop);
                 case PHRASE_PREFIX -> convertMatchPhrasePrefix(field, text, slop, 50);
                 case BOOL_PREFIX -> convertMatchBoolPrefix(field, text, operator, 50);
-                default -> convertMatchTerms(field, text, operator);
+                default -> convertMatchTerms(field, text, operator, fuzziness, prefixLength, transpositions);
             };
             if (boost != null) {
                 fieldQuery = new BoostQuery(fieldQuery, boost);
@@ -881,18 +905,19 @@ public final class QueryBuilderToQuery {
         return new DisjunctionMaxQuery(perField, tieBreaker);
     }
 
-    private static Query convertMatchTerms(String field, String text, Operator operator) {
+    private static Query convertMatchTerms(String field, String text, Operator operator, Fuzziness fuzziness,
+                                           int prefixLength, boolean transpositions) {
         String[] tokens = tokenize(text);
         if (tokens.length == 0) {
             return new MatchNoDocsQuery();
         }
         if (tokens.length == 1) {
-            return new TermQuery(new Term(field, tokens[0]));
+            return matchTermQuery(field, tokens[0], fuzziness, prefixLength, transpositions);
         }
         BooleanQuery.Occur occur = operator == Operator.AND ? BooleanQuery.Occur.MUST : BooleanQuery.Occur.SHOULD;
         BooleanQuery.Builder b = BooleanQuery.builder();
         for (String token : tokens) {
-            b.add(new TermQuery(new Term(field, token)), occur);
+            b.add(matchTermQuery(field, token, fuzziness, prefixLength, transpositions), occur);
         }
         if (occur == BooleanQuery.Occur.SHOULD) {
             b.setMinimumShouldMatch(1);
