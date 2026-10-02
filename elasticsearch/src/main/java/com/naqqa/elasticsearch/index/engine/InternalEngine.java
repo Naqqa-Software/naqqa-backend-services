@@ -839,17 +839,24 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
     }
 
     private void doMerge(List<SegmentReader> candidates) throws IOException {
-        String segName = nextSegmentName();
-        SegmentMerger.merge(directory, segName, candidates);
-        SegmentReader merged = SegmentReader.open(directory, new SegmentCommitInfo(segName, 0, 0));
-        fileDeleter.incRefReader(merged.staticFiles());
-        synchronized (viewLock) {
-            List<SegmentReader> newView = new ArrayList<>(currentReaders);
-            newView.removeAll(candidates);
-            newView.add(merged);
-            currentReaders = List.copyOf(newView);
-            for (SegmentReader old : candidates) {
-                old.scheduleDeletionWhenUnreferenced(() -> fileDeleter.decRefReader(old.staticFiles()));
+        synchronized (refreshMutex) {
+            synchronized (viewLock) {
+                if (!currentReaders.containsAll(candidates)) {
+                    return;
+                }
+            }
+            String segName = nextSegmentName();
+            SegmentMerger.merge(directory, segName, candidates);
+            SegmentReader merged = SegmentReader.open(directory, new SegmentCommitInfo(segName, 0, 0));
+            fileDeleter.incRefReader(merged.staticFiles());
+            synchronized (viewLock) {
+                List<SegmentReader> newView = new ArrayList<>(currentReaders);
+                newView.removeAll(candidates);
+                newView.add(merged);
+                currentReaders = List.copyOf(newView);
+                for (SegmentReader old : candidates) {
+                    old.scheduleDeletionWhenUnreferenced(() -> fileDeleter.decRefReader(old.staticFiles()));
+                }
             }
         }
     }

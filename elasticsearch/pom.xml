@@ -6,7 +6,7 @@
 
     <groupId>com.naqqa</groupId>
     <artifactId>naqqa-elasticsearch</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2</version>
     <name>Naqqa Elasticsearch</name>
     <description>Elasticsearch-compatible distributed search engine written with the JDK only</description>
     <packaging>jar</packaging>
