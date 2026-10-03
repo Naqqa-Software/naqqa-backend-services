@@ -20,6 +20,22 @@ public class TtsTextNormalizer {
     private static final Pattern PRICE = Pattern.compile("(?<![\\d,.])(\\d{1,7})(?:[,.](\\d{1,2}))?\\s*(?:lei|leu|MDL|mdl|лей|лея)(?![\\p{L}])");
     private static final Pattern PERCENT = Pattern.compile("(?<![\\d,.])([-−–]?)\\s?(\\d{1,3}(?:[,.]\\d+)?)\\s?%");
     private static final Pattern DECIMAL = Pattern.compile("(?<![\\d,.])(\\d+),(\\d+)(?![\\d,.])");
+    private static final Pattern RANGE = Pattern.compile("(?<![\\d\\-+,.])(\\d{1,4})\\s?[-–]\\s?(\\d{1,4})(?![\\d\\-,.])");
+    private static final Pattern PER_UNIT = Pattern.compile("\\s?/\\s?(kg|кг|l|л|buc|шт)\\.?(?![\\p{L}\\d])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Pattern UNIT = Pattern.compile("(?<![\\p{L}\\d,.])(\\d{1,5})(?:[,.](\\d{1,3}))?\\s?(kg|ml|gr|buc|l|g|кг|мл|шт|л|г)\\.?(?![\\p{L}\\d])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Pattern DATE = Pattern.compile("(?<![\\d,.])(\\d{2})\\.(\\d{2})(?:\\.(\\d{4}))?(?![\\d,.])");
+    private static final Pattern CAPS_WORD = Pattern.compile("(?<![\\p{L}\\d])[\\p{Lu}]{4,}(?![\\p{L}\\d])");
+    private static final Pattern LATIN_WORD = Pattern.compile("(?<![\\p{L}\\d])[A-Za-zĂÂÎȘȚŞŢăâîșțşţ]+(?![\\p{L}\\d])");
+
+    private static final String[] RO_MONTHS = {"ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"};
+    private static final String[] RU_MONTHS = {"января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"};
+    private static final String[][] TRANSLIT = {
+            {"sch", "ш"}, {"che", "ке"}, {"chi", "ки"}, {"ghe", "ге"}, {"ghi", "ги"}, {"sh", "ш"}, {"ch", "ч"}, {"ce", "че"}, {"ci", "чи"},
+            {"ge", "дже"}, {"gi", "джи"}, {"ph", "ф"}, {"th", "т"}, {"ee", "и"}, {"oo", "у"}, {"ou", "у"}, {"qu", "кв"}, {"ck", "к"},
+            {"a", "а"}, {"b", "б"}, {"c", "к"}, {"d", "д"}, {"e", "е"}, {"f", "ф"}, {"g", "г"}, {"h", "х"}, {"i", "и"}, {"j", "ж"},
+            {"k", "к"}, {"l", "л"}, {"m", "м"}, {"n", "н"}, {"o", "о"}, {"p", "п"}, {"q", "к"}, {"r", "р"}, {"s", "с"}, {"t", "т"},
+            {"u", "у"}, {"v", "в"}, {"w", "в"}, {"x", "кс"}, {"y", "и"}, {"z", "з"}, {"ă", "э"}, {"â", "ы"}, {"î", "ы"}, {"ș", "ш"},
+            {"ş", "ш"}, {"ț", "ц"}, {"ţ", "ц"}};
     private static final Pattern SPACES = Pattern.compile("\\s+");
     private static final Pattern LINE_BREAKS = Pattern.compile("\\s*\\n+\\s*");
 
@@ -32,7 +48,7 @@ public class TtsTextNormalizer {
                     "ex.", "de exemplu",
                     "etc.", "etcetera",
                     "tel.", "telefon",
-                    "kg", "kilograme",
+                    "kg", "kilogram",
                     "ml", "mililitri",
                     "gr.", "grame",
                     "min.", "minute"),
@@ -69,10 +85,18 @@ public class TtsTextNormalizer {
         s = LINE_BREAKS.matcher(s).replaceAll(". ");
         s = s.replaceAll("\\.\\s*\\.", ".").replaceAll("([!?:;])\\s*\\.", "$1");
         s = prices(s, l);
+        s = perUnit(s, l);
+        s = ranges(s, l);
+        s = units(s, l);
+        s = dates(s, l);
         s = percents(s, l);
         s = decimals(s, l);
         s = abbreviations(s, ABBREVIATIONS.getOrDefault(l, Map.of()));
         s = lexicon(s, lexicon);
+        s = capitals(s);
+        if ("ru".equals(l)) {
+            s = cyrillize(s);
+        }
         s = SPACES.matcher(s).replaceAll(" ").trim();
         s = s.replaceAll("\\s+([,.!?;:])", "$1");
         return truncate(s, maxChars);
@@ -149,7 +173,7 @@ public class TtsTextNormalizer {
             String number = m.group(2);
             String spoken;
             if ("ru".equals(lang)) {
-                long whole = number.contains(",") || number.contains(".") ? 5 : Long.parseLong(number);
+                long whole = number.contains(",") || number.contains(".") ? 2 : Long.parseLong(number);
                 spoken = (minus ? "минус " : "") + number.replace('.', ',') + " " + ruPlural(whole, "процент", "процента", "процентов");
             } else if ("en".equals(lang)) {
                 spoken = (minus ? "minus " : "") + number + " percent";
@@ -163,12 +187,194 @@ public class TtsTextNormalizer {
     }
 
     private static String decimals(String s, String lang) {
-        String word = switch (lang) {
-            case "ru" -> " целых ";
-            case "en" -> " point ";
-            default -> " virgulă ";
-        };
+        if ("ru".equals(lang)) {
+            Matcher m = DECIMAL.matcher(s);
+            StringBuilder out = new StringBuilder();
+            while (m.find()) {
+                String fraction = m.group(2);
+                String unit = switch (fraction.length()) {
+                    case 1 -> "десятых";
+                    case 2 -> "сотых";
+                    default -> "тысячных";
+                };
+                m.appendReplacement(out, Matcher.quoteReplacement(m.group(1) + " целых " + Integer.parseInt(fraction) + " " + unit));
+            }
+            m.appendTail(out);
+            return out.toString();
+        }
+        String word = "en".equals(lang) ? " point " : " virgulă ";
         return DECIMAL.matcher(s).replaceAll("$1" + Matcher.quoteReplacement(word) + "$2");
+    }
+
+    private static String perUnit(String s, String lang) {
+        Matcher m = PER_UNIT.matcher(s);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String unit = m.group(1).toLowerCase();
+            String spoken;
+            if ("ru".equals(lang)) {
+                spoken = switch (unit) {
+                    case "kg", "кг" -> " за килограмм";
+                    case "l", "л" -> " за литр";
+                    default -> " за штуку";
+                };
+            } else if ("en".equals(lang)) {
+                spoken = switch (unit) {
+                    case "kg", "кг" -> " per kilogram";
+                    case "l", "л" -> " per liter";
+                    default -> " per piece";
+                };
+            } else {
+                spoken = switch (unit) {
+                    case "kg", "кг" -> " pe kilogram";
+                    case "l", "л" -> " pe litru";
+                    default -> " pe bucată";
+                };
+            }
+            m.appendReplacement(out, Matcher.quoteReplacement(spoken));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    private static String ranges(String s, String lang) {
+        String word = switch (lang) {
+            case "ru" -> " до ";
+            case "en" -> " to ";
+            default -> " până la ";
+        };
+        return RANGE.matcher(s).replaceAll("$1" + Matcher.quoteReplacement(word) + "$2");
+    }
+
+    private static String units(String s, String lang) {
+        Matcher m = UNIT.matcher(s);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String unit = m.group(3).toLowerCase();
+            String whole = m.group(1);
+            String fraction = m.group(2);
+            if ("ru".equals(lang) && "г".equals(unit) && fraction == null && whole.length() == 4) {
+                m.appendReplacement(out, Matcher.quoteReplacement(m.group()));
+                continue;
+            }
+            String number = fraction == null ? whole : whole + "," + fraction;
+            m.appendReplacement(out, Matcher.quoteReplacement(spokenUnit(number, Long.parseLong(whole), fraction != null, unit, lang)));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    static String spokenUnit(String number, long whole, boolean decimal, String unit, String lang) {
+        String key = switch (unit) {
+            case "kg", "кг" -> "kg";
+            case "ml", "мл" -> "ml";
+            case "g", "gr", "г" -> "g";
+            case "buc", "шт" -> "buc";
+            default -> "l";
+        };
+        if ("ru".equals(lang)) {
+            String[] forms = switch (key) {
+                case "kg" -> new String[]{"килограмм", "килограмма", "килограммов"};
+                case "ml" -> new String[]{"миллилитр", "миллилитра", "миллилитров"};
+                case "g" -> new String[]{"грамм", "грамма", "граммов"};
+                case "buc" -> new String[]{"штука", "штуки", "штук"};
+                default -> new String[]{"литр", "литра", "литров"};
+            };
+            return number + " " + (decimal ? forms[1] : ruPlural(whole, forms[0], forms[1], forms[2]));
+        }
+        if ("en".equals(lang)) {
+            String[] forms = switch (key) {
+                case "kg" -> new String[]{"kilogram", "kilograms"};
+                case "ml" -> new String[]{"milliliter", "milliliters"};
+                case "g" -> new String[]{"gram", "grams"};
+                case "buc" -> new String[]{"piece", "pieces"};
+                default -> new String[]{"liter", "liters"};
+            };
+            return number + " " + (!decimal && whole == 1 ? forms[0] : forms[1]);
+        }
+        String[] forms = switch (key) {
+            case "kg" -> new String[]{"kilogram", "kilograme", "un"};
+            case "ml" -> new String[]{"mililitru", "mililitri", "un"};
+            case "g" -> new String[]{"gram", "grame", "un"};
+            case "buc" -> new String[]{"bucată", "bucăți", "o"};
+            default -> new String[]{"litru", "litri", "un"};
+        };
+        if (decimal) {
+            return number + " " + forms[1];
+        }
+        if (whole == 1) {
+            return forms[2] + " " + forms[0];
+        }
+        return roCount(whole, forms[0], forms[1]);
+    }
+
+    private static String dates(String s, String lang) {
+        if (!"ro".equals(lang) && !"ru".equals(lang)) {
+            return s;
+        }
+        Matcher m = DATE.matcher(s);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            int day = Integer.parseInt(m.group(1));
+            int month = Integer.parseInt(m.group(2));
+            if (day < 1 || day > 31 || month < 1 || month > 12) {
+                m.appendReplacement(out, Matcher.quoteReplacement(m.group()));
+                continue;
+            }
+            String name = "ru".equals(lang) ? RU_MONTHS[month - 1] : RO_MONTHS[month - 1];
+            String year = m.group(3) == null ? "" : " " + m.group(3);
+            m.appendReplacement(out, Matcher.quoteReplacement(day + " " + name + year));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    static String capitals(String s) {
+        Matcher m = CAPS_WORD.matcher(s);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            m.appendReplacement(out, Matcher.quoteReplacement(m.group().toLowerCase()));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    static String cyrillize(String s) {
+        Matcher m = LATIN_WORD.matcher(s);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            m.appendReplacement(out, Matcher.quoteReplacement(transliterate(m.group())));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    static String transliterate(String word) {
+        String lower = word.toLowerCase();
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        while (i < lower.length()) {
+            boolean matched = false;
+            for (String[] pair : TRANSLIT) {
+                if (lower.startsWith(pair[0], i)) {
+                    out.append(pair[1]);
+                    i += pair[0].length();
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                out.append(lower.charAt(i));
+                i++;
+            }
+        }
+        if (word.length() > 1 && word.equals(word.toUpperCase())) {
+            return out.toString().toUpperCase();
+        }
+        if (out.length() > 0 && Character.isUpperCase(word.charAt(0))) {
+            out.setCharAt(0, Character.toUpperCase(out.charAt(0)));
+        }
+        return out.toString();
     }
 
     private static String abbreviations(String s, Map<String, String> map) {

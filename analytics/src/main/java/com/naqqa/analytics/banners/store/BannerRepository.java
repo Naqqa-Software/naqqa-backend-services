@@ -4,7 +4,7 @@ import com.naqqa.analytics.banners.model.BannerCampaign;
 import com.naqqa.analytics.banners.model.BannerCreative;
 import com.naqqa.analytics.banners.model.BannerPriority;
 import com.naqqa.analytics.banners.model.BannerStatus;
-import lombok.extern.slf4j.Slf4j;
+import com.naqqa.analytics.config.MongoIndexSupport;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
@@ -18,7 +18,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.regex.Pattern;
 
-@Slf4j
 public class BannerRepository {
 
     public record CampaignFilter(String q, BannerStatus status, BannerPriority priority, String companyId,
@@ -35,13 +34,12 @@ public class BannerRepository {
     }
 
     public void ensureIndexes() {
-        try {
-            mongo.indexOps(BannerCampaign.class).ensureIndex(new Index().on("status", Sort.Direction.ASC));
-            mongo.indexOps(BannerCampaign.class).ensureIndex(new Index().on("companyId", Sort.Direction.ASC).on("status", Sort.Direction.ASC));
-            mongo.indexOps(BannerCreative.class).ensureIndex(new Index().on("campaignId", Sort.Direction.ASC));
-        } catch (Exception e) {
-            log.warn("Banner indexes could not be ensured: {}", e.getMessage());
-        }
+        MongoIndexSupport.ensure(mongo.indexOps(BannerCampaign.class),
+                new Index().on("status", Sort.Direction.ASC).named("an_banner_campaign_status"));
+        MongoIndexSupport.ensure(mongo.indexOps(BannerCampaign.class),
+                new Index().on("companyId", Sort.Direction.ASC).on("status", Sort.Direction.ASC).named("an_banner_campaign_company_status"));
+        MongoIndexSupport.ensure(mongo.indexOps(BannerCreative.class),
+                new Index().on("campaignId", Sort.Direction.ASC).named("an_banner_creative_campaign_id"));
     }
 
     public BannerCampaign campaign(String id) {

@@ -1,13 +1,11 @@
 package com.naqqa.analytics.config;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
 
 import java.time.Duration;
 
-@Slf4j
 public class AnalyticsMongoIndexes {
 
     private final MongoTemplate mongo;
@@ -40,10 +38,6 @@ public class AnalyticsMongoIndexes {
     }
 
     private void ensure(String collection, Index index) {
-        try {
-            mongo.indexOps(collection).ensureIndex(index);
-        } catch (RuntimeException e) {
-            log.warn("[analytics] index on {} failed: {}", collection, e.getMessage());
-        }
+        MongoIndexSupport.ensure(mongo.indexOps(collection), index);
     }
 }

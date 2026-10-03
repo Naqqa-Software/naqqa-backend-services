@@ -64,6 +64,26 @@ class TtsTextNormalizerTest {
     }
 
     @Test
+    void speaksRangesUnitsAndDates() {
+        assertThat(n.normalize("Reduceri 10-20%", "ro", ro, 400)).isEqualTo("Reduceri 10 până la 20 la sută");
+        assertThat(n.normalize("Lapte 1L și brânză 500g", "ro", ro, 400)).isEqualTo("Lapte un litru și brânză 500 de grame");
+        assertThat(n.normalize("Ulei 2,5 l", "ro", ro, 400)).isEqualTo("Ulei 2 virgulă 5 litri");
+        assertThat(n.normalize("Roșii 25,90 lei/kg", "ro", ro, 400)).isEqualTo("Roșii 25 de lei și 90 de bani pe kilogram");
+        assertThat(n.normalize("Valabil până la 03.10", "ro", ro, 400)).isEqualTo("Valabil până la 3 octombrie");
+        assertThat(n.normalize("Молоко 1 л, сыр 300 г", "ru", ru, 400)).isEqualTo("Молоко 1 литр, сыр 300 граммов");
+        assertThat(n.normalize("До 03.10.2026", "ru", ru, 400)).isEqualTo("До 3 октября 2026");
+        assertThat(n.normalize("В 2026 г.", "ru", ru, 400)).isEqualTo("В 2026 г.");
+    }
+
+    @Test
+    void readsCapitalsAsWordsAndLatinNamesInRussian() {
+        assertThat(n.normalize("REDUCERI MARI la lapte", "ro", ro, 400)).isEqualTo("reduceri mari la lapte");
+        assertThat(n.normalize("Скидки в Linella", "ru", Map.of("Linella", "Линелла"), 400)).isEqualTo("Скидки в Линелла");
+        assertThat(n.normalize("Скидки в Kaufland", "ru", ru, 400)).isEqualTo("Скидки в Кауфланд");
+        assertThat(n.normalize("Скидка 2,5%", "ru", ru, 400)).isEqualTo("Скидка 2 целых 5 десятых процента");
+    }
+
+    @Test
     void romanianCountsUseDeFromTwenty() {
         assertThat(TtsTextNormalizer.roCount(19, "leu", "lei")).isEqualTo("19 lei");
         assertThat(TtsTextNormalizer.roCount(20, "leu", "lei")).isEqualTo("20 de lei");

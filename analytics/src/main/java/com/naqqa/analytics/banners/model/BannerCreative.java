@@ -2,7 +2,6 @@ package com.naqqa.analytics.banners.model;
 
 import lombok.Data;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
@@ -17,7 +16,6 @@ public class BannerCreative {
 
     @Id
     private String id;
-    @Indexed
     private String campaignId;
     private String name;
     private BannerImage desktop;
