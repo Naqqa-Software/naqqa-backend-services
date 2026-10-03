@@ -1,0 +1,72 @@
+name: Publish Naqqa TTS to GitHub Packages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tts/**'
+      - '.github/workflows/publish-tts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-tts
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./tts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: maven
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Check if version is already published
+        id: check
+        run: |
+          VERSION=$(python3 -c "import xml.etree.ElementTree as E; r = E.parse('pom.xml').getroot(); print(r.find('{http://maven.apache.org/POM/4.0.0}version').text.strip())")
+          echo "Project version: $VERSION"
+          URL="https://maven.pkg.github.com/Naqqa-Software/naqqa-backend-services/com/naqqa/naqqa-tts/$VERSION/naqqa-tts-$VERSION"
+          POM=$(curl -s -o /dev/null -w "%{http_code}" -u "$GITHUB_ACTOR:$GITHUB_TOKEN" "$URL.pom")
+          JAR=$(curl -s -o /dev/null -w "%{http_code}" -u "$GITHUB_ACTOR:$GITHUB_TOKEN" "$URL.jar")
+          echo "Registry status: pom=$POM jar=$JAR"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$POM" = "200" ] && [ "$JAR" = "200" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif [ "$POM" = "200" ]; then
+            echo "::error::naqqa-tts $VERSION is incomplete in the registry (pom without jar). Bump the version in tts/pom.xml and promotion-server/pom.xml."
+            exit 1
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
+      - name: Skip already published version
+        if: steps.check.outputs.exists == 'true'
+        run: echo "naqqa-tts ${{ steps.check.outputs.version }} is already published; bump the version in tts/pom.xml to publish new changes"
+
+      - name: Build & Deploy
+        if: steps.check.outputs.exists != 'true'
+        run: mvn --batch-mode clean deploy -DskipTests -Daether.connector.basic.threads=1 -Dmaven.resolver.transport=wagon
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
