@@ -43,9 +43,19 @@ jobs:
         run: |
           VERSION=$(python3 -c "import xml.etree.ElementTree as E; r = E.parse('pom.xml').getroot(); print(r.find('{http://maven.apache.org/POM/4.0.0}version').text.strip())")
           echo "Project version: $VERSION"
-          CODE=$(curl -s -o /dev/null -w "%{http_code}" -u "$GITHUB_ACTOR:$GITHUB_TOKEN" "https://maven.pkg.github.com/Naqqa-Software/naqqa-backend-services/com/naqqa/naqqa-chatbot/$VERSION/naqqa-chatbot-$VERSION.jar")
+          URL="https://maven.pkg.github.com/Naqqa-Software/naqqa-backend-services/com/naqqa/naqqa-chatbot/$VERSION/naqqa-chatbot-$VERSION"
+          POM=$(curl -s -o /dev/null -w "%{http_code}" -u "$GITHUB_ACTOR:$GITHUB_TOKEN" "$URL.pom")
+          JAR=$(curl -s -o /dev/null -w "%{http_code}" -u "$GITHUB_ACTOR:$GITHUB_TOKEN" "$URL.jar")
+          echo "Registry status: pom=$POM jar=$JAR"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if [ "$CODE" = "200" ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+          if [ "$POM" = "200" ] && [ "$JAR" = "200" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif [ "$POM" = "200" ]; then
+            echo "::error::naqqa-chatbot $VERSION is incomplete in the registry (pom without jar). Bump the version in chatbot-ai/pom.xml and promotion-server/pom.xml."
+            exit 1
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
@@ -56,7 +66,7 @@ jobs:
 
       - name: Build & Deploy
         if: steps.check.outputs.exists != 'true'
-        run: mvn --batch-mode clean deploy -DskipTests
+        run: mvn --batch-mode clean deploy -DskipTests -Daether.connector.basic.threads=1 -Dmaven.resolver.transport=wagon
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
