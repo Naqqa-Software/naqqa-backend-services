@@ -14,6 +14,9 @@ import java.io.Serializable;
 @AllArgsConstructor
 public class ChatCard implements Serializable {
 
+    public static final String GROUP_RESULTS = "results";
+    public static final String GROUP_RELATED = "related";
+
     @Field("event_id")
     private String eventId;
 
@@ -41,6 +44,9 @@ public class ChatCard implements Serializable {
     @Field("discount")
     private Double discount;
 
+    @Field("company_id")
+    private Long companyId;
+
     @Field("company")
     private String company;
 
@@ -55,4 +61,7 @@ public class ChatCard implements Serializable {
 
     @Field("sponsored")
     private boolean sponsored;
+
+    @Field("group")
+    private String group;
 }

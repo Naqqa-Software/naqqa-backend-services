@@ -5,4 +5,8 @@ import java.util.List;
 public interface ChatQueryExpander {
 
     List<String> variants(String text);
+
+    default boolean isVocabulary(String token) {
+        return false;
+    }
 }

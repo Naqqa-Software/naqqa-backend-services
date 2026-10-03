@@ -584,6 +584,13 @@
     "euro",
     "euros"
   ],
+  "storeCues": [
+    "at",
+    "in",
+    "from",
+    "store",
+    "shop"
+  ],
   "placeCues": [
     " in ",
     " near ",
@@ -970,7 +977,35 @@
       "what should i choose",
       "should i buy",
       "versus",
-      "vs"
+      "vs",
+      "is it cheaper",
+      "what is cheaper"
+    ],
+    "recommendation": [
+      "what should i buy",
+      "what to buy",
+      "what do i need to buy",
+      "for a party",
+      "throwing a party",
+      "having a party",
+      "shopping list for",
+      "shopping ideas",
+      "what to buy for",
+      "what should i buy for",
+      "what do i need for",
+      "ideas for",
+      "what to cook"
+    ],
+    "compareWords": [
+      "cheap",
+      "cheaper",
+      "cheapest",
+      "expensive",
+      "price",
+      "prices",
+      "cost",
+      "better",
+      "best"
     ],
     "followUp": [
       "and at",
@@ -983,7 +1018,33 @@
       "more",
       "cheaper",
       "others",
-      "and the"
+      "and the",
+      "another option",
+      "without",
+      "only",
+      "only at",
+      "and without"
+    ],
+    "multiPart": [
+      " and also ",
+      " as well as ",
+      " plus also ",
+      " another question "
+    ],
+    "compareSplit": [
+      "vs",
+      "versus",
+      "or",
+      "compared to",
+      "against"
+    ],
+    "compareVerbs": [
+      "compar"
+    ],
+    "compareVerbSplit": [
+      "with",
+      "and",
+      "to"
     ]
   },
   "topics": {
@@ -1062,6 +1123,663 @@
       "address",
       "web",
       "internet"
+    ]
+  },
+  "signals": {
+    "newest": [
+      "newest",
+      "latest",
+      "new deals",
+      "new promotions",
+      "recently added",
+      "just added",
+      "whats new",
+      "what s new",
+      "what is new",
+      "new at"
+    ],
+    "expiring": [
+      "expiring today",
+      "expires today",
+      "ending today",
+      "ends today",
+      "expiring soon",
+      "ending soon",
+      "last day",
+      "last chance"
+    ],
+    "people": [
+      "people",
+      "persons",
+      "guests",
+      "kids",
+      "adults"
+    ],
+    "family": [
+      "family of"
+    ],
+    "exclude": [
+      "without",
+      "except"
+    ],
+    "alternative": [
+      "another option",
+      "other options",
+      "something else",
+      "different option"
+    ],
+    "single": [
+      "one person",
+      "for one",
+      "for myself",
+      "single person"
+    ]
+  },
+  "categoryHints": {
+    "milk": "dairy",
+    "yogurt": "dairy",
+    "cheese": "dairy",
+    "butter": "dairy",
+    "cream": "dairy",
+    "juice": "drinks",
+    "water": "drinks",
+    "beer": "drinks",
+    "wine": "drinks",
+    "cola": "drinks",
+    "tea": "drinks",
+    "coffee": "drinks",
+    "phone": "electronics",
+    "smartphone": "electronics",
+    "laptop": "electronics",
+    "tv": "electronics",
+    "television": "electronics",
+    "tablet": "electronics",
+    "headphones": "electronics",
+    "fridge": "electronics"
+  },
+  "scenarios": {
+    "breakfast": {
+      "label": "breakfast",
+      "triggers": [
+        "breakfast",
+        "for breakfast"
+      ],
+      "terms": [
+        "eggs",
+        "bread",
+        "milk",
+        "butter",
+        "cheese",
+        "coffee",
+        "tea",
+        "cereal"
+      ]
+    },
+    "lunch": {
+      "label": "lunch",
+      "triggers": [
+        "lunch",
+        "for lunch"
+      ],
+      "terms": [
+        "chicken",
+        "vegetables",
+        "potatoes",
+        "rice",
+        "pasta",
+        "soup",
+        "salad",
+        "bread"
+      ]
+    },
+    "dinner": {
+      "label": "dinner",
+      "triggers": [
+        "dinner",
+        "for dinner",
+        "family dinner"
+      ],
+      "terms": [
+        "meat",
+        "fish",
+        "vegetables",
+        "potatoes",
+        "cheese",
+        "wine",
+        "bread",
+        "salad"
+      ]
+    },
+    "party": {
+      "label": "a party",
+      "triggers": [
+        "party",
+        "a party",
+        "house party"
+      ],
+      "terms": [
+        "chips",
+        "juice",
+        "beer",
+        "wine",
+        "snacks",
+        "pizza",
+        "cake",
+        "cups"
+      ]
+    },
+    "bbq": {
+      "label": "a barbecue",
+      "triggers": [
+        "barbecue",
+        "bbq",
+        "grill",
+        "grilling",
+        "cookout"
+      ],
+      "terms": [
+        "meat",
+        "sausages",
+        "charcoal",
+        "sauce",
+        "ketchup",
+        "mustard",
+        "vegetables",
+        "beer"
+      ]
+    },
+    "picnic": {
+      "label": "a picnic",
+      "triggers": [
+        "picnic",
+        "a picnic"
+      ],
+      "terms": [
+        "sandwich",
+        "fruit",
+        "water",
+        "juice",
+        "chips",
+        "cheese",
+        "salami",
+        "napkins"
+      ]
+    },
+    "birthday": {
+      "label": "a birthday",
+      "triggers": [
+        "birthday",
+        "birthday party",
+        "anniversary"
+      ],
+      "terms": [
+        "cake",
+        "champagne",
+        "juice",
+        "candy",
+        "fruit",
+        "balloons",
+        "candles",
+        "flowers"
+      ]
+    },
+    "gift": {
+      "label": "a gift",
+      "triggers": [
+        "gift",
+        "a gift",
+        "present",
+        "gift ideas"
+      ],
+      "terms": [
+        "perfume",
+        "chocolate",
+        "cosmetics",
+        "toys",
+        "flowers",
+        "wine",
+        "watch",
+        "gift set"
+      ]
+    },
+    "easter": {
+      "label": "Easter",
+      "triggers": [
+        "easter",
+        "easter dinner",
+        "easter table"
+      ],
+      "terms": [
+        "lamb",
+        "eggs",
+        "cozonac",
+        "easter bread",
+        "egg dye",
+        "cheese",
+        "wine",
+        "meat"
+      ]
+    },
+    "christmas": {
+      "label": "Christmas",
+      "triggers": [
+        "christmas",
+        "xmas",
+        "christmas dinner"
+      ],
+      "terms": [
+        "pork",
+        "cozonac",
+        "wine",
+        "champagne",
+        "chocolate",
+        "christmas tree",
+        "decorations",
+        "tangerines"
+      ]
+    },
+    "new_year": {
+      "label": "New Year's Eve",
+      "triggers": [
+        "new year",
+        "new years eve",
+        "new year s eve",
+        "nye"
+      ],
+      "terms": [
+        "champagne",
+        "wine",
+        "salami",
+        "cheese",
+        "caviar",
+        "tangerines",
+        "fireworks",
+        "cake"
+      ]
+    },
+    "women_day": {
+      "label": "March 8",
+      "triggers": [
+        "8 march",
+        "march 8",
+        "womens day",
+        "women s day",
+        "mothers day"
+      ],
+      "terms": [
+        "flowers",
+        "chocolate",
+        "perfume",
+        "cosmetics",
+        "candy",
+        "wine",
+        "martisor",
+        "gift set"
+      ]
+    },
+    "back_to_school": {
+      "label": "back to school",
+      "triggers": [
+        "back to school",
+        "school supplies",
+        "for school",
+        "september 1"
+      ],
+      "terms": [
+        "notebooks",
+        "pens",
+        "backpack",
+        "pencils",
+        "pencil case",
+        "markers",
+        "school uniform",
+        "shoes"
+      ]
+    },
+    "cleaning": {
+      "label": "cleaning",
+      "triggers": [
+        "cleaning",
+        "cleaning supplies",
+        "household cleaning"
+      ],
+      "terms": [
+        "detergent",
+        "dish soap",
+        "sponge",
+        "trash bags",
+        "toilet paper",
+        "bleach",
+        "glass cleaner",
+        "mop"
+      ]
+    },
+    "baby": {
+      "label": "a baby",
+      "triggers": [
+        "baby",
+        "newborn",
+        "toddler"
+      ],
+      "terms": [
+        "diapers",
+        "wet wipes",
+        "puree",
+        "baby formula",
+        "baby cream",
+        "baby shampoo",
+        "toys",
+        "bottle"
+      ]
+    },
+    "pets": {
+      "label": "pets",
+      "triggers": [
+        "pet",
+        "pets",
+        "dog",
+        "cat",
+        "puppy",
+        "kitten"
+      ],
+      "terms": [
+        "dog food",
+        "cat food",
+        "cat litter",
+        "treats",
+        "pet toys",
+        "canned cat food",
+        "dry food",
+        "bowl"
+      ]
+    },
+    "beauty": {
+      "label": "hygiene and beauty",
+      "triggers": [
+        "hygiene",
+        "beauty",
+        "toiletries",
+        "personal care"
+      ],
+      "terms": [
+        "shampoo",
+        "shower gel",
+        "deodorant",
+        "toothpaste",
+        "cream",
+        "soap",
+        "conditioner",
+        "toothbrush"
+      ]
+    },
+    "electronics": {
+      "label": "electronics",
+      "triggers": [
+        "electronics",
+        "gadgets",
+        "tech deals",
+        "appliances"
+      ],
+      "terms": [
+        "phone",
+        "laptop",
+        "tv",
+        "headphones",
+        "tablet",
+        "smartwatch",
+        "speaker",
+        "vacuum"
+      ]
+    },
+    "gift_women": {
+      "label": "a gift for her",
+      "triggers": [
+        "gift for mom",
+        "gift for my wife",
+        "gift for my girlfriend",
+        "gift for her",
+        "gift for my sister"
+      ],
+      "terms": [
+        "perfume",
+        "flowers",
+        "chocolate",
+        "cosmetics",
+        "gift set",
+        "jewelry",
+        "wine",
+        "cream"
+      ]
+    },
+    "gift_men": {
+      "label": "a gift for him",
+      "triggers": [
+        "gift for dad",
+        "gift for my husband",
+        "gift for my boyfriend",
+        "gift for him",
+        "gift for my brother"
+      ],
+      "terms": [
+        "perfume",
+        "watch",
+        "cognac",
+        "gift set",
+        "wallet",
+        "headphones",
+        "whisky",
+        "tie"
+      ]
+    },
+    "gift_kids": {
+      "label": "a gift for a child",
+      "triggers": [
+        "gift for a child",
+        "gift for my son",
+        "gift for my daughter",
+        "gift for kids",
+        "gift for a kid"
+      ],
+      "terms": [
+        "toys",
+        "lego",
+        "doll",
+        "book",
+        "puzzle",
+        "sweets",
+        "board game",
+        "toy car"
+      ]
+    }
+  },
+  "basket": {
+    "triggers": [
+      "groceries",
+      "grocery",
+      "food",
+      "shopping",
+      "basket",
+      "food shopping"
+    ],
+    "periods": {
+      "day": [
+        "per day",
+        "a day",
+        "daily",
+        "for a day",
+        "for one day"
+      ],
+      "week": [
+        "per week",
+        "a week",
+        "weekly",
+        "for a week",
+        "for one week"
+      ],
+      "month": [
+        "per month",
+        "a month",
+        "monthly",
+        "for a month"
+      ]
+    },
+    "items": [
+      {
+        "term": "bread",
+        "qty": 3,
+        "unit": "pcs",
+        "essential": true
+      },
+      {
+        "term": "milk",
+        "qty": 3,
+        "unit": "l",
+        "essential": true
+      },
+      {
+        "term": "eggs",
+        "qty": 10,
+        "unit": "pcs",
+        "essential": true
+      },
+      {
+        "term": "meat",
+        "qty": 1.5,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "fish",
+        "qty": 0.5,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "vegetables",
+        "qty": 3,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "fruit",
+        "qty": 3,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "pasta",
+        "qty": 1,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "cheese",
+        "qty": 0.5,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "yogurt",
+        "qty": 4,
+        "unit": "pcs",
+        "essential": true
+      },
+      {
+        "term": "oil",
+        "qty": 1,
+        "unit": "l",
+        "essential": true
+      },
+      {
+        "term": "cereal",
+        "qty": 0.5,
+        "unit": "kg",
+        "essential": false
+      },
+      {
+        "term": "coffee",
+        "qty": 1,
+        "unit": "pcs",
+        "essential": false
+      },
+      {
+        "term": "water",
+        "qty": 6,
+        "unit": "l",
+        "essential": false
+      },
+      {
+        "term": "sweets",
+        "qty": 1,
+        "unit": "pcs",
+        "essential": false
+      }
+    ]
+  },
+  "exclusionGroups": {
+    "meat": [
+      "meat",
+      "chicken",
+      "pork",
+      "beef",
+      "lamb",
+      "salami",
+      "ham",
+      "sausages",
+      "fillet"
+    ],
+    "dairy": [
+      "milk",
+      "cheese",
+      "yogurt",
+      "butter",
+      "cream"
+    ],
+    "alcohol": [
+      "wine",
+      "beer",
+      "champagne",
+      "cognac",
+      "vodka",
+      "whisky"
+    ],
+    "sugar": [
+      "sweets",
+      "candy",
+      "chocolate",
+      "cake",
+      "sugar"
+    ]
+  },
+  "nutrition": {
+    "triggers": [
+      "kcal",
+      "calories",
+      "calorie",
+      "meal plan",
+      "menu",
+      "high protein",
+      "protein",
+      "diet"
+    ],
+    "protein": [
+      "high protein",
+      "protein"
+    ],
+    "refuse": [
+      "diabetes",
+      "diabetic",
+      "insulin",
+      "kidney",
+      "pregnant",
+      "breastfeeding",
+      "disease",
+      "treatment",
+      "allergy",
+      "cholesterol",
+      "hypertension",
+      "gastritis",
+      "ulcer"
     ]
   }
 }

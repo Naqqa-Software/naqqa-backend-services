@@ -51,6 +51,7 @@ public class CardFactory {
                 .slug(c.slug())
                 .title(title.length() > 140 ? title.substring(0, 139) + "…" : title)
                 .image(image(c.imageId()))
+                .companyId(isCompany ? c.id() : c.companyId())
                 .price(c.price())
                 .originalPrice(c.originalPrice())
                 .discount(c.discount())

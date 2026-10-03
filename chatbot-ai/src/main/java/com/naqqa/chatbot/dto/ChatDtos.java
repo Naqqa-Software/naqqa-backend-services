@@ -25,7 +25,8 @@ public final class ChatDtos {
 
     public record CardDto(String eventId, String type, Long id, String slug, String title, String image,
                           Double price, Double originalPrice, Double discount, String company,
-                          String companyLogo, String validTo, String path, boolean sponsored) {
+                          String companyLogo, String validTo, String path, boolean sponsored, Long companyId,
+                          String group) {
     }
 
     public record ConversationDto(String id, String status, String lang, String operatorName,

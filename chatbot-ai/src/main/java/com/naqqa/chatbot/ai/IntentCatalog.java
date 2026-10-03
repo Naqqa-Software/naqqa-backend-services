@@ -13,6 +13,13 @@ public final class IntentCatalog {
     public record QuickReplyDef(String key, String intent, boolean browse, boolean escalate) {
     }
 
+    public record RelatedDef(List<String> types, List<String> triggerTypes, int max, double minRelevance) {
+
+        public boolean enabled() {
+            return max > 0 && !types.isEmpty() && !triggerTypes.isEmpty();
+        }
+    }
+
     public record TypeRules(List<String> defaults, List<String> withQuery, List<String> withPrice,
                             List<String> withDiscountSort, List<String> withCompany,
                             Map<String, List<String>> byTaxonomy) {
@@ -35,6 +42,7 @@ public final class IntentCatalog {
     private final String priceBrowseIntent;
     private final String defaultPage;
     private final TypeRules defaultTypes;
+    private final RelatedDef related;
 
     public IntentCatalog(JsonNode root) {
         root.path("intents").fields().forEachRemaining(e -> {
@@ -65,6 +73,9 @@ public final class IntentCatalog {
         this.priceBrowseIntent = text(root, "priceBrowseIntent");
         this.defaultPage = root.path("defaultPage").asText("faq");
         this.defaultTypes = types(root.path("defaultTypes"));
+        JsonNode r = root.path("related");
+        this.related = new RelatedDef(orEmpty(list(r.path("types"))), orEmpty(list(r.path("triggerTypes"))),
+                Math.max(0, Math.min(6, r.path("max").asInt(3))), r.path("minRelevance").asDouble(0.35));
     }
 
     public static IntentCatalog load(ChatResources resources) {
@@ -179,6 +190,10 @@ public final class IntentCatalog {
 
     public TypeRules defaultTypes() {
         return defaultTypes;
+    }
+
+    public RelatedDef related() {
+        return related;
     }
 
     public List<String> quickRepliesFor(IntentDef intent, boolean hasResults) {

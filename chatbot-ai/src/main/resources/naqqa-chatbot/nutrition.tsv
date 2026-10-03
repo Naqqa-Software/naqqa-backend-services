@@ -1,0 +1,153 @@
+ro	ru	en	kcal	protein	fat	carbs	meals
+ouă	яйца	eggs	155	13	11	1.1	BD
+albuș de ou	яичный белок	egg white	52	11	0.2	0.7	B
+piept de pui	куриная грудка	chicken breast	165	31	3.6	0	LD
+file de pui	куриное филе	chicken fillet	165	31	3.6	0	LD
+pulpe de pui	куриные бедра	chicken thighs	209	26	11	0	LD
+carne de curcan	индейка	turkey	135	29	1.5	0	LD
+carne de vită	говядина	beef	250	26	15	0	LD
+carne de porc	свинина	pork	242	27	14	0	LD
+carne tocată	фарш	minced meat	254	17	20	0	LD
+miel	баранина	lamb	294	25	21	0	LD
+ficat de pui	куриная печень	chicken liver	119	17	4.8	0.7	LD
+șuncă	ветчина	ham	145	21	6	1.5	BS
+salam	колбаса	salami	336	22	26	1.9	BS
+crenvurști	сосиски	sausages	300	12	27	2	BD
+somon	лосось	salmon	208	20	13	0	LD
+ton	тунец	tuna	132	28	1	0	LD
+ton conservă	тунец консервированный	canned tuna	116	26	1	0	LD
+macrou	скумбрия	mackerel	205	19	14	0	LD
+hering	сельдь	herring	158	18	9	0	DS
+cod	треска	cod	82	18	0.7	0	LD
+pangasius	пангасиус	pangasius	90	15	3	0	LD
+creveți	креветки	shrimp	99	24	0.3	0.2	LD
+calamar	кальмар	squid	92	16	1.4	3	LD
+lapte	молоко	milk	50	3.3	2.5	4.8	BS
+lapte degresat	молоко обезжиренное	skim milk	35	3.4	0.1	5	BS
+chefir	кефир	kefir	50	3.3	2.5	4	BS
+iaurt	йогурт	yogurt	61	3.5	3.3	4.7	BS
+iaurt grecesc	греческий йогурт	greek yogurt	97	9	5	3.9	BS
+brânză de vaci	творог	cottage cheese	98	11	4.3	3.4	BDS
+cașcaval	сыр	cheese	350	25	27	1.3	BS
+brânză feta	брынза	feta cheese	264	14	21	4	BDS
+mozzarella	моцарелла	mozzarella	280	28	17	3	BD
+smântână	сметана	sour cream	193	2.4	20	3	BD
+unt	масло сливочное	butter	717	0.9	81	0.1	B
+ulei de floarea soarelui	подсолнечное масло	sunflower oil	884	0	100	0	LD
+ulei de măsline	оливковое масло	olive oil	884	0	100	0	LD
+pâine	хлеб	bread	265	9	3.2	49	BLD
+pâine integrală	цельнозерновой хлеб	wholegrain bread	247	13	3.4	41	BLD
+lipie	лаваш	flatbread	275	9	1.2	56	LD
+covrigi	бублики	pretzels	380	10	3	77	S
+biscuiți	печенье	biscuits	450	7	17	68	S
+fulgi de ovăz	овсяные хлопья	oat flakes	379	13	6.5	68	B
+cereale	хлопья	cereal	379	7	3	84	B
+musli	мюсли	muesli	363	10	6	66	B
+orez	рис	rice	130	2.7	0.3	28	LD
+paste	макароны	pasta	158	5.8	0.9	31	LD
+hrișcă	гречка	buckwheat	92	3.4	0.6	20	LD
+mămăligă	мамалыга	polenta	70	1.6	0.3	15	LD
+cuscus	кускус	couscous	112	3.8	0.2	23	LD
+quinoa	киноа	quinoa	120	4.4	1.9	21	LD
+cartofi	картофель	potatoes	87	1.9	0.1	20	LD
+cartofi dulci	батат	sweet potatoes	86	1.6	0.1	20	LD
+fasole	фасоль	beans	127	8.7	0.5	23	LD
+linte	чечевица	lentils	116	9	0.4	20	LD
+năut	нут	chickpeas	164	8.9	2.6	27	LD
+mazăre	горошек	peas	81	5.4	0.4	14	LD
+porumb	кукуруза	corn	96	3.4	1.5	21	LD
+tofu	тофу	tofu	76	8	4.8	1.9	LD
+roșii	помидоры	tomatoes	18	0.9	0.2	3.9	LD
+castraveți	огурцы	cucumbers	15	0.7	0.1	3.6	LD
+ardei	перец	bell peppers	31	1	0.3	6	LD
+varză	капуста	cabbage	25	1.3	0.1	5.8	LD
+broccoli	брокколи	broccoli	34	2.8	0.4	7	LD
+conopidă	цветная капуста	cauliflower	25	1.9	0.3	5	LD
+morcovi	морковь	carrots	41	0.9	0.2	10	LD
+ceapă	лук	onion	40	1.1	0.1	9	LD
+usturoi	чеснок	garlic	149	6.4	0.5	33	LD
+dovlecei	кабачки	zucchini	17	1.2	0.3	3.1	LD
+vinete	баклажаны	eggplant	25	1	0.2	6	LD
+spanac	шпинат	spinach	23	2.9	0.4	3.6	LD
+salată verde	салат	lettuce	15	1.4	0.2	2.9	LD
+sfeclă	свекла	beets	43	1.6	0.2	10	LD
+ciuperci	грибы	mushrooms	22	3.1	0.3	3.3	LD
+legume congelate	замороженные овощи	frozen vegetables	65	3	0.5	12	LD
+mere	яблоки	apples	52	0.3	0.2	14	S
+banane	бананы	bananas	89	1.1	0.3	23	BS
+portocale	апельсины	oranges	47	0.9	0.1	12	S
+mandarine	мандарины	tangerines	53	0.8	0.3	13	S
+pere	груши	pears	57	0.4	0.1	15	S
+struguri	виноград	grapes	69	0.7	0.2	18	S
+căpșuni	клубника	strawberries	32	0.7	0.3	7.7	BS
+afine	черника	blueberries	57	0.7	0.3	14	BS
+kiwi	киви	kiwi	61	1.1	0.5	15	S
+piersici	персики	peaches	39	0.9	0.3	10	S
+prune	сливы	plums	46	0.7	0.3	11	S
+caise	абрикосы	apricots	48	1.4	0.4	11	S
+pepene	арбуз	watermelon	30	0.6	0.2	7.6	S
+lămâi	лимоны	lemons	29	1.1	0.3	9	S
+avocado	авокадо	avocado	160	2	15	9	BS
+stafide	изюм	raisins	299	3.1	0.5	79	S
+curmale	финики	dates	282	2.5	0.4	75	S
+nuci	грецкие орехи	walnuts	654	15	65	14	BS
+migdale	миндаль	almonds	579	21	50	22	BS
+alune	фундук	hazelnuts	628	15	61	17	S
+arahide	арахис	peanuts	567	26	49	16	S
+unt de arahide	арахисовая паста	peanut butter	588	25	50	20	BS
+semințe de floarea soarelui	семечки	sunflower seeds	584	21	51	20	S
+miere	мед	honey	304	0.3	0	82	B
+gem	варенье	jam	250	0.4	0.1	62	B
+zahăr	сахар	sugar	387	0	0	100	B
+ciocolată	шоколад	chocolate	546	4.9	31	61	S
+ciocolată neagră	черный шоколад	dark chocolate	598	7.8	43	46	S
+bomboane	конфеты	candy	400	2	10	80	S
+napolitane	вафли	wafers	520	5	28	62	S
+prăjitură	пирожное	pastry	400	5	20	50	S
+tort	торт	cake	370	4	17	52	S
+înghețată	мороженое	ice cream	207	3.5	11	24	S
+chipsuri	чипсы	chips	536	7	35	53	S
+popcorn	попкорн	popcorn	375	11	4.3	74	S
+pizza	пицца	pizza	266	11	10	33	LD
+clătite	блины	pancakes	227	6	10	28	B
+plăcintă	плацинда	pie	300	7	14	36	BS
+sandviș	бутерброд	sandwich	250	11	10	29	BS
+supă	суп	soup	40	2	1.5	5	LD
+borș	борщ	borscht	50	2	2.5	5	LD
+zeamă	куриный суп	chicken soup	36	3	1.2	3.5	LD
+hummus	хумус	hummus	166	7.9	9.6	14	S
+ketchup	кетчуп	ketchup	112	1.7	0.1	26	LD
+maioneză	майонез	mayonnaise	680	1	75	0.6	LD
+muștar	горчица	mustard	66	4.4	4	5.8	LD
+măsline	оливки	olives	115	0.8	11	6	LD
+murături	соленья	pickles	11	0.3	0.2	2.3	LD
+conservă de fasole	фасоль консервированная	canned beans	91	5.5	0.4	16	LD
+porumb conservat	кукуруза консервированная	canned corn	82	2.3	1.2	17	LD
+pateu	паштет	pate	319	13	28	3	BS
+cârnați	колбаски	sausage	301	12	27	2	LD
+mici	мититеи	mici	280	16	23	2	LD
+cafea	кофе	coffee	2	0.3	0	0	B
+ceai	чай	tea	1	0	0	0.2	BS
+suc de portocale	апельсиновый сок	orange juice	45	0.7	0.2	10	BS
+suc	сок	juice	46	0.5	0.1	11	BS
+apă	вода	water	0	0	0	0	BLDS
+apă minerală	минеральная вода	mineral water	0	0	0	0	BLDS
+compot	компот	compote	60	0.2	0	15	S
+lapte de soia	соевое молоко	soy milk	54	3.3	1.8	6	BS
+lapte de ovăz	овсяное молоко	oat milk	47	1	1.5	7	BS
+proteină din zer	сывороточный протеин	whey protein	400	80	7	8	BS
+batoane proteice	протеиновые батончики	protein bars	350	30	10	35	S
+batoane cereale	злаковые батончики	cereal bars	400	6	12	68	S
+făină	мука	flour	364	10	1	76	B
+griș	манка	semolina	360	10	1	73	B
+ouă de prepeliță	перепелиные яйца	quail eggs	158	13	11	0.4	BS
+sardine	сардины	sardines	208	25	11	0	LD
+păstrăv	форель	trout	141	20	6	0	LD
+crap	карп	carp	127	18	5.6	0	LD
+file de pește	рыбное филе	fish fillet	90	18	1.5	0	LD
+bețișoare de pește	рыбные палочки	fish sticks	240	12	12	20	LD
+nuggets de pui	куриные наггетсы	chicken nuggets	296	15	20	15	LD
+burger	бургер	burger	295	17	14	24	LD
+cartofi prăjiți	картофель фри	french fries	312	3.4	15	41	LD
+salată de varză	салат из капусты	coleslaw	69	1	3	10	LD
+vinegretă	винегрет	beet salad	76	1.6	4.5	8	LD

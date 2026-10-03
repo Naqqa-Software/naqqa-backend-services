@@ -129,10 +129,15 @@ public class NaqqaChatbotProperties {
         private String provider = "none";
         private String url = "http://localhost:11434";
         private String model = "qwen2.5:3b-instruct";
-        private long timeoutMs = 15_000L;
+        private long timeoutMs = 25_000L;
         private int maxConcurrent = 2;
-        private long queueWaitMs = 300L;
-        private List<String> routes = new ArrayList<>(List.of("LOW_CONFIDENCE", "COMPARATIVE", "FOLLOW_UP", "KNOWLEDGE_SYNTHESIS", "NO_RESULTS"));
+        private long queueWaitMs = 0L;
+        private String mode = "rare";
+        private int rareMinWords = 6;
+        private int breakerFailures = 2;
+        private long breakerOpenMs = 300_000L;
+        private long warmupIntervalMs = 600_000L;
+        private List<String> routes = new ArrayList<>(List.of("LOW_CONFIDENCE", "COMPARATIVE", "FOLLOW_UP", "KNOWLEDGE_SYNTHESIS", "NO_RESULTS", "RECOMMENDATION"));
     }
 
     @Data

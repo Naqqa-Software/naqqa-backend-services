@@ -752,6 +752,16 @@
     "mdl",
     "lei."
   ],
+  "storeCues": [
+    "la",
+    "in",
+    "din",
+    "magazinul",
+    "magazin",
+    "magazinului",
+    "magazinele",
+    "reteaua"
+  ],
   "placeCues": [
     " in ",
     " la ",
@@ -1258,7 +1268,59 @@
       "pe care sa",
       "merita sa",
       "versus",
-      "vs"
+      "vs",
+      "e mai ieftin",
+      "este mai ieftin",
+      "e mai bun",
+      "ce e mai ieftin",
+      "unde e mai ieftin"
+    ],
+    "recommendation": [
+      "ce sa cumpar",
+      "ce ar trebui sa cumpar",
+      "ce trebuie sa cumpar",
+      "ce sa iau",
+      "ce ar trebui sa iau",
+      "ce imi recomanzi sa cumpar",
+      "ce ma sfatuiesti",
+      "pentru o petrecere",
+      "pentru petrecere",
+      "fac o petrecere",
+      "idei de cumparaturi",
+      "lista de cumparaturi pentru",
+      "ce ar fi bine sa cumpar",
+      "ce sa cumpar pentru",
+      "ce imi trebuie pentru",
+      "ce sa iau pentru",
+      "idei pentru",
+      "ce cumpar pentru",
+      "ce sa pregatesc",
+      "ce sa gatesc"
+    ],
+    "compareWords": [
+      "ieftin",
+      "ieftina",
+      "ieftine",
+      "ieftini",
+      "ieftinul",
+      "scump",
+      "scumpa",
+      "scumpe",
+      "scumpi",
+      "bun",
+      "buna",
+      "bune",
+      "buni",
+      "pret",
+      "pretul",
+      "preturi",
+      "preturile",
+      "costa",
+      "costul",
+      "cel",
+      "cea",
+      "cei",
+      "cele"
     ],
     "followUp": [
       "si la",
@@ -1276,7 +1338,36 @@
       "mai ieftin",
       "mai ieftine",
       "si cele",
-      "dar cele"
+      "dar cele",
+      "alta varianta",
+      "altă variantă",
+      "fara",
+      "doar",
+      "doar la",
+      "si fara"
+    ],
+    "multiPart": [
+      " si de asemenea ",
+      " si apoi ",
+      " plus inca ",
+      " iar pe langa asta ",
+      " si inca o intrebare "
+    ],
+    "compareSplit": [
+      "vs",
+      "versus",
+      "sau",
+      "ori",
+      "fata de",
+      "comparativ cu",
+      "contra"
+    ],
+    "compareVerbs": [
+      "compar"
+    ],
+    "compareVerbSplit": [
+      "cu",
+      "si"
     ]
   },
   "topics": {
@@ -1380,5 +1471,805 @@
       "web",
       "internet"
     ]
+  },
+  "signals": {
+    "newest": [
+      "cele mai noi",
+      "cea mai noua",
+      "cele noi",
+      "noutati",
+      "noutatile",
+      "recent adaugate",
+      "abia aparute",
+      "ultimele promotii",
+      "promotii noi",
+      "oferte noi",
+      "ce e nou",
+      "ce mai e nou",
+      "ce este nou",
+      "noutati la"
+    ],
+    "expiring": [
+      "expira azi",
+      "expira astazi",
+      "expira curand",
+      "expira maine",
+      "expira in curand",
+      "ultima zi",
+      "ultimele zile",
+      "se termina azi",
+      "se termina curand",
+      "se termina in curand",
+      "valabile pana azi",
+      "inainte sa expire"
+    ],
+    "people": [
+      "persoane",
+      "persoana",
+      "oameni",
+      "invitati",
+      "musafiri",
+      "copii",
+      "adulti"
+    ],
+    "family": [
+      "familie de",
+      "familia de",
+      "o familie de"
+    ],
+    "exclude": [
+      "fara",
+      "nu vreau",
+      "exclude"
+    ],
+    "alternative": [
+      "alta varianta",
+      "alte variante",
+      "altceva",
+      "alta optiune",
+      "alt produs"
+    ],
+    "single": [
+      "o persoana",
+      "o singura persoana",
+      "pentru mine",
+      "de unul singur"
+    ]
+  },
+  "categoryHints": {
+    "lapte": "lactate",
+    "iaurt": "lactate",
+    "chefir": "lactate",
+    "smantana": "lactate",
+    "branza": "lactate",
+    "cascaval": "lactate",
+    "unt": "lactate",
+    "urda": "lactate",
+    "suc": "bauturi",
+    "apa": "bauturi",
+    "bere": "bauturi",
+    "vin": "bauturi",
+    "cola": "bauturi",
+    "ceai": "bauturi",
+    "cafea": "bauturi",
+    "vodca": "bauturi",
+    "coniac": "bauturi",
+    "telefon": "electronice",
+    "smartphone": "electronice",
+    "laptop": "electronice",
+    "televizor": "electronice",
+    "tableta": "electronice",
+    "casti": "electronice",
+    "frigider": "electronice",
+    "aspirator": "electronice"
+  },
+  "scenarios": {
+    "breakfast": {
+      "label": "micul dejun",
+      "triggers": [
+        "mic dejun",
+        "micul dejun",
+        "pentru dimineata",
+        "breakfast"
+      ],
+      "terms": [
+        "ouă",
+        "pâine",
+        "lapte",
+        "unt",
+        "cașcaval",
+        "cafea",
+        "ceai",
+        "cereale"
+      ]
+    },
+    "lunch": {
+      "label": "prânz",
+      "triggers": [
+        "pranz",
+        "pranzul",
+        "masa de pranz"
+      ],
+      "terms": [
+        "carne de pui",
+        "legume",
+        "cartofi",
+        "orez",
+        "paste",
+        "supă",
+        "salată",
+        "pâine"
+      ]
+    },
+    "dinner": {
+      "label": "cină",
+      "triggers": [
+        "cina",
+        "cina in familie",
+        "de cina",
+        "pentru cina"
+      ],
+      "terms": [
+        "carne",
+        "pește",
+        "legume",
+        "cartofi",
+        "brânză",
+        "vin",
+        "pâine",
+        "salată"
+      ]
+    },
+    "party": {
+      "label": "petrecere",
+      "triggers": [
+        "petrecere",
+        "petrecerea",
+        "party",
+        "o petrecere"
+      ],
+      "terms": [
+        "chipsuri",
+        "suc",
+        "bere",
+        "vin",
+        "snacksuri",
+        "pizza",
+        "tort",
+        "pahare"
+      ]
+    },
+    "bbq": {
+      "label": "grătar",
+      "triggers": [
+        "gratar",
+        "gratarul",
+        "la gratar",
+        "barbecue",
+        "frigarui",
+        "mici la gratar"
+      ],
+      "terms": [
+        "carne",
+        "mici",
+        "cărbune",
+        "sos",
+        "ketchup",
+        "muștar",
+        "legume",
+        "bere"
+      ]
+    },
+    "picnic": {
+      "label": "picnic",
+      "triggers": [
+        "picnic",
+        "iesire in natura",
+        "la iarba verde"
+      ],
+      "terms": [
+        "sandviș",
+        "fructe",
+        "apă",
+        "suc",
+        "chipsuri",
+        "brânză",
+        "salam",
+        "șervețele"
+      ]
+    },
+    "birthday": {
+      "label": "aniversare",
+      "triggers": [
+        "aniversare",
+        "zi de nastere",
+        "ziua de nastere",
+        "ziua mea",
+        "ziua lui",
+        "ziua ei",
+        "onomastica"
+      ],
+      "terms": [
+        "tort",
+        "șampanie",
+        "suc",
+        "bomboane",
+        "fructe",
+        "baloane",
+        "lumânări",
+        "flori"
+      ]
+    },
+    "gift": {
+      "label": "cadou",
+      "triggers": [
+        "cadou",
+        "cadouri",
+        "un cadou",
+        "surpriza pentru"
+      ],
+      "terms": [
+        "parfum",
+        "ciocolată",
+        "cosmetice",
+        "jucării",
+        "flori",
+        "vin",
+        "ceas",
+        "set cadou"
+      ]
+    },
+    "easter": {
+      "label": "Paști",
+      "triggers": [
+        "pasti",
+        "pastele",
+        "pastelui",
+        "masa de pasti",
+        "de pasti",
+        "sarbatoarea pastelui",
+        "inviere",
+        "pascal",
+        "pasca"
+      ],
+      "terms": [
+        "miel",
+        "ouă",
+        "cozonac",
+        "pască",
+        "vopsea ouă",
+        "brânză",
+        "vin",
+        "carne"
+      ],
+      "context": [
+        {
+          "token": "paste",
+          "before": [
+            "de",
+            "masa",
+            "la",
+            "pentru"
+          ],
+          "with": [
+            "sarbatoare",
+            "sarbatori",
+            "sarbatorile",
+            "cozonac",
+            "pasca",
+            "miel",
+            "oua",
+            "inviere",
+            "masa"
+          ],
+          "notAfter": [
+            "fainoase",
+            "italiene",
+            "carbonara",
+            "bolognese",
+            "integrale",
+            "barilla",
+            "penne",
+            "spaghete",
+            "cu"
+          ]
+        }
+      ]
+    },
+    "christmas": {
+      "label": "Crăciun",
+      "triggers": [
+        "craciun",
+        "craciunul",
+        "de craciun",
+        "masa de craciun",
+        "sarbatori de iarna",
+        "brad"
+      ],
+      "terms": [
+        "carne de porc",
+        "cozonac",
+        "vin",
+        "șampanie",
+        "ciocolată",
+        "brad",
+        "decorațiuni",
+        "mandarine"
+      ]
+    },
+    "new_year": {
+      "label": "Revelion",
+      "triggers": [
+        "revelion",
+        "anul nou",
+        "de anul nou",
+        "noaptea de revelion"
+      ],
+      "terms": [
+        "șampanie",
+        "vin",
+        "salam",
+        "cașcaval",
+        "icre",
+        "mandarine",
+        "artificii",
+        "tort"
+      ]
+    },
+    "women_day": {
+      "label": "8 Martie",
+      "triggers": [
+        "8 martie",
+        "opt martie",
+        "ziua femeii",
+        "ziua mamei",
+        "martisor"
+      ],
+      "terms": [
+        "flori",
+        "ciocolată",
+        "parfum",
+        "cosmetice",
+        "bomboane",
+        "vin",
+        "martisor",
+        "set cadou"
+      ]
+    },
+    "back_to_school": {
+      "label": "începutul școlii",
+      "triggers": [
+        "back to school",
+        "inceputul scolii",
+        "inceput de scoala",
+        "1 septembrie",
+        "rechizite",
+        "la scoala",
+        "pentru scoala"
+      ],
+      "terms": [
+        "caiete",
+        "pixuri",
+        "ghiozdan",
+        "creioane",
+        "penar",
+        "carioci",
+        "uniformă",
+        "pantofi"
+      ]
+    },
+    "cleaning": {
+      "label": "curățenie",
+      "triggers": [
+        "curatenie",
+        "curatenia",
+        "produse de curatenie",
+        "detergenti",
+        "pentru casa curata"
+      ],
+      "terms": [
+        "detergent",
+        "detergent vase",
+        "burete",
+        "saci menajeri",
+        "hârtie igienică",
+        "clor",
+        "soluție geamuri",
+        "mop"
+      ]
+    },
+    "baby": {
+      "label": "bebeluș",
+      "triggers": [
+        "bebelus",
+        "bebe",
+        "nou nascut",
+        "pentru copilul mic",
+        "pentru bebelus"
+      ],
+      "terms": [
+        "scutece",
+        "șervețele umede",
+        "piure",
+        "lapte praf",
+        "cremă bebe",
+        "șampon copii",
+        "jucării",
+        "biberon"
+      ]
+    },
+    "pets": {
+      "label": "animale de companie",
+      "triggers": [
+        "animale",
+        "animalul de companie",
+        "caine",
+        "catel",
+        "pisica",
+        "pisicii",
+        "cainelui"
+      ],
+      "terms": [
+        "hrană câini",
+        "hrană pisici",
+        "nisip pisici",
+        "recompense",
+        "jucării animale",
+        "conserve pisici",
+        "hrană uscată",
+        "castron"
+      ]
+    },
+    "beauty": {
+      "label": "igienă și frumusețe",
+      "triggers": [
+        "igiena",
+        "cosmetica",
+        "frumusete",
+        "ingrijire personala",
+        "produse de igiena"
+      ],
+      "terms": [
+        "șampon",
+        "gel de duș",
+        "deodorant",
+        "pastă de dinți",
+        "cremă",
+        "săpun",
+        "balsam",
+        "periuță de dinți"
+      ]
+    },
+    "electronics": {
+      "label": "electronice",
+      "triggers": [
+        "electronice",
+        "gadgeturi",
+        "tehnica",
+        "electrocasnice"
+      ],
+      "terms": [
+        "telefon",
+        "laptop",
+        "televizor",
+        "căști",
+        "tabletă",
+        "ceas inteligent",
+        "boxă",
+        "aspirator"
+      ]
+    },
+    "gift_women": {
+      "label": "un cadou pentru ea",
+      "triggers": [
+        "cadou pentru mama",
+        "cadou pentru sotie",
+        "cadou pentru iubita",
+        "cadou pentru prietena",
+        "cadou pentru sora",
+        "cadou pentru bunica"
+      ],
+      "terms": [
+        "parfum",
+        "flori",
+        "ciocolată",
+        "cosmetice",
+        "set cadou",
+        "bijuterii",
+        "vin",
+        "cremă"
+      ]
+    },
+    "gift_men": {
+      "label": "un cadou pentru el",
+      "triggers": [
+        "cadou pentru tata",
+        "cadou pentru sot",
+        "cadou pentru iubit",
+        "cadou pentru frate",
+        "cadou pentru coleg",
+        "cadou pentru bunic"
+      ],
+      "terms": [
+        "parfum",
+        "ceas",
+        "coniac",
+        "set cadou",
+        "portofel",
+        "căști",
+        "whisky",
+        "cravată"
+      ]
+    },
+    "gift_kids": {
+      "label": "un cadou pentru copil",
+      "triggers": [
+        "cadou pentru copil",
+        "cadou pentru fiu",
+        "cadou pentru fiica",
+        "cadou pentru nepot",
+        "cadou pentru nepoata",
+        "cadou copil"
+      ],
+      "terms": [
+        "jucării",
+        "lego",
+        "păpușă",
+        "carte",
+        "puzzle",
+        "dulciuri",
+        "joc de societate",
+        "mașinuță"
+      ]
+    }
+  },
+  "basket": {
+    "triggers": [
+      "mancare",
+      "alimente",
+      "cumparaturi",
+      "cos",
+      "cosul",
+      "produse alimentare",
+      "merinde",
+      "provizii",
+      "produse"
+    ],
+    "periods": {
+      "day": [
+        "pe zi",
+        "o zi",
+        "zilnic",
+        "pentru o zi"
+      ],
+      "week": [
+        "pe saptamana",
+        "o saptamana",
+        "saptamanal",
+        "pentru o saptamana",
+        "saptamana"
+      ],
+      "month": [
+        "pe luna",
+        "o luna",
+        "lunar",
+        "pentru o luna",
+        "luna"
+      ]
+    },
+    "items": [
+      {
+        "term": "pâine",
+        "qty": 3,
+        "unit": "pcs",
+        "essential": true
+      },
+      {
+        "term": "lapte",
+        "qty": 3,
+        "unit": "l",
+        "essential": true
+      },
+      {
+        "term": "ouă",
+        "qty": 10,
+        "unit": "pcs",
+        "essential": true
+      },
+      {
+        "term": "carne",
+        "qty": 1.5,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "pește",
+        "qty": 0.5,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "legume",
+        "qty": 3,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "fructe",
+        "qty": 3,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "paste",
+        "qty": 1,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "brânză",
+        "qty": 0.5,
+        "unit": "kg",
+        "essential": true
+      },
+      {
+        "term": "iaurt",
+        "qty": 4,
+        "unit": "pcs",
+        "essential": true
+      },
+      {
+        "term": "ulei",
+        "qty": 1,
+        "unit": "l",
+        "essential": true
+      },
+      {
+        "term": "cereale",
+        "qty": 0.5,
+        "unit": "kg",
+        "essential": false
+      },
+      {
+        "term": "cafea",
+        "qty": 1,
+        "unit": "pcs",
+        "essential": false
+      },
+      {
+        "term": "apă",
+        "qty": 6,
+        "unit": "l",
+        "essential": false
+      },
+      {
+        "term": "dulciuri",
+        "qty": 1,
+        "unit": "pcs",
+        "essential": false
+      }
+    ]
+  },
+  "exclusionGroups": {
+    "carne": [
+      "carne",
+      "pui",
+      "porc",
+      "vita",
+      "miel",
+      "mici",
+      "salam",
+      "carnati",
+      "sunca",
+      "file",
+      "ceafa",
+      "pulpe",
+      "piept"
+    ],
+    "lactate": [
+      "lapte",
+      "branza",
+      "cascaval",
+      "iaurt",
+      "unt",
+      "smantana",
+      "chefir"
+    ],
+    "alcool": [
+      "vin",
+      "bere",
+      "sampanie",
+      "coniac",
+      "vodca",
+      "whisky"
+    ],
+    "zahar": [
+      "dulciuri",
+      "bomboane",
+      "ciocolata",
+      "tort",
+      "zahar"
+    ]
+  },
+  "nutrition": {
+    "triggers": [
+      "kcal",
+      "calorii",
+      "calorie",
+      "meniu",
+      "proteic",
+      "proteine",
+      "bogat in proteine",
+      "dieta",
+      "slabire",
+      "masa musculara"
+    ],
+    "protein": [
+      "proteic",
+      "proteine",
+      "bogat in proteine",
+      "masa musculara",
+      "high protein"
+    ],
+    "refuse": [
+      "diabet",
+      "diabetic",
+      "insulina",
+      "insuficienta",
+      "renal",
+      "gravida",
+      "sarcina",
+      "alaptez",
+      "boala",
+      "bolnav",
+      "tratament",
+      "alergie",
+      "colesterol",
+      "hipertensiune",
+      "gastrita",
+      "ulcer"
+    ],
+    "meals": {
+      "breakfast": [
+        "ouă",
+        "fulgi de ovăz",
+        "banane"
+      ],
+      "lunch": [
+        "piept de pui",
+        "orez",
+        "roșii"
+      ],
+      "dinner": [
+        "somon",
+        "cartofi",
+        "broccoli"
+      ],
+      "snack": [
+        "iaurt",
+        "mere"
+      ]
+    },
+    "proteinMeals": {
+      "breakfast": [
+        "ouă",
+        "brânză de vaci",
+        "pâine integrală"
+      ],
+      "lunch": [
+        "piept de pui",
+        "hrișcă",
+        "castraveți"
+      ],
+      "dinner": [
+        "ton",
+        "linte",
+        "salată verde"
+      ],
+      "snack": [
+        "iaurt grecesc",
+        "migdale"
+      ]
+    }
   }
 }

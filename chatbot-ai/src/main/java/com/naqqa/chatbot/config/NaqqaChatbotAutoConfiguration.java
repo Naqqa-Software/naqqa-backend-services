@@ -37,6 +37,7 @@ import com.naqqa.chatbot.security.ChatPermissions;
 import com.naqqa.chatbot.security.ChatVisitorTokenService;
 import com.naqqa.chatbot.security.DefaultChatOperatorResolver;
 import com.naqqa.chatbot.service.ChatAdminService;
+import com.naqqa.chatbot.service.ChatAnalyticsEmitter;
 import com.naqqa.chatbot.service.ChatAuditService;
 import com.naqqa.chatbot.service.ChatConversationStore;
 import com.naqqa.chatbot.service.ChatEscalation;
@@ -51,6 +52,7 @@ import com.naqqa.chatbot.service.ChatSponsorService;
 import com.naqqa.chatbot.service.ChatStatsService;
 import com.naqqa.chatbot.service.ChatSttService;
 import com.naqqa.chatbot.service.ChatTexts;
+import com.naqqa.chatbot.spi.ChatAnalyticsSink;
 import com.naqqa.chatbot.spi.ChatContentProvider;
 import com.naqqa.chatbot.spi.ChatEntityResolver;
 import com.naqqa.chatbot.spi.ChatFileStorage;
@@ -130,6 +132,17 @@ public class NaqqaChatbotAutoConfiguration {
     @ConditionalOnMissingBean
     public ChatSearchLinkBuilder naqqaChatbotLinkBuilder() {
         return ChatSearchLinkBuilder.NONE;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ChatAnalyticsSink naqqaChatbotAnalyticsSink() {
+        return ChatAnalyticsSink.NONE;
+    }
+
+    @Bean
+    public ChatAnalyticsEmitter naqqaChatbotAnalyticsEmitter(ChatAnalyticsSink sink) {
+        return new ChatAnalyticsEmitter(sink);
     }
 
     @Bean
@@ -302,10 +315,11 @@ public class NaqqaChatbotAutoConfiguration {
                                         ChatMapper mapper, ChatSseHub hub, ChatRateLimiter rateLimiter, ChatHasher hasher,
                                         ChatSttService stt, ChatVisitorTokenService tokens, ObjectProvider<ChatAiEngine> engine,
                                         ChatTexts texts, ChatEscalation escalation, NaqqaChatbotProperties p,
-                                        ChatSafety safety, ChatAuditService audit) {
+                                        ChatSafety safety, ChatAuditService audit, ChatAnalyticsEmitter analytics) {
         ChatService service = new ChatService(store, messages, events, settings, mapper, hub, rateLimiter, hasher, stt, tokens,
                 engine, texts, escalation, p);
         service.setSafety(safety, audit);
+        service.setAnalytics(analytics);
         return service;
     }
 
@@ -332,8 +346,10 @@ public class NaqqaChatbotAutoConfiguration {
                                                   ChatRecommendationEventRepository events, ChatAuditLogRepository auditRepository,
                                                   ChatAuditService audit, ChatSettingsService settings, ChatService chat,
                                                   ChatMapper mapper, ChatSseHub hub, MongoTemplate mongo,
-                                                  ObjectProvider<ChatAiEngine> engine) {
-        return new ChatAdminService(store, messages, events, auditRepository, audit, settings, chat, mapper, hub, mongo, engine);
+                                                  ObjectProvider<ChatAiEngine> engine, ChatAnalyticsEmitter analytics) {
+        ChatAdminService service = new ChatAdminService(store, messages, events, auditRepository, audit, settings, chat, mapper, hub, mongo, engine);
+        service.setAnalytics(analytics);
+        return service;
     }
 
     @Bean
@@ -432,7 +448,8 @@ public class NaqqaChatbotAutoConfiguration {
 
     @Bean
     public LlmGate naqqaChatLlmGate(NaqqaChatbotProperties p) {
-        return new LlmGate(p.getLlm().getMaxConcurrent(), p.getLlm().getQueueWaitMs());
+        return new LlmGate(p.getLlm().getMaxConcurrent(), p.getLlm().getQueueWaitMs(), p.getLlm().getBreakerFailures(),
+                p.getLlm().getBreakerOpenMs(), System::currentTimeMillis);
     }
 
     @Bean
@@ -442,6 +459,15 @@ public class NaqqaChatbotAutoConfiguration {
                 p.getLlm().getTimeoutMs());
         provider.setParser(new LlmResponseParser(retrieval.typeKeys()));
         return provider;
+    }
+
+    @Bean(destroyMethod = "close")
+    @ConditionalOnMissingBean(com.naqqa.chatbot.ai.llm.LlmWarmup.class)
+    public com.naqqa.chatbot.ai.llm.LlmWarmup naqqaChatLlmWarmup(ObjectProvider<LlmProvider> llm, NaqqaChatbotProperties p) {
+        com.naqqa.chatbot.ai.llm.LlmWarmup warmup = new com.naqqa.chatbot.ai.llm.LlmWarmup(llm.getIfAvailable(),
+                p.getLlm().getWarmupIntervalMs());
+        warmup.start();
+        return warmup;
     }
 
     @Bean
@@ -461,7 +487,8 @@ public class NaqqaChatbotAutoConfiguration {
                 gate, prompts, output, directory, links);
         engine.setSafety(safety, catalog.escalateQuickReply());
         engine.setTopicGuard(topicGuard);
-        engine.setResponseRouter(new com.naqqa.chatbot.ai.ResponseRouter(input.languages(), p.getLlm().getRoutes()));
+        engine.setResponseRouter(new com.naqqa.chatbot.ai.ResponseRouter(input.languages(), p.getLlm().getRoutes(),
+                com.naqqa.chatbot.ai.ResponseRouter.Mode.parse(p.getLlm().getMode()), p.getLlm().getRareMinWords()));
         return engine;
     }
 
@@ -485,8 +512,9 @@ public class NaqqaChatbotAutoConfiguration {
 
     @Bean
     public ChatPublicController naqqaChatPublicController(ChatService chat, ChatSseHub hub, ChatUserResolver users,
-                                                          ObjectProvider<ChatHumanVerifier> verifier, NaqqaChatbotProperties p) {
-        return new ChatPublicController(chat, hub, users, verifier, p);
+                                                          ObjectProvider<ChatHumanVerifier> verifier, NaqqaChatbotProperties p,
+                                                          ChatAnalyticsEmitter analytics) {
+        return new ChatPublicController(chat, hub, users, verifier, p, analytics);
     }
 
     @Bean

@@ -124,6 +124,12 @@
   "knowledgeOrder": ["how_it_works", "account", "mobile_app", "contact_operator"],
   "resolutionOrder": ["contact_operator", "how_it_works", "account", "mobile_app", "categories", "contests", "recipes", "blog", "catalogs", "offers", "promotions", "store", "product_search"],
   "priceBrowseIntent": "promotions",
+  "related": {
+    "types": ["RECIPE", "BLOG"],
+    "triggerTypes": ["PROMOTION", "PRODUCT", "OFFER"],
+    "max": 3,
+    "minRelevance": 0.35
+  },
   "defaultTypes": {
     "withPrice": ["PROMOTION", "PRODUCT"]
   },

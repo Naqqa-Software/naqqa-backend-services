@@ -31,6 +31,9 @@ public class ChatRecommendationEventEntity {
     @Field("title")
     private String title;
 
+    @Field("company_id")
+    private Long companyId;
+
     @Field("sponsored")
     private boolean sponsored;
 

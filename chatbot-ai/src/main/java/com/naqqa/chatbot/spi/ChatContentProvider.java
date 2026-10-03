@@ -17,6 +17,10 @@ public interface ChatContentProvider {
         return true;
     }
 
+    default boolean supportsRelaxation() {
+        return false;
+    }
+
     default String companyType() {
         return "COMPANY";
     }

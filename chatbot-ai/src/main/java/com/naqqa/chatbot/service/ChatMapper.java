@@ -85,7 +85,7 @@ public class ChatMapper {
             List<QuickReplyDto> quickReplies = quickReplies(m.getQuickReplies(), settings, lang);
             return new MessageDto(m.getId(), m.getConversationId(), String.valueOf(m.getSenderType()), senderName, avatar,
                     m.getText(), cards, quickReplies, m.getSystemKey(), m.getCreatedAt(), m.getReadAt(), m.getFeedback(),
-                    admin ? m.getRoute() : null, admin ? (m.getQualityFlags() == null ? List.of() : m.getQualityFlags()) : null,
+                    m.getRoute(), m.getQualityFlags() == null ? (admin ? List.of() : null) : m.getQualityFlags(),
                     kind(m));
         }).toList();
     }
@@ -103,7 +103,8 @@ public class ChatMapper {
 
     public static CardDto card(ChatCard c) {
         return new CardDto(c.getEventId(), c.getType(), c.getId(), c.getSlug(), c.getTitle(), c.getImage(), c.getPrice(),
-                c.getOriginalPrice(), c.getDiscount(), c.getCompany(), c.getCompanyLogo(), c.getValidTo(), c.getPath(), c.isSponsored());
+                c.getOriginalPrice(), c.getDiscount(), c.getCompany(), c.getCompanyLogo(), c.getValidTo(), c.getPath(), c.isSponsored(),
+                c.getCompanyId(), c.getGroup() == null ? ChatCard.GROUP_RESULTS : c.getGroup());
     }
 
     public static List<QuickReplyDto> quickReplies(List<String> keys, ChatSettingsEntity settings, String lang) {

@@ -154,6 +154,7 @@ public class ChatRetrievalService {
                 + (plan.category() == null ? "" : plan.category().taxonomy() + ":" + plan.category().id()) + "|"
                 + plan.browse() + "|" + plan.perType() + "|" + plan.priceMin() + "|" + plan.priceMax() + "|" + plan.sortDiscount()
                 + "|" + (plan.place() == null ? "" : plan.place().kind() + ":" + plan.place().id()) + "|" + plan.intent()
+                + "|" + plan.relax() + "|" + plan.minDiscount() + "|" + plan.sort()
                 + "|" + token + "|" + LocalDate.now();
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8));

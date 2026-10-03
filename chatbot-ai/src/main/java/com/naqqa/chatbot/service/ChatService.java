@@ -41,7 +41,9 @@ import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -56,6 +58,7 @@ public class ChatService {
     public static final String REASON_VISITOR = "VISITOR";
     public static final String REASON_AI = "AI";
     private static final int MAX_CARDS = 10;
+    private static final int MAX_RELATED_CARDS = 6;
     private static final Pattern VISITOR_ID = Pattern.compile("^[A-Za-z0-9_-]{8,64}$");
     private static final Pattern QUICK_REPLY = Pattern.compile("^[a-z0-9_]{1,40}$");
 
@@ -76,6 +79,7 @@ public class ChatService {
     private final NaqqaChatbotProperties properties;
     private ChatSafety safety;
     private ChatAuditService auditService;
+    private ChatAnalyticsEmitter analytics = ChatAnalyticsEmitter.NONE;
 
     public ChatService(ChatConversationStore store, ChatMessageRepository messageRepository,
                        ChatRecommendationEventRepository eventRepository,
@@ -103,6 +107,10 @@ public class ChatService {
     public void setSafety(ChatSafety safety, ChatAuditService auditService) {
         this.safety = safety;
         this.auditService = auditService;
+    }
+
+    public void setAnalytics(ChatAnalyticsEmitter analytics) {
+        this.analytics = analytics == null ? ChatAnalyticsEmitter.NONE : analytics;
     }
 
     public ChatLanguages languages() {
@@ -136,6 +144,11 @@ public class ChatService {
     }
 
     public CreateConversationResponse create(CreateConversationRequest request, Long userId, String ip, String userAgent) {
+        return create(request, userId, ip, userAgent, null, null);
+    }
+
+    public CreateConversationResponse create(CreateConversationRequest request, Long userId, String ip, String userAgent,
+                                              String analyticsVid, String analyticsSid) {
         ensureEnabled();
         String lang = lang(request == null ? null : request.lang());
         Instant now = Instant.now();
@@ -147,6 +160,8 @@ public class ChatService {
         c.setLang(lang);
         c.setStatus(ChatStatus.AI);
         c.setPagePath(pagePath(request == null ? null : request.pagePath()));
+        c.setAnalyticsVid(blankToNull(analyticsVid));
+        c.setAnalyticsSid(blankToNull(analyticsSid));
         c.setIpHash(hasher.hash(ip));
         c.setUserAgentHash(hasher.hash(userAgent));
         c.setCreatedAt(now);
@@ -165,7 +180,12 @@ public class ChatService {
         messageRepository.save(m);
 
         hub.toAdmins(saved, "conversation_created", mapper.summary(saved));
+        analytics.emit("chat_conversation_start", saved, Map.of("source", "widget", "conversationId", saved.getId()));
         return new CreateConversationResponse(mapper.conversation(saved), tokenService.issue(saved.getId()), mapper.messages(List.of(m), lang));
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     public ConversationViewDto view(String id, String token) {
@@ -198,6 +218,10 @@ public class ChatService {
     }
 
     public SendResultDto send(String id, String token, SendMessageRequest request) {
+        return send(id, token, request, null, null);
+    }
+
+    public SendResultDto send(String id, String token, SendMessageRequest request, String analyticsVid, String analyticsSid) {
         ensureEnabled();
         tokenService.verify(token, id);
         ChatConversationEntity c = store.get(id);
@@ -222,7 +246,8 @@ public class ChatService {
         if (text == null || text.isEmpty()) {
             throw ChatException.badRequest("Message text is required.");
         }
-        acquire(id);
+        c = refreshAnalyticsIds(c, analyticsVid, analyticsSid);
+        acquire(c, "message");
         ensureNotMuted(c);
         String masked = PiiMasker.mask(text);
         if (quickReply == null) {
@@ -236,10 +261,20 @@ public class ChatService {
             visitor.setFlagged(true);
             visitor.setSafety(verdict.kind().name());
         }
+        if (quickReply == null) {
+            analytics.emit("chat_message_sent", c, Map.of("len", masked.length(), "lang", lang, "voice", false, "conversationId", c.getId()));
+        } else {
+            analytics.emit("chat_quick_reply_click", c, Map.of("code", quickReply));
+        }
         return processVisitorMessage(c, visitor, masked, quickReply, lang, request.pagePath(), verdict);
     }
 
     public TranscriptionDto transcribe(String id, String token, byte[] audio, String declaredType, Long durationMs, String lang) {
+        return transcribe(id, token, audio, declaredType, durationMs, lang, null, null);
+    }
+
+    public TranscriptionDto transcribe(String id, String token, byte[] audio, String declaredType, Long durationMs, String lang,
+                                       String analyticsVid, String analyticsSid) {
         ensureEnabled();
         tokenService.verify(token, id);
         if (!settingsService.get().isVoiceEnabled()) {
@@ -253,13 +288,36 @@ public class ChatService {
             throw ChatException.closed();
         }
         String contentType = ChatAudioValidator.validate(audio, declaredType, durationMs);
-        acquire(id);
+        c = refreshAnalyticsIds(c, analyticsVid, analyticsSid);
+        acquire(c, "transcribe");
         ensureNotMuted(c);
         String text = sttService.transcribe(audio, contentType, lang == null ? c.getLang() : lang(lang), null);
-        if (text == null || text.isBlank()) {
+        boolean success = text != null && !text.isBlank();
+        analytics.emit("chat_voice_transcribed", c, Map.of("durationMs", durationMs == null ? 0 : durationMs, "ok", success,
+                "conversationId", c.getId()));
+        if (!success) {
             return new TranscriptionDto("");
         }
         return new TranscriptionDto(text.length() > MAX_TEXT ? text.substring(0, MAX_TEXT) : text);
+    }
+
+    private ChatConversationEntity refreshAnalyticsIds(ChatConversationEntity c, String analyticsVid, String analyticsSid) {
+        String vid = blankToNull(analyticsVid);
+        String sid = blankToNull(analyticsSid);
+        if (vid == null && sid == null) {
+            return c;
+        }
+        if (java.util.Objects.equals(vid, c.getAnalyticsVid()) && java.util.Objects.equals(sid, c.getAnalyticsSid())) {
+            return c;
+        }
+        return store.update(c.getId(), conv -> {
+            if (vid != null) {
+                conv.setAnalyticsVid(vid);
+            }
+            if (sid != null) {
+                conv.setAnalyticsSid(sid);
+            }
+        });
     }
 
     private SendResultDto processVisitorMessage(ChatConversationEntity c, ChatMessageEntity visitor, String maskedText,
@@ -393,9 +451,14 @@ public class ChatService {
         List<ChatRecommendationEventEntity> events = new ArrayList<>();
         if (reply.cards() != null) {
             int position = 0;
+            int related = 0;
             for (ChatCard card : reply.cards()) {
-                if (card == null || position >= MAX_CARDS) {
+                boolean isRelated = card != null && ChatCard.GROUP_RELATED.equals(card.getGroup());
+                if (card == null || (isRelated ? related >= MAX_RELATED_CARDS : position - related >= MAX_CARDS)) {
                     continue;
+                }
+                if (isRelated) {
+                    related++;
                 }
                 ChatCard copy = card.toBuilder().eventId(UUID.randomUUID().toString()).build();
                 cards.add(copy);
@@ -406,6 +469,7 @@ public class ChatService {
                 event.setItemType(copy.getType());
                 event.setItemId(copy.getId());
                 event.setTitle(copy.getTitle());
+                event.setCompanyId(copy.getCompanyId());
                 event.setSponsored(copy.isSponsored());
                 event.setPosition(position++);
                 event.setShownAt(now);
@@ -416,6 +480,21 @@ public class ChatService {
         ChatMessageEntity saved = messageRepository.save(bot);
         if (!events.isEmpty()) {
             eventRepository.saveAll(events);
+        }
+        if (safetyKind == null && AiReply.ROUTE_GUARD.equals(reply.route())) {
+            analytics.emit("injection".equals(reply.intent()) ? "chat_injection_blocked" : "chat_offtopic_refused", c,
+                    Map.of("intent", reply.intent() == null ? "" : reply.intent()));
+        }
+        analytics.emit("chat_bot_reply", c, Map.of("latencyMs", reply.latencyMs(), "route", reply.route() == null ? "" : reply.route(),
+                "intent", reply.intent() == null ? "" : reply.intent(), "confidence", reply.confidence(), "llm", reply.llmUsed()));
+        for (ChatRecommendationEventEntity event : events) {
+            Map<String, Object> props = new LinkedHashMap<>();
+            props.put("entityType", event.getItemType() == null ? "" : event.getItemType());
+            props.put("entityId", event.getItemId());
+            props.put("companyId", event.getCompanyId());
+            props.put("sponsored", event.isSponsored());
+            props.put("position", event.getPosition());
+            analytics.emit("chat_recommendation_impression", c, props);
         }
         double min = s.getMinConfidence();
         ChatConversationEntity updated = store.update(c.getId(), conv -> {
@@ -452,6 +531,9 @@ public class ChatService {
             }
         });
         hub.toAdmins(updated, "escalated", mapper.summary(updated));
+        if (REASON_VISITOR.equals(reason)) {
+            analytics.emit("chat_handoff_requested", updated, Map.of());
+        }
         boolean online = operatorsOnline();
         String key = online ? ChatTexts.ESCALATED_WAITING : ChatTexts.ESCALATED_NO_OPERATOR;
         ChatMessageEntity recent = recentSystem(updated.getId(), key);
@@ -469,7 +551,7 @@ public class ChatService {
         if (c.getStatus() == ChatStatus.CLOSED) {
             throw ChatException.closed();
         }
-        acquire(id);
+        acquire(c, "escalate");
         ChatMessageEntity system = escalate(c, c.getLang(), REASON_VISITOR);
         return new SendResultDto(null, mapper.message(system, c.getLang()), mapper.conversation(store.get(id)));
     }
@@ -767,6 +849,7 @@ public class ChatService {
         }
         ChatConversationEntity updated = store.update(id, conv -> conv.setRating(rating));
         hub.toAdmins(updated, "conversation_updated", mapper.summary(updated));
+        analytics.emit("chat_rating", updated, Map.of("value", rating));
     }
 
     public void click(String eventId, String token) {
@@ -776,6 +859,14 @@ public class ChatService {
         if (event.getClickedAt() == null) {
             event.setClickedAt(Instant.now());
             eventRepository.save(event);
+            ChatConversationEntity conversation = store.get(event.getConversationId());
+            Map<String, Object> props = new LinkedHashMap<>();
+            props.put("entityType", event.getItemType() == null ? "" : event.getItemType());
+            props.put("entityId", event.getItemId());
+            props.put("companyId", event.getCompanyId());
+            props.put("sponsored", event.isSponsored());
+            props.put("position", event.getPosition());
+            analytics.emit("chat_recommendation_click", conversation, props);
         }
     }
 
@@ -784,8 +875,9 @@ public class ChatService {
         store.get(id);
     }
 
-    private void acquire(String conversationId) {
-        if (!rateLimiter.tryAcquire("conv:" + conversationId, properties.getRateLimit().getPerConversationPerMinute(), Duration.ofMinutes(1))) {
+    private void acquire(ChatConversationEntity c, String action) {
+        if (!rateLimiter.tryAcquire("conv:" + c.getId(), properties.getRateLimit().getPerConversationPerMinute(), Duration.ofMinutes(1))) {
+            analytics.emit("chat_rate_limited", c, Map.of("action", action == null ? "" : action));
             throw ChatException.rateLimited();
         }
     }

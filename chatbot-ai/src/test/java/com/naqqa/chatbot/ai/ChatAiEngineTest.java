@@ -93,6 +93,7 @@ class ChatAiEngineTest {
                 ChatTestSupport.outputGuard(), ChatAiFixtures.DIRECTORY, LINKS);
         e.setSafety(safety, "talk_to_operator");
         e.setTopicGuard(ChatTestSupport.topics());
+        e.setResponseRouter(new ResponseRouter(ChatTestSupport.LANGUAGES, null, ResponseRouter.Mode.NORMAL, 6));
         return e;
     }
 

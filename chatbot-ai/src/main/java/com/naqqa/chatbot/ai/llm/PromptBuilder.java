@@ -19,7 +19,7 @@ public class PromptBuilder {
 
     public static final int MAX_HISTORY = 6;
     public static final int MAX_ITEMS = 8;
-    public static final int MAX_TOKENS = 300;
+    public static final int MAX_TOKENS = 220;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final ChatEntityResolver directory;
@@ -134,7 +134,7 @@ public class PromptBuilder {
                 }
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("title", safeTitle(hit.title()));
-                m.put("text", clip(hit.text(), 700));
+                m.put("text", clip(hit.text(), 500));
                 out.add(m);
             }
         }

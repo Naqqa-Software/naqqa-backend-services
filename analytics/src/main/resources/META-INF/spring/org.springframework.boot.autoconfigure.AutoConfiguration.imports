@@ -1,0 +1,2 @@
+com.naqqa.analytics.config.NaqqaAnalyticsAutoConfiguration
+com.naqqa.analytics.banners.config.BannerAutoConfiguration

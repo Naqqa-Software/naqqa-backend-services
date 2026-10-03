@@ -33,6 +33,54 @@ public final class ChatLanguages {
     private record Stemming(int minLength, List<String> suffixes) {
     }
 
+    public record BasketItem(String term, double qty, String unit, boolean essential) {
+    }
+
+    public record Basket(List<String> triggers, Map<String, List<String>> periods, Map<String, List<BasketItem>> items) {
+
+        public List<BasketItem> items(String lang) {
+            List<BasketItem> v = items.get(lang);
+            if (v != null && !v.isEmpty()) {
+                return v;
+            }
+            for (List<BasketItem> list : items.values()) {
+                if (!list.isEmpty()) {
+                    return list;
+                }
+            }
+            return List.of();
+        }
+    }
+
+    public record Nutrition(List<String> triggers, List<String> protein, List<String> refuse,
+                            Map<String, List<String>> meals, Map<String, List<String>> proteinMeals) {
+    }
+
+    public record ContextRule(String token, Set<String> before, Set<String> with, Set<String> notAfter) {
+    }
+
+    public record Scenario(String id, Map<String, String> labels, List<String> triggers, Map<String, List<String>> terms,
+                           List<ContextRule> context) {
+
+        public String label(String lang) {
+            String v = pick(labels, lang);
+            return v == null ? id : v;
+        }
+
+        public List<String> terms(String lang) {
+            List<String> v = terms.get(lang);
+            if (v != null && !v.isEmpty()) {
+                return v;
+            }
+            for (List<String> list : terms.values()) {
+                if (list != null && !list.isEmpty()) {
+                    return list;
+                }
+            }
+            return List.of();
+        }
+    }
+
     private record Detection(String lang, String script, String diacritics, Set<String> markers) {
     }
 
@@ -51,8 +99,33 @@ public final class ChatLanguages {
     private final List<String> escalatePhrases = new ArrayList<>();
     private final List<String> discountSortPhrases = new ArrayList<>();
     private final List<String> placeCues = new ArrayList<>();
+    private final Set<String> storeCues = new LinkedHashSet<>();
     private final List<String> comparativePhrases = new ArrayList<>();
     private final List<String> followUpPhrases = new ArrayList<>();
+    private final List<String> recommendationPhrases = new ArrayList<>();
+    private final Set<String> compareWords = new LinkedHashSet<>();
+    private final List<String> multiPartPhrases = new ArrayList<>();
+    private final List<String> compareSplitters = new ArrayList<>();
+    private final List<String> compareVerbs = new ArrayList<>();
+    private final List<String> compareVerbSplitters = new ArrayList<>();
+    private final List<String> newestPhrases = new ArrayList<>();
+    private final List<String> expiringPhrases = new ArrayList<>();
+    private final Set<String> peopleWords = new LinkedHashSet<>();
+    private final Map<String, String> categoryHints = new LinkedHashMap<>();
+    private final Map<String, Scenario> scenarios = new LinkedHashMap<>();
+    private final List<String> familyPhrases = new ArrayList<>();
+    private final List<String> singlePersonPhrases = new ArrayList<>();
+    private final List<String> excludePhrases = new ArrayList<>();
+    private final List<String> alternativePhrases = new ArrayList<>();
+    private final Map<String, List<String>> exclusionGroups = new LinkedHashMap<>();
+    private final List<String> basketTriggers = new ArrayList<>();
+    private final Map<String, List<String>> basketPeriods = new LinkedHashMap<>();
+    private final Map<String, List<BasketItem>> basketItems = new LinkedHashMap<>();
+    private final List<String> nutritionTriggers = new ArrayList<>();
+    private final List<String> nutritionProtein = new ArrayList<>();
+    private final List<String> nutritionRefuse = new ArrayList<>();
+    private final Map<String, List<String>> nutritionMeals = new LinkedHashMap<>();
+    private final Map<String, List<String>> nutritionProteinMeals = new LinkedHashMap<>();
     private final Map<String, List<String>> pagePhrases = new LinkedHashMap<>();
     private final List<Pattern> injectionPatterns = new ArrayList<>();
     private final List<Detection> detections = new ArrayList<>();
@@ -108,6 +181,82 @@ public final class ChatLanguages {
             for (JsonNode n : pack.path("routing").path("followUp")) {
                 followUpPhrases.add(TextNormalizer.normalizedPhrase(n.asText("")));
             }
+            for (JsonNode n : pack.path("routing").path("recommendation")) {
+                recommendationPhrases.add(TextNormalizer.normalizedPhrase(n.asText("")));
+            }
+            addAll(compareWords, pack.path("routing").path("compareWords"), true);
+            for (JsonNode n : pack.path("routing").path("multiPart")) {
+                multiPartPhrases.add(TextNormalizer.normalizedPhrase(n.asText("")));
+            }
+            for (JsonNode n : pack.path("routing").path("compareSplit")) {
+                String v = TextNormalizer.normalizedPhrase(n.asText(""));
+                if (!v.isBlank() && !compareSplitters.contains(v)) {
+                    compareSplitters.add(v);
+                }
+            }
+            for (JsonNode n : pack.path("routing").path("compareVerbs")) {
+                String v = TextNormalizer.fold(n.asText("")).trim();
+                if (!v.isEmpty() && !compareVerbs.contains(v)) {
+                    compareVerbs.add(v);
+                }
+            }
+            for (JsonNode n : pack.path("routing").path("compareVerbSplit")) {
+                String v = TextNormalizer.normalizedPhrase(n.asText(""));
+                if (!v.isBlank() && !compareVerbSplitters.contains(v)) {
+                    compareVerbSplitters.add(v);
+                }
+            }
+            for (JsonNode n : pack.path("signals").path("newest")) {
+                newestPhrases.add(TextNormalizer.normalizedPhrase(n.asText("")));
+            }
+            for (JsonNode n : pack.path("signals").path("expiring")) {
+                expiringPhrases.add(TextNormalizer.normalizedPhrase(n.asText("")));
+            }
+            addAll(peopleWords, pack.path("signals").path("people"), true);
+            pack.path("categoryHints").fields().forEachRemaining(e -> {
+                String key = TextNormalizer.fold(e.getKey());
+                String value = TextNormalizer.fold(e.getValue().asText(""));
+                if (!key.isBlank() && !value.isBlank()) {
+                    categoryHints.put(key, value);
+                }
+            });
+            readScenarios(lang, pack.path("scenarios"));
+            phrases(familyPhrases, pack.path("signals").path("family"));
+            phrases(singlePersonPhrases, pack.path("signals").path("single"));
+            phrases(excludePhrases, pack.path("signals").path("exclude"));
+            phrases(alternativePhrases, pack.path("signals").path("alternative"));
+            pack.path("exclusionGroups").fields().forEachRemaining(e -> {
+                List<String> words = new ArrayList<>();
+                for (JsonNode w : e.getValue()) {
+                    words.add(TextNormalizer.fold(w.asText("")));
+                }
+                exclusionGroups.put(TextNormalizer.fold(e.getKey()), List.copyOf(words));
+            });
+            JsonNode basket = pack.path("basket");
+            phrases(basketTriggers, basket.path("triggers"));
+            basket.path("periods").fields().forEachRemaining(e -> phrases(basketPeriods.computeIfAbsent(e.getKey(),
+                    k -> new ArrayList<>()), e.getValue()));
+            List<BasketItem> items = new ArrayList<>();
+            for (JsonNode n : basket.path("items")) {
+                items.add(new BasketItem(n.path("term").asText(""), n.path("qty").asDouble(1), n.path("unit").asText("pcs"),
+                        n.path("essential").asBoolean(true)));
+            }
+            if (!items.isEmpty()) {
+                basketItems.put(lang, List.copyOf(items));
+            }
+            JsonNode nutrition = pack.path("nutrition");
+            phrases(nutritionTriggers, nutrition.path("triggers"));
+            phrases(nutritionProtein, nutrition.path("protein"));
+            for (JsonNode n : nutrition.path("refuse")) {
+                String v = TextNormalizer.fold(n.asText("")).trim();
+                if (!v.isEmpty() && !nutritionRefuse.contains(v)) {
+                    nutritionRefuse.add(v);
+                }
+            }
+            nutrition.path("meals").fields().forEachRemaining(e -> nutritionMeals.put(e.getKey(), JsonLists.list(e.getValue())));
+            nutrition.path("proteinMeals").fields().forEachRemaining(e -> nutritionProteinMeals.put(e.getKey(),
+                    JsonLists.list(e.getValue())));
+            addAll(storeCues, pack.path("storeCues"), true);
             for (JsonNode n : pack.path("placeCues")) {
                 placeCues.add(n.asText(""));
             }
@@ -186,6 +335,70 @@ public final class ChatLanguages {
             parts.add(Pattern.quote(v) + "\\s+");
         }
         return "(?:" + String.join("|", parts) + ")?";
+    }
+
+    private static final class JsonLists {
+        static List<String> list(JsonNode n) {
+            List<String> out = new ArrayList<>();
+            for (JsonNode v : n) {
+                out.add(v.asText(""));
+            }
+            return List.copyOf(out);
+        }
+    }
+
+    private static void phrases(List<String> target, JsonNode values) {
+        for (JsonNode n : values) {
+            String v = TextNormalizer.normalizedPhrase(n.asText(""));
+            if (!v.isBlank() && !target.contains(v)) {
+                target.add(v);
+            }
+        }
+    }
+
+    private void readScenarios(String lang, JsonNode node) {
+        node.fields().forEachRemaining(e -> {
+            JsonNode n = e.getValue();
+            Scenario existing = scenarios.get(e.getKey());
+            Map<String, String> labels = existing == null ? new LinkedHashMap<>() : new LinkedHashMap<>(existing.labels());
+            List<String> triggers = existing == null ? new ArrayList<>() : new ArrayList<>(existing.triggers());
+            Map<String, List<String>> terms = existing == null ? new LinkedHashMap<>() : new LinkedHashMap<>(existing.terms());
+            List<ContextRule> context = existing == null ? new ArrayList<>() : new ArrayList<>(existing.context());
+            if (n.path("label").isTextual()) {
+                labels.put(lang, n.path("label").asText());
+            }
+            for (JsonNode t : n.path("triggers")) {
+                String v = TextNormalizer.normalizedPhrase(t.asText(""));
+                if (!v.isBlank() && !triggers.contains(v)) {
+                    triggers.add(v);
+                }
+            }
+            List<String> langTerms = new ArrayList<>();
+            for (JsonNode t : n.path("terms")) {
+                String v = t.asText("").trim();
+                if (!v.isEmpty() && !langTerms.contains(v)) {
+                    langTerms.add(v);
+                }
+            }
+            if (!langTerms.isEmpty()) {
+                terms.put(lang, List.copyOf(langTerms));
+            }
+            for (JsonNode c : n.path("context")) {
+                String token = TextNormalizer.fold(c.path("token").asText(""));
+                if (token.isBlank()) {
+                    continue;
+                }
+                Set<String> before = new LinkedHashSet<>();
+                Set<String> with = new LinkedHashSet<>();
+                Set<String> notAfter = new LinkedHashSet<>();
+                addAll(before, c.path("before"), true);
+                addAll(with, c.path("with"), true);
+                addAll(notAfter, c.path("notAfter"), true);
+                context.add(new ContextRule(token, Set.copyOf(before), Set.copyOf(with), Set.copyOf(notAfter)));
+            }
+            scenarios.put(e.getKey(), new Scenario(e.getKey(), Map.copyOf(labels), List.copyOf(triggers), Map.copyOf(terms),
+                    List.copyOf(context)));
+        });
     }
 
     private void readRules(JsonNode intents) {
@@ -402,12 +615,88 @@ public final class ChatLanguages {
         return placeCues;
     }
 
+    public Set<String> storeCues() {
+        return storeCues;
+    }
+
     public List<String> comparativePhrases() {
         return comparativePhrases;
     }
 
     public List<String> followUpPhrases() {
         return followUpPhrases;
+    }
+
+    public List<String> recommendationPhrases() {
+        return recommendationPhrases;
+    }
+
+    public Set<String> compareWords() {
+        return compareWords;
+    }
+
+    public List<String> multiPartPhrases() {
+        return multiPartPhrases;
+    }
+
+    public List<String> compareSplitters() {
+        return compareSplitters;
+    }
+
+    public List<String> compareVerbs() {
+        return compareVerbs;
+    }
+
+    public List<String> compareVerbSplitters() {
+        return compareVerbSplitters;
+    }
+
+    public List<String> newestPhrases() {
+        return newestPhrases;
+    }
+
+    public List<String> expiringPhrases() {
+        return expiringPhrases;
+    }
+
+    public Set<String> peopleWords() {
+        return peopleWords;
+    }
+
+    public Map<String, String> categoryHints() {
+        return categoryHints;
+    }
+
+    public Map<String, Scenario> scenarios() {
+        return scenarios;
+    }
+
+    public List<String> singlePersonPhrases() {
+        return singlePersonPhrases;
+    }
+
+    public List<String> familyPhrases() {
+        return familyPhrases;
+    }
+
+    public List<String> excludePhrases() {
+        return excludePhrases;
+    }
+
+    public List<String> alternativePhrases() {
+        return alternativePhrases;
+    }
+
+    public Map<String, List<String>> exclusionGroups() {
+        return exclusionGroups;
+    }
+
+    public Basket basket() {
+        return new Basket(basketTriggers, basketPeriods, basketItems);
+    }
+
+    public Nutrition nutrition() {
+        return new Nutrition(nutritionTriggers, nutritionProtein, nutritionRefuse, nutritionMeals, nutritionProteinMeals);
     }
 
     public Map<String, List<String>> pagePhrases() {

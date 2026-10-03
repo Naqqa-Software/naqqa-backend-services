@@ -11,6 +11,7 @@ import com.naqqa.chatbot.dto.ChatDtos.SendMessageRequest;
 import com.naqqa.chatbot.dto.ChatDtos.SendResultDto;
 import com.naqqa.chatbot.dto.ChatDtos.TranscriptionDto;
 import com.naqqa.chatbot.security.ChatVisitorTokenService;
+import com.naqqa.chatbot.service.ChatAnalyticsEmitter;
 import com.naqqa.chatbot.service.ChatException;
 import com.naqqa.chatbot.service.ChatService;
 import com.naqqa.chatbot.spi.ChatHumanVerifier;
@@ -45,24 +46,31 @@ import java.util.List;
 @RequestMapping("${naqqa.chatbot.public-path:/api/public/chat}")
 public class ChatPublicController {
 
+    public static final String VID_HEADER = "X-Analytics-Vid";
+    public static final String SID_HEADER = "X-Analytics-Sid";
+
     private final ChatService chatService;
     private final ChatSseHub hub;
     private final ChatUserResolver users;
     private final ObjectProvider<ChatHumanVerifier> verifier;
     private final NaqqaChatbotProperties properties;
+    private final ChatAnalyticsEmitter analytics;
 
     public ChatPublicController(ChatService chatService, ChatSseHub hub, ChatUserResolver users,
-                                ObjectProvider<ChatHumanVerifier> verifier, NaqqaChatbotProperties properties) {
+                                ObjectProvider<ChatHumanVerifier> verifier, NaqqaChatbotProperties properties,
+                                ChatAnalyticsEmitter analytics) {
         this.chatService = chatService;
         this.hub = hub;
         this.users = users == null ? ChatUserResolver.NONE : users;
         this.verifier = verifier;
         this.properties = properties;
+        this.analytics = analytics == null ? ChatAnalyticsEmitter.NONE : analytics;
     }
 
-    private void human(HttpServletRequest request, String action) {
+    private void human(HttpServletRequest request, String action, String conversationId, String vid, String sid) {
         ChatHumanVerifier v = verifier == null ? null : verifier.getIfAvailable();
         if (v != null && !v.verify(request, action)) {
+            analytics.emit("chat_recaptcha_fail", conversationId, vid, sid, null, null, java.util.Map.of("action", action == null ? "" : action));
             throw new ChatException(HttpStatus.FORBIDDEN, "RECAPTCHA_FAILED", "Security check failed. Please try again.");
         }
     }
@@ -74,14 +82,16 @@ public class ChatPublicController {
 
     @PostMapping("/conversations")
     public CreateConversationResponse create(@RequestBody(required = false) CreateConversationRequest request,
-                                             Authentication authentication, HttpServletRequest http) {
-        human(http, properties.getRecaptchaActions().getStart());
+                                             Authentication authentication, HttpServletRequest http,
+                                             @RequestHeader(value = VID_HEADER, required = false) String vid,
+                                             @RequestHeader(value = SID_HEADER, required = false) String sid) {
+        human(http, properties.getRecaptchaActions().getStart(), null, vid, sid);
         Long userId = null;
         try {
             userId = users.currentUserId(authentication);
         } catch (RuntimeException ignored) {
         }
-        return chatService.create(request, userId, clientIp(http), http.getHeader("User-Agent"));
+        return chatService.create(request, userId, clientIp(http), http.getHeader("User-Agent"), vid, sid);
     }
 
     @GetMapping("/conversations/{id}")
@@ -98,9 +108,11 @@ public class ChatPublicController {
     @PostMapping("/conversations/{id}/messages")
     public SendResultDto send(@PathVariable String id, @RequestBody SendMessageRequest request,
                               @RequestHeader(value = ChatVisitorTokenService.HEADER, required = false) String token,
-                              HttpServletRequest http) {
-        human(http, properties.getRecaptchaActions().getMessage());
-        return chatService.send(id, token, request);
+                              HttpServletRequest http,
+                              @RequestHeader(value = VID_HEADER, required = false) String vid,
+                              @RequestHeader(value = SID_HEADER, required = false) String sid) {
+        human(http, properties.getRecaptchaActions().getMessage(), id, vid, sid);
+        return chatService.send(id, token, request, vid, sid);
     }
 
     @GetMapping("/conversations/{id}/search")
@@ -124,15 +136,17 @@ public class ChatPublicController {
                                                        @RequestParam(value = "durationMs", required = false) Long durationMs,
                                                        @RequestParam(value = "lang", required = false) String lang,
                                                        @RequestHeader(value = ChatVisitorTokenService.HEADER, required = false) String token,
-                                                       HttpServletRequest http) throws IOException {
-        human(http, properties.getRecaptchaActions().getVoice());
+                                                       HttpServletRequest http,
+                                                       @RequestHeader(value = VID_HEADER, required = false) String vid,
+                                                       @RequestHeader(value = SID_HEADER, required = false) String sid) throws IOException {
+        human(http, properties.getRecaptchaActions().getVoice(), id, vid, sid);
         if (audio == null || audio.isEmpty()) {
             throw ChatException.audioInvalid("The audio file is empty.");
         }
         if (audio.getSize() > 2L * 1024 * 1024) {
             throw ChatException.audioInvalid("The audio file exceeds 2 MB.");
         }
-        TranscriptionDto result = chatService.transcribe(id, token, audio.getBytes(), audio.getContentType(), durationMs, lang);
+        TranscriptionDto result = chatService.transcribe(id, token, audio.getBytes(), audio.getContentType(), durationMs, lang, vid, sid);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
     }
 

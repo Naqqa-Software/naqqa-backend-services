@@ -30,6 +30,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -58,6 +59,11 @@ public class ChatAdminService {
     private final MongoTemplate mongoTemplate;
     private final ObjectProvider<ChatAiEngine> aiEngine;
     private final ChatTexts texts;
+    private ChatAnalyticsEmitter analytics = ChatAnalyticsEmitter.NONE;
+
+    public void setAnalytics(ChatAnalyticsEmitter analytics) {
+        this.analytics = analytics == null ? ChatAnalyticsEmitter.NONE : analytics;
+    }
 
     public ChatAdminService(ChatConversationStore store, ChatMessageRepository messageRepository,
                             ChatRecommendationEventRepository eventRepository,
@@ -265,6 +271,7 @@ public class ChatAdminService {
         });
         auditService.log(operator, ChatAuditAction.PAUSE_AI, id, null);
         publishStatus(updated);
+        analytics.emit("chat_ai_paused", updated, Map.of());
         return mapper.summary(updated);
     }
 
@@ -280,6 +287,7 @@ public class ChatAdminService {
         });
         auditService.log(operator, ChatAuditAction.RESUME_AI, id, null);
         publishStatus(updated);
+        analytics.emit("chat_returned_to_ai", updated, Map.of("via", "resume"));
         if (c.getStatus() != ChatStatus.AI) {
             chatService.postSystem(updated, ChatTexts.AI_RESUMED, texts.get(ChatTexts.AI_RESUMED, updated.getLang()), false);
         }
@@ -310,6 +318,9 @@ public class ChatAdminService {
             hub.toVisitor(id, "operator_joined", mapper.conversation(updated));
             publishStatus(updated);
             chatService.postSystem(updated, ChatTexts.OPERATOR_JOINED, texts.operatorJoined(operator.name(), updated.getLang()), false);
+            Instant waitFrom = c.getEscalatedAt() != null ? c.getEscalatedAt() : c.getCreatedAt();
+            long waitMs = waitFrom == null ? 0 : Math.max(0, Duration.between(waitFrom, now).toMillis());
+            analytics.emit("chat_operator_joined", updated, Map.of("waitMs", waitMs, "operatorId", String.valueOf(operator.id())));
         }
         return mapper.summary(store.get(id));
     }
@@ -326,6 +337,7 @@ public class ChatAdminService {
         });
         auditService.log(operator, ChatAuditAction.HANDBACK, id, null);
         publishStatus(updated);
+        analytics.emit("chat_returned_to_ai", updated, Map.of("via", "handback"));
         if (c.getStatus() != ChatStatus.AI) {
             chatService.postSystem(updated, ChatTexts.AI_RESUMED, texts.get(ChatTexts.AI_RESUMED, updated.getLang()), false);
         }
@@ -370,6 +382,10 @@ public class ChatAdminService {
         chatService.postSystem(updated, ChatTexts.CLOSED, texts.get(ChatTexts.CLOSED, updated.getLang()), false);
         ChatConversationEntity latest = store.get(id);
         publishStatus(latest);
+        long durationMs = latest.getCreatedAt() == null || latest.getClosedAt() == null ? 0
+                : Math.max(0, Duration.between(latest.getCreatedAt(), latest.getClosedAt()).toMillis());
+        analytics.emit("chat_closed", latest, Map.of("reason", inactiveBefore != null ? "inactivity" : "resolved",
+                "durationMs", durationMs, "messages", latest.getMessageCount()));
         return latest;
     }
 
@@ -406,6 +422,7 @@ public class ChatAdminService {
         hub.toAdmins(updated, "message", new AdminMessageEvent(id, dto));
         hub.toAdmins(updated, "conversation_updated", mapper.summary(updated));
         auditService.log(operator, ChatAuditAction.MESSAGE, id, saved.getId());
+        analytics.emit("chat_operator_message", updated, Map.of("operatorId", String.valueOf(operator.id())));
         return dto;
     }
 

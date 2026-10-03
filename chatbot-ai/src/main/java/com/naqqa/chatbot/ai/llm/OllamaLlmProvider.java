@@ -19,6 +19,10 @@ public class OllamaLlmProvider implements LlmProvider {
 
     public static final String PROVIDER_OLLAMA = "ollama";
     private static final long HEALTH_TTL_MS = 60_000L;
+    public static final long DEFAULT_TIMEOUT_MS = 25_000L;
+    public static final int NUM_CTX = 2048;
+    public static final int NUM_PREDICT = 220;
+    public static final String KEEP_ALIVE = "30m";
 
     static final Map<String, Object> RESPONSE_SCHEMA = Map.of(
             "type", "object",
@@ -31,17 +35,20 @@ public class OllamaLlmProvider implements LlmProvider {
 
     private final boolean enabled;
     private final String model;
+    private final long timeoutMs;
     private final RestClient client;
     private final RestClient healthClient;
     private LlmResponseParser parser = new LlmResponseParser(null);
     private volatile Boolean healthy;
     private volatile long checkedAt;
+    private final ThreadLocal<Boolean> timedOut = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     public OllamaLlmProvider(String provider, String url, String model, long timeoutMs) {
         this.enabled = PROVIDER_OLLAMA.equals(provider == null ? "" : provider.trim().toLowerCase(Locale.ROOT));
         this.model = model == null || model.isBlank() ? "qwen2.5:3b-instruct" : model.trim();
         String base = url == null || url.isBlank() ? "http://localhost:11434" : url.trim().replaceAll("/+$", "");
-        this.client = build(base, Duration.ofMillis(timeoutMs <= 0 ? 15_000L : timeoutMs));
+        this.timeoutMs = timeoutMs <= 0 ? DEFAULT_TIMEOUT_MS : timeoutMs;
+        this.client = build(base, Duration.ofMillis(this.timeoutMs));
         this.healthClient = build(base, Duration.ofMillis(2_000L));
     }
 
@@ -91,6 +98,7 @@ public class OllamaLlmProvider implements LlmProvider {
 
     @Override
     public LlmResult generate(LlmRequest request) {
+        timedOut.set(Boolean.FALSE);
         if (!enabled) {
             return null;
         }
@@ -103,17 +111,20 @@ public class OllamaLlmProvider implements LlmProvider {
         }
         Map<String, Object> options = new LinkedHashMap<>();
         options.put("temperature", 0.2);
-        options.put("num_ctx", 4096);
-        options.put("num_predict", request.maxTokens() > 0 ? request.maxTokens() : 300);
+        options.put("num_ctx", NUM_CTX);
+        options.put("num_predict", request.maxTokens() > 0 ? Math.min(request.maxTokens(), NUM_PREDICT) : NUM_PREDICT);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
         body.put("messages", messages);
         body.put("stream", false);
         body.put("format", RESPONSE_SCHEMA);
         body.put("options", options);
-        body.put("keep_alive", "30m");
+        body.put("keep_alive", KEEP_ALIVE);
+        long started = System.nanoTime();
         try {
             JsonNode res = post("/api/chat", body);
+            long ms = (System.nanoTime() - started) / 1_000_000L;
+            log.info("[chatbot] ollama {} replied in {} ms", model, ms);
             if (res == null) {
                 return null;
             }
@@ -122,11 +133,71 @@ public class OllamaLlmProvider implements LlmProvider {
             int out = res.path("eval_count").asInt(0);
             return parser.parse(content, in, out);
         } catch (RuntimeException e) {
-            log.warn("[chatbot] ollama generation failed: {}", e.getMessage());
+            long ms = (System.nanoTime() - started) / 1_000_000L;
+            if (timedOut(e)) {
+                timedOut.set(Boolean.TRUE);
+                log.warn("[chatbot] ollama {} timed out after {} ms (timeout {} ms)", model, ms, timeoutMs);
+            } else {
+                log.warn("[chatbot] ollama {} generation failed after {} ms: {}", model, ms, e.getMessage());
+            }
             healthy = false;
             checkedAt = System.currentTimeMillis();
             return null;
         }
+    }
+
+    @Override
+    public boolean warmUp() {
+        if (!enabled) {
+            return false;
+        }
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("num_predict", 1);
+        options.put("num_ctx", NUM_CTX);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", model);
+        body.put("prompt", "ok");
+        body.put("stream", false);
+        body.put("keep_alive", KEEP_ALIVE);
+        body.put("options", options);
+        long started = System.nanoTime();
+        try {
+            post("/api/generate", body);
+            long ms = (System.nanoTime() - started) / 1_000_000L;
+            log.info("[chatbot] ollama {} warm-up done in {} ms", model, ms);
+            healthy = true;
+            checkedAt = System.currentTimeMillis();
+            return true;
+        } catch (RuntimeException e) {
+            long ms = (System.nanoTime() - started) / 1_000_000L;
+            log.warn("[chatbot] ollama {} warm-up failed after {} ms: {}", model, ms, e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    public boolean lastCallTimedOut() {
+        return Boolean.TRUE.equals(timedOut.get());
+    }
+
+    public long timeoutMs() {
+        return timeoutMs;
+    }
+
+    public static boolean timedOut(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof java.net.http.HttpTimeoutException || t instanceof java.net.SocketTimeoutException) {
+                return true;
+            }
+            String m = t.getMessage();
+            if (m != null && m.toLowerCase(Locale.ROOT).contains("timed out")) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
     }
 
     protected boolean ping() {

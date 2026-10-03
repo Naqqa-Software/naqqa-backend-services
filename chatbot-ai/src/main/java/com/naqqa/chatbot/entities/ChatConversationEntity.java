@@ -20,6 +20,12 @@ public class ChatConversationEntity {
     @Field("visitor_id")
     private String visitorId;
 
+    @Field("analytics_vid")
+    private String analyticsVid;
+
+    @Field("analytics_sid")
+    private String analyticsSid;
+
     @Field("user_id")
     private Long userId;
 

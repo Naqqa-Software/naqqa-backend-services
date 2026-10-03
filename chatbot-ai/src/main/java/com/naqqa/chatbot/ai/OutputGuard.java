@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 public class OutputGuard {
 
     public static final int MAX_LENGTH = 900;
+    public static final int RULE_MAX_LENGTH = 2400;
     private static final Pattern SCRIPT_BLOCK = Pattern.compile("(?is)<\\s*(script|style|iframe|object|embed)[^>]*>.*?<\\s*/\\s*\\1\\s*>");
     private static final Pattern TAG = Pattern.compile("(?s)<\\s*/?\\s*[a-zA-Z!?][^>]*>");
     private static final Pattern MD_IMAGE = Pattern.compile("!\\[([^\\]]*)]\\(([^)]*)\\)");
@@ -48,6 +49,10 @@ public class OutputGuard {
     }
 
     public String sanitize(String text) {
+        return sanitize(text, MAX_LENGTH);
+    }
+
+    public String sanitize(String text, int max) {
         if (text == null) {
             return "";
         }
@@ -70,7 +75,7 @@ public class OutputGuard {
             out = out.replace(marker(i), preserved.get(i));
         }
         out = out.replaceAll("[ \\t]{2,}", " ").replaceAll("\\n{3,}", "\n\n").replaceAll(" +([,.;:!?])", "$1").trim();
-        return cap(out, MAX_LENGTH);
+        return cap(out, max <= 0 ? MAX_LENGTH : max);
     }
 
     public boolean isInternalPath(String path) {

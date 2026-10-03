@@ -9,4 +9,12 @@ public interface LlmProvider {
     boolean isAvailable();
 
     LlmResult generate(LlmRequest request);
+
+    default boolean warmUp() {
+        return false;
+    }
+
+    default boolean lastCallTimedOut() {
+        return false;
+    }
 }

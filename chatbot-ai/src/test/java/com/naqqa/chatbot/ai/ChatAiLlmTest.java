@@ -111,8 +111,8 @@ class ChatAiLlmTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> options = (Map<String, Object>) body.get("options");
         assertEquals(0.2, options.get("temperature"));
-        assertEquals(4096, options.get("num_ctx"));
-        assertEquals(300, options.get("num_predict"));
+        assertEquals(2048, options.get("num_ctx"));
+        assertEquals(220, options.get("num_predict"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> messages = (List<Map<String, Object>>) body.get("messages");
         assertEquals("system", messages.get(0).get("role"));

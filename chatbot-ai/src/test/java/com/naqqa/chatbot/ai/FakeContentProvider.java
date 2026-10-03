@@ -16,6 +16,7 @@ class FakeContentProvider implements ChatContentProvider {
     final List<RetrievalPlan> plans = new ArrayList<>();
     final Set<String> disabled = new HashSet<>(Set.of("RAFFLE"));
     List<Candidate> results = new ArrayList<>();
+    List<Candidate> related;
     RuntimeException failure;
 
     @Override
@@ -28,6 +29,9 @@ class FakeContentProvider implements ChatContentProvider {
         plans.add(plan);
         if (failure != null) {
             throw failure;
+        }
+        if (plan.related() && related != null) {
+            return related;
         }
         return results;
     }
@@ -50,6 +54,11 @@ class FakeContentProvider implements ChatContentProvider {
     }
 
     RetrievalPlan last() {
-        return plans.isEmpty() ? null : plans.get(plans.size() - 1);
+        for (int i = plans.size() - 1; i >= 0; i--) {
+            if (!plans.get(i).related()) {
+                return plans.get(i);
+            }
+        }
+        return null;
     }
 }
