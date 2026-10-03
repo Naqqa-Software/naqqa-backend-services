@@ -1,0 +1,154 @@
+{
+  "intents": {
+    "greeting": {"role": "GREETING", "quickReplies": ["promotions_today", "new_booklets", "search_product", "how_it_works"]},
+    "product_search": {
+      "role": "SEARCH",
+      "emptyQuickReply": "search_product",
+      "emptyTemplate": "search_product",
+      "yieldsToCategory": true,
+      "yieldsToPrice": true,
+      "quickReplies": ["promotions_today", "new_booklets", "talk_to_operator"],
+      "quickRepliesWithResults": ["promotions_today", "new_booklets"]
+    },
+    "promotions": {
+      "role": "CATALOG",
+      "browsable": true,
+      "yieldsToCategory": true,
+      "yieldsToPrice": true,
+      "resultsTemplate": "results_promotions",
+      "types": {
+        "default": ["PROMOTION", "OFFER"],
+        "withQuery": ["PROMOTION", "PRODUCT", "OFFER"],
+        "withPrice": ["PROMOTION", "PRODUCT"],
+        "withDiscountSort": ["PROMOTION", "PRODUCT"]
+      }
+    },
+    "catalogs": {
+      "role": "CATALOG",
+      "browsable": true,
+      "yieldsToCategory": true,
+      "resultsTemplate": "results_booklets",
+      "types": {"default": ["BOOKLET"]}
+    },
+    "offers": {
+      "role": "CATALOG",
+      "browsable": true,
+      "resultsTemplate": "results_offers",
+      "types": {"default": ["OFFER"], "withQuery": ["OFFER", "PROMOTION"]}
+    },
+    "blog": {
+      "role": "CATALOG",
+      "browsable": true,
+      "resultsTemplate": "results_blog",
+      "types": {"default": ["BLOG", "RECIPE"]}
+    },
+    "recipes": {
+      "role": "CATALOG",
+      "browsable": true,
+      "resultsTemplate": "results_recipes",
+      "emptyQueryTemplate": "no_recipes",
+      "types": {"default": ["RECIPE"]}
+    },
+    "contests": {
+      "role": "CATALOG",
+      "browsable": true,
+      "resultsTemplate": "results_raffles",
+      "emptyResultsTemplate": "no_raffles",
+      "disabledTemplate": "raffles_off",
+      "types": {"default": ["RAFFLE"]}
+    },
+    "store": {
+      "role": "COMPANY",
+      "browsable": true,
+      "yieldsToCategory": true,
+      "resultsTemplate": "results_companies_count",
+      "types": {
+        "default": ["COMPANY"],
+        "withCompany": ["PROMOTION", "OFFER", "BOOKLET", "PRODUCT", "RAFFLE"]
+      }
+    },
+    "category": {
+      "role": "CATEGORY",
+      "types": {
+        "default": ["PROMOTION", "PRODUCT", "BOOKLET"],
+        "byTaxonomy": {"blog_category": ["BLOG", "RECIPE"]}
+      }
+    },
+    "categories": {
+      "role": "CATEGORY_LIST",
+      "yieldsToCategory": true,
+      "taxonomies": ["promotion_category", "product_category"],
+      "maxItems": 12,
+      "quickReplies": ["promotions_today", "search_product", "talk_to_operator"]
+    },
+    "location": {
+      "role": "LOCATION",
+      "emptyTemplate": "location_generic",
+      "types": {"default": ["PROMOTION", "COMPANY", "BOOKLET"]}
+    },
+    "pages": {"role": "PAGE", "quickReplies": ["promotions_today", "search_product", "talk_to_operator"]},
+    "how_it_works": {
+      "role": "KNOWLEDGE",
+      "template": "how_it_works",
+      "knowledgeSource": "how-it-works",
+      "quickReplies": ["promotions_today", "search_product", "talk_to_operator"]
+    },
+    "account": {
+      "role": "KNOWLEDGE",
+      "template": "account",
+      "knowledgeSource": "account",
+      "quickReplies": ["promotions_today", "search_product", "talk_to_operator"]
+    },
+    "mobile_app": {
+      "role": "KNOWLEDGE",
+      "template": "mobile_app",
+      "knowledgeSource": "mobile-app",
+      "quickReplies": ["promotions_today", "search_product", "talk_to_operator"]
+    },
+    "partner": {
+      "role": "PARTNER",
+      "template": "partners",
+      "knowledgeSource": "partners",
+      "quickReplies": ["promotions_today", "search_product", "talk_to_operator"]
+    },
+    "contact_operator": {
+      "role": "CONTACT",
+      "template": "contact",
+      "escalateTemplate": "operator",
+      "knowledgeSource": "contact",
+      "quickReplies": ["promotions_today", "search_product"]
+    },
+    "off_topic": {"role": "OFF_TOPIC", "quickReplies": ["promotions_today", "new_booklets", "search_product", "how_it_works"]},
+    "injection": {"role": "INJECTION", "quickReplies": ["promotions_today", "new_booklets", "search_product", "how_it_works"]}
+  },
+  "knowledgeOrder": ["how_it_works", "account", "mobile_app", "contact_operator"],
+  "resolutionOrder": ["contact_operator", "how_it_works", "account", "mobile_app", "categories", "contests", "recipes", "blog", "catalogs", "offers", "promotions", "store", "product_search"],
+  "priceBrowseIntent": "promotions",
+  "defaultTypes": {
+    "withPrice": ["PROMOTION", "PRODUCT"]
+  },
+  "quickReplies": {
+    "promotions_today": {"intent": "promotions", "browse": true},
+    "new_booklets": {"intent": "catalogs", "browse": true},
+    "search_product": {"intent": "product_search"},
+    "how_it_works": {"intent": "how_it_works"},
+    "talk_to_operator": {"intent": "contact_operator", "escalate": true}
+  },
+  "welcomeQuickReplies": ["promotions_today", "new_booklets", "search_product", "how_it_works", "talk_to_operator"],
+  "defaultQuickReplies": {
+    "withResults": ["search_product", "new_booklets"],
+    "withoutResults": ["promotions_today", "search_product", "talk_to_operator"]
+  },
+  "pages": {
+    "privacy": "/pages/privacy",
+    "terms": "/pages/terms",
+    "payment-terms": "/pages/payment-terms",
+    "about-us": "/pages/about-us",
+    "return-policy": "/pages/return-policy",
+    "faq": "/pages/faq",
+    "accessibility": "/pages/accessibility",
+    "help": "/pages/help",
+    "mobile-app": "/pages/mobile-app"
+  },
+  "defaultPage": "faq"
+}

@@ -1,0 +1,1067 @@
+{
+  "intents": {
+    "promotions": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "promot",
+          "promo",
+          "discount",
+          "sale",
+          "bargain",
+          "clearance",
+          "markdown"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 1,
+        "values": [
+          "cheap",
+          "reduced",
+          "deal"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "best price",
+          "low prices",
+          "on sale"
+        ]
+      }
+    ],
+    "catalogs": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "catalog",
+          "catalogue",
+          "booklet",
+          "brochure",
+          "leaflet",
+          "flyer"
+        ]
+      }
+    ],
+    "offers": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "offer",
+          "deal"
+        ]
+      }
+    ],
+    "product_search": [
+      {
+        "match": "stem",
+        "weight": 2,
+        "values": [
+          "product",
+          "buy",
+          "purchas"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 1,
+        "values": [
+          "find",
+          "search",
+          "price",
+          "cost",
+          "sell"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 2,
+        "values": [
+          "how much",
+          "where can i buy",
+          "where to buy",
+          "where can i find"
+        ]
+      }
+    ],
+    "blog": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "blog",
+          "article",
+          "news",
+          "post"
+        ]
+      }
+    ],
+    "recipes": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "recipe",
+          "ingredient",
+          "cook"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "what to cook",
+          "how to cook",
+          "what should i cook"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 2,
+        "values": [
+          "how to make"
+        ]
+      }
+    ],
+    "contests": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "contest",
+          "giveaway",
+          "raffle",
+          "lottery",
+          "prize",
+          "competition",
+          "sweepstake"
+        ]
+      }
+    ],
+    "categories": [
+      {
+        "match": "stem",
+        "weight": 2,
+        "values": [
+          "categor"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "what categories",
+          "all categories",
+          "list of categories",
+          "which categories"
+        ]
+      }
+    ],
+    "location": [
+      {
+        "match": "exact",
+        "weight": 3,
+        "values": [
+          "map"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "near me",
+          "nearby",
+          "closest",
+          "nearest",
+          "on the map",
+          "around me"
+        ]
+      }
+    ],
+    "how_it_works": [
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "how does it work",
+          "how it works",
+          "what is {brand}",
+          "about {brand}",
+          "how do i use",
+          "how to use",
+          "is it free",
+          "does it cost",
+          "how do i get a discount"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "coupon",
+          "free",
+          "refund"
+        ]
+      },
+      {
+        "match": "exact",
+        "weight": 2,
+        "values": [
+          "pay",
+          "payment",
+          "payments",
+          "paying"
+        ]
+      }
+    ],
+    "account": [
+      {
+        "match": "exact",
+        "weight": 3,
+        "values": [
+          "account",
+          "login",
+          "password",
+          "profile",
+          "signin",
+          "signup"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "regist",
+          "authent",
+          "log in",
+          "accounts"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "forgot my password",
+          "can not log in",
+          "cant log in",
+          "sign in",
+          "sign up",
+          "delete my account",
+          "log in"
+        ]
+      }
+    ],
+    "mobile_app": [
+      {
+        "match": "exact",
+        "weight": 3,
+        "values": [
+          "app",
+          "application",
+          "android",
+          "iphone",
+          "ios",
+          "appstore"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "loyalty",
+          "download",
+          "mobile"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "discount cards",
+          "my cards",
+          "loyalty cards",
+          "loyalty card"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "google play",
+          "app store"
+        ]
+      }
+    ],
+    "partner": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "partner",
+          "collaborat",
+          "business",
+          "advertis"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "my store",
+          "my company",
+          "my shop",
+          "add a promotion",
+          "publish a promotion",
+          "become a partner",
+          "list my products"
+        ]
+      }
+    ],
+    "contact_operator": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "operator",
+          "support",
+          "contact",
+          "complain",
+          "agent"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 0.5,
+        "values": [
+          "phone",
+          "email",
+          "address",
+          "call"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "real person",
+          "a human",
+          "talk to",
+          "speak to",
+          "speak with"
+        ]
+      }
+    ],
+    "store": [
+      {
+        "match": "stem",
+        "weight": 1,
+        "values": [
+          "store",
+          "shop",
+          "market",
+          "supermarket",
+          "retail"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "partner stores",
+          "all partners",
+          "which stores",
+          "list of stores",
+          "all stores"
+        ]
+      }
+    ],
+    "greeting": [
+      {
+        "match": "exact",
+        "weight": 2,
+        "values": [
+          "hello",
+          "hi",
+          "hey",
+          "thanks",
+          "thank",
+          "bye",
+          "greetings",
+          "yo"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 2,
+        "values": [
+          "good morning",
+          "good afternoon",
+          "good evening",
+          "thank you",
+          "see you"
+        ]
+      }
+    ],
+    "off_topic": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "essay",
+          "poem",
+          "story",
+          "history",
+          "politic",
+          "election",
+          "weather",
+          "equation",
+          "math",
+          "python",
+          "javascript",
+          "translat",
+          "bitcoin",
+          "crypto",
+          "football",
+          "movie",
+          "song",
+          "joke",
+          "horoscope",
+          "doctor",
+          "disease",
+          "medicine",
+          "treatment",
+          "lawyer",
+          "legal",
+          "invest",
+          "loan",
+          "credit",
+          "stock",
+          "diet",
+          "capital",
+          "president",
+          "homework"
+        ]
+      },
+      {
+        "match": "exact",
+        "weight": 3,
+        "values": [
+          "code",
+          "solve"
+        ]
+      }
+    ]
+  },
+  "stopwords": [
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "am",
+    "was",
+    "were",
+    "be",
+    "what",
+    "which",
+    "where",
+    "when",
+    "how",
+    "who",
+    "why",
+    "and",
+    "or",
+    "to",
+    "for",
+    "of",
+    "in",
+    "on",
+    "at",
+    "by",
+    "with",
+    "from",
+    "about",
+    "me",
+    "my",
+    "i",
+    "you",
+    "your",
+    "we",
+    "our",
+    "it",
+    "its",
+    "this",
+    "that",
+    "these",
+    "those",
+    "there",
+    "here",
+    "today",
+    "now",
+    "want",
+    "would",
+    "like",
+    "need",
+    "looking",
+    "look",
+    "find",
+    "show",
+    "tell",
+    "please",
+    "can",
+    "could",
+    "do",
+    "does",
+    "any",
+    "some",
+    "all",
+    "more",
+    "very",
+    "have",
+    "has",
+    "new",
+    "latest",
+    "week",
+    "day",
+    "month",
+    "under",
+    "over",
+    "between",
+    "below",
+    "above",
+    "max",
+    "min",
+    "cheaper",
+    "than"
+  ],
+  "legalSuffixes": [
+    "llc",
+    "ltd",
+    "inc",
+    "corp",
+    "co",
+    "company",
+    "group",
+    "store",
+    "shop",
+    "market",
+    "retail"
+  ],
+  "genericCategoryWords": [
+    "other",
+    "others",
+    "misc",
+    "various",
+    "and",
+    "for",
+    "of"
+  ],
+  "escalatePhrases": [
+    " operator ",
+    " human ",
+    " real person ",
+    " a person ",
+    " someone real ",
+    " live agent ",
+    " talk to someone ",
+    " speak to someone "
+  ],
+  "discountSortPhrases": [
+    " biggest discount",
+    " best discounts ",
+    " highest discount",
+    " largest discount"
+  ],
+  "priceWords": [
+    "usd",
+    "eur",
+    "dollars",
+    "euro",
+    "euros"
+  ],
+  "placeCues": [
+    " in ",
+    " near ",
+    " around ",
+    " at ",
+    " city ",
+    " town ",
+    " map "
+  ],
+  "placeGeneric": [
+    "city",
+    "town",
+    "village",
+    "district",
+    "county",
+    "region"
+  ],
+  "pages": {
+    "privacy": [
+      "privacy policy",
+      "privacy",
+      "personal data",
+      "my data",
+      "gdpr"
+    ],
+    "terms": [
+      "terms and conditions",
+      "terms of use",
+      "terms"
+    ],
+    "payment-terms": [
+      "payment methods",
+      "how can i pay",
+      "how do i pay"
+    ],
+    "about-us": [
+      "about us",
+      "who are you",
+      "about the company"
+    ],
+    "return-policy": [
+      "return policy",
+      "usage rules",
+      "refund policy"
+    ],
+    "faq": [
+      "frequently asked questions",
+      "faq"
+    ],
+    "accessibility": [
+      "accessibility",
+      "screen reader",
+      "people with disabilities"
+    ],
+    "help": [
+      "help page",
+      "help center"
+    ]
+  },
+  "price": {
+    "rangeStart": [
+      "between",
+      "from"
+    ],
+    "rangeCurrency": [
+      "usd",
+      "eur"
+    ],
+    "rangeSeparators": [
+      "and",
+      "to",
+      "-"
+    ],
+    "max": [
+      "under",
+      "below",
+      "less than",
+      "cheaper than",
+      "up to",
+      "max"
+    ],
+    "min": [
+      "over",
+      "above",
+      "more than",
+      "min"
+    ],
+    "currency": [
+      "usd",
+      "eur",
+      "dollars",
+      "euro",
+      "euros"
+    ]
+  },
+  "injectionPatterns": [
+    "\\bignore\\s+(?:\\S+\\s+){0,4}(?:instructions?|rules|prompt|guidelines)",
+    "\\bdisregard\\s+(?:\\S+\\s+){0,4}(?:instructions?|rules|prompt)",
+    "\\bforget\\s+(?:\\S+\\s+){0,4}(?:instructions?|rules|prompt)",
+    "\\b(?:reveal|show|print|repeat|output|leak)\\s+(?:\\S+\\s+){0,3}(?:prompt|instructions|system\\s+message)",
+    "\\bsystem\\s*prompt",
+    "\\bact\\s+as\\b",
+    "\\byou\\s+are\\s+now\\b",
+    "\\bpretend\\s+(?:to\\s+be|you|that)",
+    "\\bjailbr\\w*",
+    "\\bdan\\s+mode\\b",
+    "\\bdeveloper\\s+mode\\b",
+    "\\bdo\\s+anything\\s+now\\b",
+    "\\bwithout\\s+(?:any\\s+)?(?:restrictions|rules|filters)"
+  ],
+  "detection": {
+    "script": "latin",
+    "diacritics": "",
+    "markers": [
+      "the",
+      "is",
+      "are",
+      "what",
+      "where",
+      "how",
+      "and",
+      "you",
+      "please",
+      "hello",
+      "thanks",
+      "thank",
+      "want",
+      "looking",
+      "discount",
+      "discounts",
+      "store",
+      "stores",
+      "price",
+      "prices",
+      "cheap",
+      "today",
+      "show",
+      "find",
+      "do",
+      "does",
+      "can",
+      "my",
+      "account",
+      "app",
+      "help",
+      "offers",
+      "deals"
+    ]
+  },
+  "thanksWords": [
+    "thanks",
+    "thank"
+  ],
+  "stemming": {
+    "script": "latin",
+    "minLength": 4,
+    "suffixes": [
+      "ings",
+      "ing",
+      "ies",
+      "es",
+      "ed",
+      "s"
+    ]
+  },
+  "humanRequestPatterns": [
+    "\\boperator\\w*",
+    "\\bhuman\\b",
+    "\\breal\\s+person\\b",
+    "\\blive\\s+agent\\b",
+    "\\bconsultant\\w*"
+  ],
+  "dayNames": [
+    "Mo",
+    "Tu",
+    "We",
+    "Th",
+    "Fr",
+    "Sa",
+    "Su"
+  ],
+  "crisis": {
+    "selfHarm": [
+      "\\bsuicid\\w*",
+      "\\bkill (?:my ?self|myself)\\b",
+      "\\bend (?:my (?:own )?life|it all)\\b",
+      "\\b(?:want|wanna|going) to die\\b",
+      "\\bwanna die\\b",
+      "\\bself ?harm\\w*",
+      "\\b(?:hurt|cut) myself\\b",
+      "\\bdon t want to live\\b",
+      "\\bno reason to live\\b"
+    ],
+    "danger": [
+      "\\b(?:i ll|i will|gonna|going to) (?:kill|hurt|shoot|stab) (?:you|him|her|them|someone)\\b",
+      "\\bkill (?:you|him|her|them)\\b",
+      "\\b(?:he|she|they) (?:hits|beats|abuses|threatens) me\\b",
+      "\\bi (?:am|m) being (?:abused|beaten|hurt|threatened)\\b",
+      "\\bdomestic (?:violence|abuse)\\b",
+      "\\bi was raped\\b"
+    ]
+  },
+  "abuse": {
+    "sexual": {
+      "exact": [
+        "sex",
+        "xxx",
+        "porn",
+        "porno",
+        "nudes",
+        "nsfw",
+        "hentai",
+        "blowjob",
+        "boobs",
+        "tits",
+        "escort",
+        "escorts",
+        "hooker",
+        "hookers",
+        "whore",
+        "whores",
+        "slut",
+        "sluts",
+        "onlyfans",
+        "camgirl",
+        "cumshot",
+        "milf"
+      ],
+      "stems": [
+        "pornograph",
+        "pornhub",
+        "pornstar",
+        "erotic",
+        "hentai",
+        "blowjob",
+        "cumshot"
+      ]
+    },
+    "profanity": {
+      "exact": [
+        "fuck",
+        "fucker",
+        "fucking",
+        "fucked",
+        "fck",
+        "fuk",
+        "shit",
+        "shitty",
+        "bullshit",
+        "bitch",
+        "bitches",
+        "asshole",
+        "bastard",
+        "cunt",
+        "dick",
+        "dickhead",
+        "motherfucker",
+        "moron",
+        "idiot",
+        "dumbass",
+        "wanker",
+        "twat",
+        "prick"
+      ],
+      "stems": [
+        "fuck",
+        "fuk",
+        "motherf",
+        "bitch",
+        "asshol",
+        "cunt",
+        "dickhead",
+        "dumbass",
+        "wanker"
+      ]
+    },
+    "hate": {
+      "exact": [
+        "nigger",
+        "niggers",
+        "nigga",
+        "niggas",
+        "faggot",
+        "faggots",
+        "fag",
+        "fags",
+        "kike",
+        "kikes",
+        "retard",
+        "retards",
+        "retarded",
+        "tranny",
+        "spic",
+        "chink",
+        "gook"
+      ],
+      "stems": [
+        "nigger",
+        "faggot"
+      ]
+    },
+    "minors": {
+      "exact": [
+        "child",
+        "children",
+        "kid",
+        "kids",
+        "minor",
+        "minors",
+        "teen",
+        "teens",
+        "underage",
+        "preteen",
+        "loli",
+        "lolita",
+        "schoolgirl",
+        "schoolgirls",
+        "schoolboy",
+        "pedo",
+        "pedophile"
+      ],
+      "stems": [
+        "underage",
+        "preteen",
+        "schoolgirl",
+        "pedophil",
+        "paedophil"
+      ],
+      "ageWords": [
+        "years",
+        "year",
+        "yo",
+        "y"
+      ]
+    },
+    "allow": {
+      "words": [
+        "sexy",
+        "essex",
+        "sussex",
+        "middlesex",
+        "sextant",
+        "shitake",
+        "shiitake",
+        "scunthorpe",
+        "cocktail",
+        "cockpit",
+        "peacock",
+        "hancock",
+        "dickens",
+        "analysis",
+        "analyst",
+        "assess",
+        "assessment",
+        "class",
+        "pass",
+        "grass",
+        "glass",
+        "bass",
+        "mass"
+      ],
+      "phrases": [
+        "ford escort"
+      ]
+    },
+    "patterns": [
+      "\\bheil hitler\\b",
+      "\\bsieg heil\\b",
+      "\\bwhite power\\b",
+      "\\bgas the (?:jews|gays)\\b"
+    ]
+  },
+  "routing": {
+    "comparative": [
+      "which is better",
+      "which is cheaper",
+      "cheaper than",
+      "better than",
+      "compare",
+      "comparison",
+      "difference",
+      "what do you recommend",
+      "recommend",
+      "what should i choose",
+      "should i buy",
+      "versus",
+      "vs"
+    ],
+    "followUp": [
+      "and at",
+      "and in",
+      "and for",
+      "what about",
+      "how about",
+      "anything else",
+      "something else",
+      "more",
+      "cheaper",
+      "others",
+      "and the"
+    ]
+  },
+  "topics": {
+    "externalLink": {
+      "strong": [
+        "\\bexternal link\\w*",
+        "\\bofficial (?:site|website|page)\\b",
+        "\\btheir (?:site|website|page|app)\\b",
+        "\\burl\\w*",
+        "\\bwww\\b",
+        "\\bwebsite address\\b",
+        "\\bon the internet\\b"
+      ],
+      "weak": [
+        "\\bgive me (?:a |the )?link\\w*",
+        "\\bsend (?:me )?(?:a |the )?link\\w*",
+        "\\blink to\\b",
+        "\\bwebsite\\b",
+        "\\bsite\\b"
+      ]
+    },
+    "restricted": {
+      "gambling": [
+        "\\bcasino\\w*",
+        "\\bbetting\\b",
+        "\\bbets?\\b",
+        "\\bbookmaker\\w*",
+        "\\bpoker\\b",
+        "\\broulette\\b",
+        "\\bslot machine\\w*",
+        "\\bslots\\b",
+        "\\bgambling\\b",
+        "\\blotto\\b"
+      ],
+      "drugs": [
+        "\\bdrugs?\\b",
+        "\\bmarijuana\\b",
+        "\\bcannabis\\b",
+        "\\bcocaine\\b",
+        "\\bheroin\\b",
+        "\\bmeth\\b"
+      ],
+      "weapons": [
+        "\\bfirearms?\\b",
+        "\\bammunition\\b",
+        "\\bammo\\b",
+        "\\bexplosives?\\b",
+        "\\bgrenades?\\b"
+      ],
+      "hacking": [
+        "\\bhack\\w*",
+        "\\bddos\\b",
+        "\\bphishing\\b",
+        "\\bsomeone s password\\b",
+        "\\bcrack (?:a |the )?(?:password|account)\\b"
+      ],
+      "advice": [
+        "\\bwhat (?:medicine|pills|antibiotic)\\w* should i take\\b",
+        "\\bmedical advice\\b",
+        "\\blegal advice\\b",
+        "\\binvestment advice\\b",
+        "\\bwhere (?:should i|to) invest\\b"
+      ]
+    },
+    "meta": [
+      "link",
+      "links",
+      "external",
+      "site",
+      "website",
+      "url",
+      "give",
+      "send",
+      "show",
+      "find",
+      "address",
+      "web",
+      "internet"
+    ]
+  }
+}

@@ -1,0 +1,1384 @@
+{
+  "intents": {
+    "promotions": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "promot",
+          "promo",
+          "reduc",
+          "discount",
+          "chilipir",
+          "lichidar",
+          "solduri"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 1,
+        "values": [
+          "ieftin",
+          "redus"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "pret redus",
+          "preturi mici",
+          "cel mai bun pret"
+        ]
+      }
+    ],
+    "catalogs": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "catalog",
+          "cataloa",
+          "booklet",
+          "brosur",
+          "pliant",
+          "flyer"
+        ]
+      }
+    ],
+    "offers": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "ofert",
+          "deal"
+        ]
+      }
+    ],
+    "product_search": [
+      {
+        "match": "stem",
+        "weight": 2,
+        "values": [
+          "produs",
+          "cumpar"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 1,
+        "values": [
+          "caut",
+          "gases",
+          "gasi",
+          "pret",
+          "costa",
+          "vand"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 2,
+        "values": [
+          "cat costa",
+          "cit costa",
+          "unde gasesc",
+          "unde pot cumpara"
+        ]
+      }
+    ],
+    "blog": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "blog",
+          "articol",
+          "stir",
+          "noutat"
+        ]
+      }
+    ],
+    "recipes": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "retet",
+          "ingredient",
+          "gatit",
+          "gatesc",
+          "gatim",
+          "prepar"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "ce sa gatesc",
+          "ce gatesc",
+          "cum se prepara"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 2,
+        "values": [
+          "cum se face"
+        ]
+      }
+    ],
+    "contests": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "concurs",
+          "tombol",
+          "giveaway",
+          "castig",
+          "premi",
+          "loteri"
+        ]
+      }
+    ],
+    "categories": [
+      {
+        "match": "stem",
+        "weight": 2,
+        "values": [
+          "categori"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "ce categorii",
+          "toate categoriile",
+          "lista categoriilor",
+          "ce fel de produse"
+        ]
+      }
+    ],
+    "location": [
+      {
+        "match": "exact",
+        "weight": 3,
+        "values": [
+          "harta",
+          "hartii",
+          "hartile"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "langa mine",
+          "aproape de mine",
+          "in apropiere",
+          "cel mai apropiat",
+          "cele mai apropiate",
+          "pe harta",
+          "near me"
+        ]
+      }
+    ],
+    "how_it_works": [
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "cum functioneaza",
+          "ce este {brand}",
+          "ce e {brand}",
+          "despre {brand}",
+          "cum folosesc",
+          "cum se foloseste",
+          "cum utilizez",
+          "cum activez",
+          "cum primesc reducere",
+          "cum obtin reducere",
+          "cum economisesc",
+          "este gratuit",
+          "e gratuit",
+          "costa ceva",
+          "cum lucreaza",
+          "how does",
+          "how it works"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "cupon",
+          "coupon",
+          "gratuit",
+          "returna",
+          "functioneaz"
+        ]
+      },
+      {
+        "match": "exact",
+        "weight": 2,
+        "values": [
+          "plata",
+          "plati",
+          "platesc",
+          "platii",
+          "achit",
+          "achitare",
+          "achita",
+          "achitarea"
+        ]
+      }
+    ],
+    "account": [
+      {
+        "match": "exact",
+        "weight": 3,
+        "values": [
+          "cont",
+          "contul",
+          "contului",
+          "conturi",
+          "contul meu",
+          "login",
+          "logare",
+          "parola",
+          "parolei",
+          "parole",
+          "profil",
+          "profilul",
+          "profilului"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "logar",
+          "loghez",
+          "autentific",
+          "conectez",
+          "inregistr"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "am uitat",
+          "nu pot intra",
+          "intru in",
+          "sterg contul"
+        ]
+      }
+    ],
+    "mobile_app": [
+      {
+        "match": "exact",
+        "weight": 3,
+        "values": [
+          "app",
+          "aplicatia",
+          "aplicatie",
+          "aplicatii",
+          "aplicatiei",
+          "android",
+          "iphone",
+          "ios",
+          "appstore"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "fidelitat",
+          "aplicat",
+          "descarc"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "cardurile de reducere",
+          "cardul de reducere",
+          "card de reducere",
+          "carduri de reduceri",
+          "cardurile de discount",
+          "cardurile mele"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "google play",
+          "app store",
+          "carduri de fidelitate",
+          "card de fidelitate",
+          "carduri de reducere",
+          "carduri de discount"
+        ]
+      }
+    ],
+    "partner": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "partener",
+          "parteneriat",
+          "colabor",
+          "reprezentant",
+          "business"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "firma mea",
+          "compania mea",
+          "magazinul meu",
+          "afacerea mea",
+          "adaug o promotie",
+          "adaug promotii",
+          "adaug promotia",
+          "adaug o oferta",
+          "adaug un catalog",
+          "public o promotie",
+          "public promotii",
+          "plasez o promotie",
+          "pun o promotie",
+          "cum devin",
+          "adauga o promotie",
+          "adaugati o promotie",
+          "adaugarea promotiilor",
+          "add a promotion",
+          "my store",
+          "my company"
+        ]
+      }
+    ],
+    "contact_operator": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "operator",
+          "suport",
+          "support",
+          "contact",
+          "reclamat",
+          "plangere"
+        ]
+      },
+      {
+        "match": "stem",
+        "weight": 0.5,
+        "values": [
+          "telefon",
+          "email",
+          "adresa",
+          "suna"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "om real",
+          "un om",
+          "persoana reala",
+          "vorbesc cu",
+          "talk to"
+        ]
+      }
+    ],
+    "store": [
+      {
+        "match": "stem",
+        "weight": 1,
+        "values": [
+          "magazin",
+          "market",
+          "supermarket",
+          "retail"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 3,
+        "values": [
+          "magazine partenere",
+          "toti partenerii",
+          "ce magazine",
+          "lista magazinelor"
+        ]
+      }
+    ],
+    "greeting": [
+      {
+        "match": "exact",
+        "weight": 2,
+        "values": [
+          "salut",
+          "salutare",
+          "buna",
+          "hello",
+          "hi",
+          "hey",
+          "hei",
+          "noroc",
+          "servus",
+          "ceau",
+          "mersi",
+          "multumesc",
+          "multam",
+          "pa",
+          "thanks",
+          "thank"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 2,
+        "values": [
+          "buna ziua",
+          "buna seara",
+          "buna dimineata",
+          "la revedere"
+        ]
+      }
+    ],
+    "off_topic": [
+      {
+        "match": "stem",
+        "weight": 3,
+        "values": [
+          "eseu",
+          "poezi",
+          "poveste",
+          "istori",
+          "politic",
+          "alegeri",
+          "vremea",
+          "meteo",
+          "ecuati",
+          "matematic",
+          "python",
+          "javascript",
+          "tradu",
+          "bitcoin",
+          "cripto",
+          "fotbal",
+          "film",
+          "cantec",
+          "glum",
+          "horoscop",
+          "medic",
+          "doctor",
+          "boal",
+          "medicament",
+          "tratament",
+          "avocat",
+          "juridic",
+          "investi",
+          "credit",
+          "imprumut",
+          "bursa",
+          "dieta",
+          "capitala",
+          "presedint",
+          "eseul",
+          "essay",
+          "poem",
+          "weather",
+          "homework",
+          "joke"
+        ]
+      },
+      {
+        "match": "exact",
+        "weight": 3,
+        "values": [
+          "vreme",
+          "tema",
+          "teme",
+          "rezolva",
+          "cod",
+          "story",
+          "capital"
+        ]
+      }
+    ]
+  },
+  "stopwords": [
+    "a",
+    "al",
+    "ale",
+    "am",
+    "ai",
+    "are",
+    "aveti",
+    "avem",
+    "ce",
+    "care",
+    "cu",
+    "de",
+    "din",
+    "despre",
+    "e",
+    "este",
+    "sunt",
+    "la",
+    "le",
+    "li",
+    "lui",
+    "ma",
+    "mi",
+    "mie",
+    "ne",
+    "nu",
+    "o",
+    "pe",
+    "pentru",
+    "prin",
+    "sa",
+    "se",
+    "si",
+    "sau",
+    "un",
+    "unei",
+    "unui",
+    "una",
+    "unde",
+    "cum",
+    "cat",
+    "cit",
+    "cate",
+    "cati",
+    "imi",
+    "iti",
+    "eu",
+    "tu",
+    "el",
+    "ea",
+    "voi",
+    "ei",
+    "ele",
+    "acest",
+    "aceasta",
+    "asta",
+    "acolo",
+    "aici",
+    "azi",
+    "astazi",
+    "acum",
+    "vreau",
+    "as",
+    "vrea",
+    "dori",
+    "doresc",
+    "caut",
+    "cauta",
+    "cautam",
+    "gasesc",
+    "gasi",
+    "gaseste",
+    "arata",
+    "aratami",
+    "spune",
+    "spunemi",
+    "te",
+    "rog",
+    "va",
+    "poti",
+    "puteti",
+    "pot",
+    "exista",
+    "mai",
+    "foarte",
+    "tot",
+    "toate",
+    "toti",
+    "orice",
+    "ceva",
+    "niste",
+    "si",
+    "da",
+    "fi",
+    "fie",
+    "ar",
+    "am",
+    "mie",
+    "noi",
+    "sunteti",
+    "ati",
+    "ii",
+    "il",
+    "in",
+    "intr",
+    "intre",
+    "dupa",
+    "pana",
+    "fara",
+    "decat",
+    "ca",
+    "daca",
+    "cel",
+    "cea",
+    "cei",
+    "cele",
+    "mult",
+    "multe",
+    "putin",
+    "bun",
+    "buna",
+    "bune",
+    "bine",
+    "unde",
+    "cand",
+    "saptamana",
+    "saptamanii",
+    "luna",
+    "zi",
+    "zilei",
+    "ziua",
+    "nou",
+    "noi",
+    "noua",
+    "ultimele",
+    "ultimul",
+    "the",
+    "is",
+    "are",
+    "what",
+    "where",
+    "how",
+    "and",
+    "or",
+    "to",
+    "for",
+    "of",
+    "in",
+    "on",
+    "me",
+    "i",
+    "you",
+    "lei",
+    "mdl",
+    "toate",
+    "aveti",
+    "sub",
+    "pana",
+    "intre",
+    "peste",
+    "maxim",
+    "minim",
+    "vad",
+    "gasesc",
+    "unde"
+  ],
+  "legalSuffixes": [
+    "srl",
+    "sa",
+    "ii",
+    "im",
+    "ooo",
+    "ltd",
+    "llc",
+    "gmbh",
+    "sc",
+    "ics",
+    "s",
+    "r",
+    "l",
+    "moldova",
+    "md",
+    "group",
+    "grup",
+    "company",
+    "market",
+    "store",
+    "shop",
+    "retail"
+  ],
+  "genericCategoryWords": [
+    "alte",
+    "altele",
+    "diverse",
+    "altul",
+    "other",
+    "si",
+    "de",
+    "pentru"
+  ],
+  "escalatePhrases": [
+    " operator ",
+    " operatorul ",
+    " operatorului ",
+    " un om ",
+    " cu un om ",
+    " om real ",
+    " persoana reala ",
+    " o persoana ",
+    " cu cineva ",
+    " vorbesc cu ",
+    " vorbi cu ",
+    " human ",
+    " real person "
+  ],
+  "discountSortPhrases": [
+    " cele mai mari reduceri ",
+    " cea mai mare reducere ",
+    " reduceri mari ",
+    " reducerile cele mai mari ",
+    " reducere maxima ",
+    " cele mai bune reduceri ",
+    " biggest discount"
+  ],
+  "priceWords": [
+    "lei",
+    "leu",
+    "mdl",
+    "lei."
+  ],
+  "placeCues": [
+    " in ",
+    " la ",
+    " din ",
+    " langa ",
+    " aproape ",
+    " orasul ",
+    " oras ",
+    " raionul ",
+    " raion ",
+    " municipiul ",
+    " harta ",
+    " near "
+  ],
+  "placeGeneric": [
+    "municipiul",
+    "mun",
+    "orasul",
+    "oras",
+    "or",
+    "raionul",
+    "raion",
+    "r",
+    "satul",
+    "sat",
+    "comuna",
+    "com",
+    "unitatea",
+    "teritoriala",
+    "autonoma",
+    "ute"
+  ],
+  "pages": {
+    "privacy": [
+      "politica de confidentialitate",
+      "confidentialitate",
+      "confidentialitatii",
+      "date personale",
+      "datele personale",
+      "datele mele",
+      "gdpr",
+      "privacy"
+    ],
+    "terms": [
+      "termeni si conditii",
+      "termenii si conditiile",
+      "termenii",
+      "termeni",
+      "conditiile de utilizare",
+      "terms"
+    ],
+    "payment-terms": [
+      "metode de plata",
+      "metodele de plata",
+      "modalitati de plata",
+      "cum pot plati",
+      "cum platesc",
+      "payment methods"
+    ],
+    "about-us": [
+      "despre noi",
+      "cine sunteti",
+      "despre companie",
+      "about us"
+    ],
+    "return-policy": [
+      "reguli de utilizare",
+      "regulile de utilizare",
+      "politica de retur",
+      "returnarea banilor"
+    ],
+    "faq": [
+      "intrebari frecvente",
+      "faq"
+    ],
+    "accessibility": [
+      "accesibilitate",
+      "accesibilitatea",
+      "persoane cu dizabilitati",
+      "cititor de ecran",
+      "accessibility"
+    ],
+    "help": [
+      "pagina de ajutor",
+      "centrul de ajutor"
+    ]
+  },
+  "price": {
+    "rangeStart": [
+      "intre",
+      "de la"
+    ],
+    "rangeCurrency": [
+      "lei",
+      "mdl"
+    ],
+    "rangeSeparators": [
+      "si",
+      "pana la",
+      "-"
+    ],
+    "max": [
+      "sub",
+      "pana la",
+      "maxim",
+      "max",
+      "mai ieftin de",
+      "mai ieftine de",
+      "mai putin de",
+      "nu mai mult de",
+      "under",
+      "below"
+    ],
+    "min": [
+      "peste",
+      "mai mult de",
+      "mai scump de",
+      "minim",
+      "over",
+      "above"
+    ],
+    "currency": [
+      "lei",
+      "mdl"
+    ]
+  },
+  "injectionPatterns": [
+    "\\bignor\\w*\\s+(?:\\S+\\s+){0,4}(?:instructiun|regul|indicati|comenz|prompt|restrict)",
+    "\\buita\\w*\\s+(?:\\S+\\s+){0,4}(?:instructiun|regul|restrict|ce\\s+ti\\s+s\\s*a\\s+spus)",
+    "\\b(?:arata|spune|da|dezvaluie|scrie|afiseaza|repeta|copiaza)\\w*\\s+(?:\\S+\\s+){0,4}(?:prompt\\w*|instructiunile\\s+(?:tale|initiale|de\\s+sistem|ascunse)|regulile\\s+tale\\s+interne|cheia\\s+api)",
+    "\\bprompt\\w*\\s+(?:de\\s+|al\\s+)?sistem\\w*",
+    "\\bsystem\\s*prompt",
+    "\\b(?:comporta|poarta|prefa)\\w*\\s*(?:te\\s+)?ca\\s+(?:si\\s+)?(?:un|o|cum)\\b",
+    "\\bpretinde\\w*\\s+ca\\s+(?:esti|ai\\s+fi)",
+    "\\bde\\s+acum\\s+(?:inainte\\s+)?(?:esti|vei\\s+fi|raspunzi)",
+    "\\bjoaca\\s+rolul",
+    "\\bfara\\s+(?:nicio\\s+)?(?:restrictii|reguli|filtre)",
+    "\\bignore\\s+(?:\\S+\\s+){0,4}(?:instructions?|rules|prompt|guidelines)",
+    "\\bdisregard\\s+(?:\\S+\\s+){0,4}(?:instructions?|rules|prompt)",
+    "\\bforget\\s+(?:\\S+\\s+){0,4}(?:instructions?|rules|prompt)",
+    "\\b(?:reveal|show|print|repeat|output|leak)\\s+(?:\\S+\\s+){0,3}(?:prompt|instructions|system\\s+message)",
+    "\\bact\\s+as\\b",
+    "\\byou\\s+are\\s+now\\b",
+    "\\bpretend\\s+(?:to\\s+be|you|that)",
+    "\\bjailbr\\w*",
+    "\\bdan\\s+mode\\b",
+    "\\bdeveloper\\s+mode\\b",
+    "\\bdo\\s+anything\\s+now\\b"
+  ],
+  "detection": {
+    "script": "latin",
+    "diacritics": "ăâîșțşţĂÂÎȘȚŞŢ",
+    "markers": [
+      "si",
+      "sau",
+      "ce",
+      "cum",
+      "unde",
+      "este",
+      "sunt",
+      "promotii",
+      "promotie",
+      "reduceri",
+      "reducere",
+      "vreau",
+      "caut",
+      "magazin",
+      "magazinul",
+      "pentru",
+      "buna",
+      "salut",
+      "multumesc",
+      "mersi",
+      "care",
+      "cat",
+      "costa",
+      "aveti",
+      "ai",
+      "am",
+      "imi",
+      "pot",
+      "cont",
+      "parola",
+      "aplicatia",
+      "aplicatie",
+      "cataloage",
+      "catalogul",
+      "oferte",
+      "oferta",
+      "produse",
+      "produs",
+      "azi",
+      "astazi",
+      "noi",
+      "la",
+      "din",
+      "cu",
+      "de",
+      "pe",
+      "un",
+      "o",
+      "nu",
+      "da",
+      "te",
+      "rog",
+      "gratuit",
+      "ziua",
+      "seara",
+      "noroc",
+      "gasesc",
+      "ieftin",
+      "pret",
+      "preturi"
+    ]
+  },
+  "thanksWords": [
+    "mersi",
+    "multumesc",
+    "multam",
+    "thanks",
+    "thank"
+  ],
+  "stemming": {
+    "script": "latin",
+    "minLength": 4,
+    "suffixes": [
+      "urilor",
+      "urile",
+      "ilor",
+      "elor",
+      "ului",
+      "iile",
+      "ile",
+      "ele",
+      "uri",
+      "ul",
+      "ii",
+      "le",
+      "ea",
+      "a",
+      "e",
+      "i",
+      "u"
+    ]
+  },
+  "humanRequestPatterns": [
+    "\\boperator\\w*",
+    "\\bom\\b",
+    "\\bomul\\b",
+    "\\bun om\\b",
+    "\\bpersoan[aă]\\s+real[aă]",
+    "\\bconsultant\\w*",
+    "\\bagent\\s+uman",
+    "\\bsuport\\s+uman",
+    "\\bhuman\\b"
+  ],
+  "dayNames": [
+    "Lu",
+    "Ma",
+    "Mi",
+    "Jo",
+    "Vi",
+    "Sâ",
+    "Du"
+  ],
+  "crisis": {
+    "selfHarm": [
+      "\\bs[iy]n[iu]?[cs]i[dgz]\\w*",
+      "\\bsinucig\\w*",
+      "\\bma omor\\b",
+      "\\bmă omor\\b",
+      "\\b(?:vreau|vrea|as vrea|aș vrea|vream) sa mor\\b",
+      "\\bnu mai vreau sa (?:traiesc|trăiesc|exist|mai traiesc|mai trăiesc)\\w*",
+      "\\bnu mai vreau sa fiu\\b",
+      "\\b(?:sa|să|imi|îmi|mi) (?:mi )?iau viata\\b",
+      "\\b(?:imi|mi) iau zilele\\b",
+      "\\bma tai\\b",
+      "\\bautovatam\\w*",
+      "\\bnu mai are rost sa (?:mai )?tra\\w*",
+      "\\bnu mai are rost viata\\b",
+      "\\bma spanzur\\w*",
+      "\\bma arunc (?:de pe|de la|in fata|sub)\\b"
+    ],
+    "danger": [
+      "\\b(?:vreau sa|o sa|am sa|pot sa) (?:te|il|o|va|ii|le) (?:omor|ucid|injunghi\\w*|impusc\\w*)\\b",
+      "\\b(?:te|il|va) omor\\b",
+      "\\b(?:ma|ne) (?:bate|bat|loveste|lovesc|ameninta|abuzeaza|violeaza)\\b",
+      "\\bsunt (?:batut|batuta|abuzat|abuzata|amenintat|amenintata|sechestrat|sechestrata)\\b",
+      "\\bviolenta (?:domestica|in familie)\\b",
+      "\\b(?:m a|ma|am fost) violat\\w*",
+      "\\bam fost (?:abuzat|abuzata|batut|batuta)\\b"
+    ]
+  },
+  "abuse": {
+    "sexual": {
+      "exact": [
+        "sex",
+        "sexul",
+        "sexului",
+        "xxx",
+        "porno",
+        "erotic",
+        "erotica",
+        "erotice",
+        "escorta",
+        "escorte",
+        "nudes",
+        "nudist",
+        "nudista",
+        "curva",
+        "curve",
+        "curvele",
+        "tarfa",
+        "tarfe",
+        "prostituata",
+        "prostituate",
+        "futai",
+        "muie",
+        "sexting"
+      ],
+      "stems": [
+        "pornograf",
+        "pornosag",
+        "erotis",
+        "escortel",
+        "prostitu",
+        "sexting"
+      ]
+    },
+    "profanity": {
+      "exact": [
+        "pula",
+        "pulii",
+        "pulea",
+        "pizda",
+        "pizdo",
+        "pizdei",
+        "fut",
+        "futu",
+        "futui",
+        "futut",
+        "futeti",
+        "fute",
+        "futa",
+        "futi",
+        "cacat",
+        "cacatul",
+        "rahat",
+        "rahatule",
+        "idiot",
+        "idiotule",
+        "idioata",
+        "idioato",
+        "cretin",
+        "cretinule",
+        "cretina",
+        "tampit",
+        "tampitule",
+        "tampita",
+        "dobitoc",
+        "dobitocule",
+        "prostule",
+        "proasto",
+        "boule",
+        "nesimtitule",
+        "jegosule",
+        "labagiu",
+        "labagiule",
+        "sugi",
+        "sugeti",
+        "muist",
+        "muisti",
+        "handicapatule",
+        "debil",
+        "debilule"
+      ],
+      "stems": [
+        "pizd",
+        "futut",
+        "futuv",
+        "futum",
+        "futuma",
+        "muist",
+        "labagi",
+        "sugaci"
+      ]
+    },
+    "hate": {
+      "exact": [
+        "jidan",
+        "jidani",
+        "jidanilor",
+        "cioara",
+        "ciori",
+        "cioroi",
+        "cioroaica",
+        "bozgor",
+        "bozgori",
+        "poponar",
+        "poponari",
+        "poponarule",
+        "rusnac",
+        "rusnaci"
+      ],
+      "stems": [
+        "jidan",
+        "cioroi",
+        "bozgor",
+        "poponar"
+      ]
+    },
+    "minors": {
+      "exact": [
+        "copil",
+        "copii",
+        "copilul",
+        "copila",
+        "minor",
+        "minora",
+        "minori",
+        "minore",
+        "fetita",
+        "fetite",
+        "baietel",
+        "baietei",
+        "eleva",
+        "eleve",
+        "elev",
+        "scolarita",
+        "scolarite",
+        "adolescenta",
+        "adolescent",
+        "pedofil",
+        "pedofilie"
+      ],
+      "stems": [
+        "pedofil"
+      ],
+      "ageWords": [
+        "ani",
+        "anisori"
+      ]
+    },
+    "allow": {
+      "words": [
+        "sexy",
+        "essex",
+        "sussex",
+        "sextant",
+        "sexton",
+        "pasta",
+        "analiza",
+        "analize",
+        "analizator",
+        "cocos",
+        "cocosul",
+        "lenjerie",
+        "shitake",
+        "shiitake",
+        "scunthorpe",
+        "pulover",
+        "pulberi",
+        "pulbere",
+        "futbol",
+        "future",
+        "futures",
+        "rahat-lokum",
+        "rahatlokum",
+        "prost"
+      ],
+      "phrases": [
+        "pula de aer",
+        "pulă de aer",
+        "rahat turcesc",
+        "costum de baie",
+        "ruj nud",
+        "ruj nude",
+        "nuanta nud",
+        "ford escort"
+      ]
+    },
+    "patterns": [
+      "\\bheil hitler\\b",
+      "\\bsieg heil\\b",
+      "\\bmoarte (?:jidanilor|tiganilor|homosexualilor|rusilor|romanilor)\\b"
+    ]
+  },
+  "routing": {
+    "comparative": [
+      "care e mai",
+      "care este mai",
+      "care sunt mai",
+      "mai ieftin decat",
+      "mai bun decat",
+      "compara",
+      "comparatie",
+      "diferenta",
+      "diferente",
+      "ce imi recomanzi",
+      "ce recomanzi",
+      "recomanda-mi",
+      "recomandami",
+      "ce sa aleg",
+      "pe care sa",
+      "merita sa",
+      "versus",
+      "vs"
+    ],
+    "followUp": [
+      "si la",
+      "dar la",
+      "si pentru",
+      "dar pentru",
+      "si in",
+      "dar in",
+      "si de la",
+      "altceva",
+      "altele",
+      "mai multe",
+      "inca",
+      "si altele",
+      "mai ieftin",
+      "mai ieftine",
+      "si cele",
+      "dar cele"
+    ]
+  },
+  "topics": {
+    "externalLink": {
+      "strong": [
+        "\\blink(?:ul|uri|urile)? extern\\w*",
+        "\\blinkuri externe\\b",
+        "\\bsite(?:ul)? (?:extern|oficial)\\b",
+        "\\bsite ul (?:lor|oficial|extern)\\b",
+        "\\bsiteul (?:lor|oficial)\\b",
+        "\\bpagina (?:lor|oficiala)\\b",
+        "\\badresa (?:site|siteului|web)\\w*",
+        "\\burl\\w*",
+        "\\bwww\\b",
+        "\\bpe internet\\b",
+        "\\bsite(?:ul)? de la\\b",
+        "\\baplicati\\w* (?:lor|externa)\\b"
+      ],
+      "weak": [
+        "\\bda(?: mi)? (?:un |mi )?link\\w*",
+        "\\bdami (?:un )?link\\w*",
+        "\\blink(?:ul)? (?:catre|spre|la|de la)\\b",
+        "\\btrimite(?: mi)? (?:un )?link\\w*",
+        "\\bsite(?:ul)?\\b"
+      ]
+    },
+    "restricted": {
+      "gambling": [
+        "\\bcazino\\w*",
+        "\\bcasino\\w*",
+        "\\bpariu(?:ri|rile|l)?\\b",
+        "\\bpariuri sportive\\b",
+        "\\bpacanele\\b",
+        "\\bpoker\\b",
+        "\\bruleta\\b",
+        "\\bsloturi\\b",
+        "\\bslot(?:uri)? machine\\b",
+        "\\bloto\\b",
+        "\\bbingo\\b",
+        "\\bcote (?:la|pentru) meci\\w*",
+        "\\bjocuri de noroc\\b"
+      ],
+      "drugs": [
+        "\\bdroguri\\w*",
+        "\\bdrog\\b",
+        "\\bmarijuana\\b",
+        "\\bcanabis\\b",
+        "\\bcannabis\\b",
+        "\\bcocaina\\b",
+        "\\bheroina\\b",
+        "\\bmetamfetamina\\b",
+        "\\bextazy\\b",
+        "\\bsubstante interzise\\b"
+      ],
+      "weapons": [
+        "\\barm(?:a|e) de foc\\b",
+        "\\bmunitie\\b",
+        "\\bgloante\\b",
+        "\\bgrenad\\w*",
+        "\\bexploziv\\w*",
+        "\\bbomba artizanala\\b"
+      ],
+      "hacking": [
+        "\\bhack\\w*",
+        "\\bsparg\\w* (?:un |contul|parola)\\w*",
+        "\\bsa sparg\\b",
+        "\\bparola altcuiva\\b",
+        "\\bddos\\b",
+        "\\bphishing\\b",
+        "\\bvirus pentru\\b"
+      ],
+      "advice": [
+        "\\bce (?:medicament|pastile|antibiotic)\\w* sa (?:iau|beau)\\b",
+        "\\bcum (?:sa )?tratez\\b",
+        "\\bsfat (?:juridic|medical|financiar)\\b",
+        "\\bin ce sa investesc\\b",
+        "\\bsa ma judec\\b"
+      ]
+    },
+    "meta": [
+      "link",
+      "linkul",
+      "linkuri",
+      "extern",
+      "externe",
+      "externa",
+      "site",
+      "siteul",
+      "url",
+      "dami",
+      "da",
+      "arata",
+      "aratami",
+      "vreau",
+      "gaseste",
+      "gasestemi",
+      "trimite",
+      "trimitemi",
+      "pagina",
+      "adresa",
+      "web",
+      "internet"
+    ]
+  }
+}
