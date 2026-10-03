@@ -13,6 +13,10 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: publish-chatbot-ai
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -34,7 +38,23 @@ jobs:
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
 
+      - name: Check if version is already published
+        id: check
+        run: |
+          VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" -u "$GITHUB_ACTOR:$GITHUB_TOKEN" "https://maven.pkg.github.com/Naqqa-Software/naqqa-backend-services/com/naqqa/naqqa-chatbot/$VERSION/naqqa-chatbot-$VERSION.jar")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$CODE" = "200" ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
+      - name: Skip already published version
+        if: steps.check.outputs.exists == 'true'
+        run: echo "naqqa-chatbot ${{ steps.check.outputs.version }} is already published; bump the version in chatbot-ai/pom.xml to publish new changes"
+
       - name: Build & Deploy
+        if: steps.check.outputs.exists != 'true'
         run: mvn --batch-mode clean deploy -DskipTests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
