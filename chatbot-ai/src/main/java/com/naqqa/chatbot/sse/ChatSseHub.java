@@ -3,6 +3,7 @@ package com.naqqa.chatbot.sse;
 import com.naqqa.chatbot.dto.ChatDtos.OperatorDto;
 import com.naqqa.chatbot.entities.ChatConversationEntity;
 import com.naqqa.chatbot.security.ChatAccess;
+import com.naqqa.chatbot.spi.ChatOperatorResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -20,13 +21,52 @@ public class ChatSseHub {
 
     public static final long VISITOR_TIMEOUT_MS = 30 * 60_000L;
     public static final long ADMIN_TIMEOUT_MS = 60 * 60_000L;
+    public static final long ADMIN_AUTHORITY_REVALIDATE_MS = 60_000L;
     private static final int MAX_EMITTERS_PER_CONVERSATION = 5;
 
-    private record AdminSubscriber(Long userId, String name, ChatAccess access) {
+    private static final class AdminSubscriber {
+        private final Long userId;
+        private final String name;
+        private volatile ChatAccess access;
+        private volatile long lastValidated;
+
+        AdminSubscriber(Long userId, String name, ChatAccess access) {
+            this.userId = userId;
+            this.name = name;
+            this.access = access;
+            this.lastValidated = System.currentTimeMillis();
+        }
+
+        Long userId() {
+            return userId;
+        }
+
+        String name() {
+            return name;
+        }
+
+        ChatAccess access() {
+            return access;
+        }
     }
 
     private final Map<String, Set<SseEmitter>> visitors = new ConcurrentHashMap<>();
     private final Map<SseEmitter, AdminSubscriber> admins = new ConcurrentHashMap<>();
+    private final ChatOperatorResolver operators;
+    private final long revalidateIntervalMs;
+
+    public ChatSseHub() {
+        this(null);
+    }
+
+    public ChatSseHub(ChatOperatorResolver operators) {
+        this(operators, ADMIN_AUTHORITY_REVALIDATE_MS);
+    }
+
+    ChatSseHub(ChatOperatorResolver operators, long revalidateIntervalMs) {
+        this.operators = operators;
+        this.revalidateIntervalMs = revalidateIntervalMs;
+    }
 
     public SseEmitter subscribeVisitor(String conversationId) {
         SseEmitter emitter = new SseEmitter(VISITOR_TIMEOUT_MS);
@@ -76,7 +116,12 @@ public class ChatSseHub {
 
     public void toAdmins(ChatConversationEntity conversation, String type, Object data) {
         for (Map.Entry<SseEmitter, AdminSubscriber> entry : admins.entrySet()) {
-            if (conversation != null && !entry.getValue().access().canView(conversation)) {
+            AdminSubscriber subscriber = entry.getValue();
+            if (!revalidate(subscriber)) {
+                closeAdmin(entry.getKey());
+                continue;
+            }
+            if (conversation != null && !subscriber.access().canView(conversation)) {
                 continue;
             }
             if (!send(entry.getKey(), type, data)) {
@@ -115,11 +160,50 @@ public class ChatSseHub {
                 }
             }
         }
-        for (SseEmitter emitter : admins.keySet()) {
-            if (!send(emitter, "ping", ping)) {
-                admins.remove(emitter);
+        for (Map.Entry<SseEmitter, AdminSubscriber> entry : admins.entrySet()) {
+            AdminSubscriber subscriber = entry.getValue();
+            if (!revalidate(subscriber)) {
+                closeAdmin(entry.getKey());
+                continue;
+            }
+            if (!send(entry.getKey(), "ping", ping)) {
+                admins.remove(entry.getKey());
             }
         }
+    }
+
+    /**
+     * Re-checks the operator's current authorities at most every {@link #ADMIN_AUTHORITY_REVALIDATE_MS}.
+     * Returns {@code false} when the resolver confirms the operator no longer holds
+     * {@code chat:read_all}/{@code chat:read_assigned}, so the caller should close the emitter. When no
+     * {@link ChatOperatorResolver} is configured, or it cannot answer for this user, access is left as-is.
+     */
+    private boolean revalidate(AdminSubscriber subscriber) {
+        if (operators == null) {
+            return true;
+        }
+        long now = System.currentTimeMillis();
+        if (now - subscriber.lastValidated < revalidateIntervalMs) {
+            return true;
+        }
+        subscriber.lastValidated = now;
+        Set<String> authorities;
+        try {
+            authorities = operators.currentAuthorities(subscriber.userId());
+        } catch (RuntimeException e) {
+            return true;
+        }
+        if (authorities == null) {
+            return true;
+        }
+        ChatAccess fresh = new ChatAccess(subscriber.userId(), authorities, subscriber.access().permissions());
+        subscriber.access = fresh;
+        return fresh.canRead();
+    }
+
+    private void closeAdmin(SseEmitter emitter) {
+        admins.remove(emitter);
+        safeComplete(emitter);
     }
 
     public int visitorConnectionCount() {

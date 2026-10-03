@@ -267,8 +267,8 @@ public class NaqqaChatbotAutoConfiguration {
     }
 
     @Bean
-    public ChatSseHub naqqaChatSseHub() {
-        return new ChatSseHub();
+    public ChatSseHub naqqaChatSseHub(ChatOperatorResolver operators) {
+        return new ChatSseHub(operators);
     }
 
     @Bean
