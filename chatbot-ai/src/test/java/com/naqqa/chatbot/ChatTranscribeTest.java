@@ -30,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -74,7 +73,7 @@ class ChatTranscribeTest {
         when(settings.isEnabled()).thenReturn(true);
         when(settings.get()).thenReturn(new ChatSettingsEntity());
         when(stt.sttMode()).thenReturn("server");
-        when(stt.transcribe(any(), eq("audio/wav"), eq("ru"), isNull())).thenReturn("какие акции в Kaufland");
+        when(stt.recognize(any(), eq("audio/wav"), eq("ru"))).thenReturn(new ChatSttService.SttResult("какие акции в Kaufland", "ru"));
         doThrow(ChatException.forbidden()).when(tokens).verify(anyString(), eq("c1"));
         doNothing().when(tokens).verify(eq("good"), eq("c1"));
         ChatRateLimiter limiter = new ChatRateLimiter(null, System::currentTimeMillis);
@@ -130,7 +129,7 @@ class ChatTranscribeTest {
 
     @Test
     void unrecognisedSpeechReturnsEmptyText() {
-        when(stt.transcribe(any(), eq("audio/wav"), eq("ro"), isNull())).thenReturn(null);
+        when(stt.recognize(any(), eq("audio/wav"), eq("ro"))).thenReturn(new ChatSttService.SttResult("", null));
         assertEquals("", service.transcribe("c1", "good", WAV, "audio/wav", 3000L, "ro").text());
     }
 }

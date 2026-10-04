@@ -35,6 +35,48 @@ public final class ChatAudioValidator {
         return contentTypeOf(detected);
     }
 
+    public static long validateWav(byte[] bytes, String declaredType) {
+        if (bytes == null || bytes.length == 0) {
+            throw ChatException.audioInvalid("The audio file is empty.");
+        }
+        if (bytes.length > MAX_BYTES) {
+            throw ChatException.audioInvalid("The audio file exceeds 2 MB.");
+        }
+        if (!"wav".equals(family(declaredType)) || !"wav".equals(detect(bytes))) {
+            throw ChatException.audioInvalid("Only WAV audio is accepted.");
+        }
+        long durationMs = wavDurationMs(bytes);
+        if (durationMs <= 0 || durationMs > MAX_DURATION_MS + 1_000L) {
+            throw ChatException.audioInvalid("The audio duration must be between 1 ms and 60 seconds.");
+        }
+        return durationMs;
+    }
+
+    static long wavDurationMs(byte[] b) {
+        long byteRate = 0;
+        int offset = 12;
+        while (offset + 8 <= b.length) {
+            String id = new String(b, offset, 4, StandardCharsets.US_ASCII);
+            long size = le32(b, offset + 4);
+            int body = offset + 8;
+            if ("fmt ".equals(id) && body + 12 <= b.length) {
+                byteRate = le32(b, body + 8);
+            } else if ("data".equals(id)) {
+                long available = Math.min(size, b.length - (long) body);
+                return byteRate <= 0 ? -1 : available * 1000L / byteRate;
+            }
+            if (size < 0 || size > b.length) {
+                return -1;
+            }
+            offset = body + (int) size + (int) (size & 1);
+        }
+        return -1;
+    }
+
+    private static long le32(byte[] b, int i) {
+        return (b[i] & 0xFFL) | (b[i + 1] & 0xFFL) << 8 | (b[i + 2] & 0xFFL) << 16 | (b[i + 3] & 0xFFL) << 24;
+    }
+
     static String family(String contentType) {
         if (contentType == null) {
             return null;

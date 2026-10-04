@@ -40,7 +40,13 @@ public final class ChatDtos {
                              Instant readAt, Integer feedback, String route, List<String> qualityFlags, String kind) {
     }
 
-    public record TranscriptionDto(String text) {
+    public record TranscriptionDto(String text, String language) {
+        public TranscriptionDto(String text) {
+            this(text, null);
+        }
+    }
+
+    public record SttStatusDto(boolean enabled) {
     }
 
     public record CreateConversationRequest(String lang, String pagePath, String visitorId) {

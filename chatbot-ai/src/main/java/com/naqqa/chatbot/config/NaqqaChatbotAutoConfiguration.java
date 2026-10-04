@@ -513,8 +513,10 @@ public class NaqqaChatbotAutoConfiguration {
     @Bean
     public ChatPublicController naqqaChatPublicController(ChatService chat, ChatSseHub hub, ChatUserResolver users,
                                                           ObjectProvider<ChatHumanVerifier> verifier, NaqqaChatbotProperties p,
-                                                          ChatAnalyticsEmitter analytics) {
-        return new ChatPublicController(chat, hub, users, verifier, p, analytics);
+                                                          ChatAnalyticsEmitter analytics, ChatSttService stt) {
+        ChatPublicController controller = new ChatPublicController(chat, hub, users, verifier, p, analytics);
+        controller.setSpeech(stt);
+        return controller;
     }
 
     @Bean

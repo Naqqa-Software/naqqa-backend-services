@@ -291,14 +291,22 @@ public class ChatService {
         c = refreshAnalyticsIds(c, analyticsVid, analyticsSid);
         acquire(c, "transcribe");
         ensureNotMuted(c);
-        String text = sttService.transcribe(audio, contentType, lang == null ? c.getLang() : lang(lang), null);
+        ChatSttService.SttResult result;
+        try {
+            result = sttService.recognize(audio, contentType, lang == null ? c.getLang() : lang(lang));
+        } catch (ChatException e) {
+            analytics.emit("chat_voice_transcribed", c, Map.of("durationMs", durationMs == null ? 0 : durationMs, "ok", false,
+                    "conversationId", c.getId()));
+            throw e;
+        }
+        String text = result.text();
         boolean success = text != null && !text.isBlank();
         analytics.emit("chat_voice_transcribed", c, Map.of("durationMs", durationMs == null ? 0 : durationMs, "ok", success,
-                "conversationId", c.getId()));
+                "conversationId", c.getId(), "lang", result.language() == null ? "" : result.language()));
         if (!success) {
-            return new TranscriptionDto("");
+            return new TranscriptionDto("", result.language());
         }
-        return new TranscriptionDto(text.length() > MAX_TEXT ? text.substring(0, MAX_TEXT) : text);
+        return new TranscriptionDto(text.length() > MAX_TEXT ? text.substring(0, MAX_TEXT) : text, result.language());
     }
 
     private ChatConversationEntity refreshAnalyticsIds(ChatConversationEntity c, String analyticsVid, String analyticsSid) {

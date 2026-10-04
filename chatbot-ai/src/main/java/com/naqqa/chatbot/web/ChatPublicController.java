@@ -9,11 +9,14 @@ import com.naqqa.chatbot.dto.ChatDtos.MessageDto;
 import com.naqqa.chatbot.dto.ChatDtos.RatingRequest;
 import com.naqqa.chatbot.dto.ChatDtos.SendMessageRequest;
 import com.naqqa.chatbot.dto.ChatDtos.SendResultDto;
+import com.naqqa.chatbot.dto.ChatDtos.SttStatusDto;
 import com.naqqa.chatbot.dto.ChatDtos.TranscriptionDto;
 import com.naqqa.chatbot.security.ChatVisitorTokenService;
 import com.naqqa.chatbot.service.ChatAnalyticsEmitter;
+import com.naqqa.chatbot.service.ChatAudioValidator;
 import com.naqqa.chatbot.service.ChatException;
 import com.naqqa.chatbot.service.ChatService;
+import com.naqqa.chatbot.service.ChatSttService;
 import com.naqqa.chatbot.spi.ChatHumanVerifier;
 import com.naqqa.chatbot.spi.ChatUserResolver;
 import com.naqqa.chatbot.config.NaqqaChatbotProperties;
@@ -55,6 +58,7 @@ public class ChatPublicController {
     private final ObjectProvider<ChatHumanVerifier> verifier;
     private final NaqqaChatbotProperties properties;
     private final ChatAnalyticsEmitter analytics;
+    private ChatSttService speech;
 
     public ChatPublicController(ChatService chatService, ChatSseHub hub, ChatUserResolver users,
                                 ObjectProvider<ChatHumanVerifier> verifier, NaqqaChatbotProperties properties,
@@ -65,6 +69,10 @@ public class ChatPublicController {
         this.verifier = verifier;
         this.properties = properties;
         this.analytics = analytics == null ? ChatAnalyticsEmitter.NONE : analytics;
+    }
+
+    public void setSpeech(ChatSttService speech) {
+        this.speech = speech;
     }
 
     private void human(HttpServletRequest request, String action, String conversationId, String vid, String sid) {
@@ -148,6 +156,31 @@ public class ChatPublicController {
         }
         TranscriptionDto result = chatService.transcribe(id, token, audio.getBytes(), audio.getContentType(), durationMs, lang, vid, sid);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
+    }
+
+    @GetMapping("/stt/status")
+    public ResponseEntity<SttStatusDto> sttStatus() {
+        boolean enabled = speech != null && speech.available();
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofSeconds(30)).cachePublic()).body(new SttStatusDto(enabled));
+    }
+
+    @PostMapping(value = "/stt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<TranscriptionDto> stt(@RequestPart("audio") MultipartFile audio,
+                                                @RequestParam(value = "lang", required = false) String lang) throws IOException {
+        if (speech == null || !speech.available()) {
+            throw new ChatException(HttpStatus.SERVICE_UNAVAILABLE, ChatException.STT_UNAVAILABLE, "Server-side transcription is not available.");
+        }
+        if (audio == null || audio.isEmpty()) {
+            throw ChatException.audioInvalid("The audio file is empty.");
+        }
+        if (audio.getSize() > ChatAudioValidator.MAX_BYTES) {
+            throw ChatException.audioInvalid("The audio file exceeds 2 MB.");
+        }
+        byte[] bytes = audio.getBytes();
+        ChatAudioValidator.validateWav(bytes, audio.getContentType());
+        ChatSttService.SttResult result = speech.recognize(bytes, "audio/wav", lang);
+        String text = result.text() == null ? "" : result.text();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new TranscriptionDto(text, result.language()));
     }
 
     @GetMapping(value = "/conversations/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
