@@ -455,6 +455,19 @@
           "solve"
         ]
       }
+    ],
+    "about_bot": [
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "are you a bot",
+          "are you a robot",
+          "who are you",
+          "what can you do",
+          "are you human"
+        ]
+      }
     ]
   },
   "stopwords": [
@@ -1475,12 +1488,13 @@
     "pets": {
       "label": "pets",
       "triggers": [
-        "pet",
-        "pets",
-        "dog",
-        "cat",
         "puppy",
-        "kitten"
+        "kitten",
+        "my cat",
+        "my dog",
+        "cat food",
+        "dog food",
+        "for my pet"
       ],
       "terms": [
         "dog food",

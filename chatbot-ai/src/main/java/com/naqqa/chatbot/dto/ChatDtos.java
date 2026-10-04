@@ -46,7 +46,7 @@ public final class ChatDtos {
         }
     }
 
-    public record SttStatusDto(boolean enabled) {
+    public record SttStatusDto(boolean enabled, List<String> languages) {
     }
 
     public record CreateConversationRequest(String lang, String pagePath, String visitorId) {

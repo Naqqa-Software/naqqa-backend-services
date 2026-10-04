@@ -98,7 +98,12 @@ public class ChatSttService {
             throw unavailable();
         }
         try {
-            SttResult raw = whisper(wav, requestLanguage(langHint));
+            String requested = requestLanguage(langHint);
+            SttResult raw = whisper(wav, requested);
+            String forced = fallbackLanguage(requested, raw.language(), langHint);
+            if (forced != null) {
+                raw = whisper(wav, forced);
+            }
             String text = clean(raw.text());
             if (text != null && hallucination(text)) {
                 text = null;
@@ -127,12 +132,43 @@ public class ChatSttService {
     }
 
     String requestLanguage(String langHint) {
+        List<String> allowed = stt.allowedLanguages();
+        if (allowed.size() == 1) {
+            return allowed.get(0);
+        }
         String configured = stt.normalizedLanguage();
         if ("client".equals(configured)) {
-            String hint = langHint == null ? "" : langHint.trim().toLowerCase(Locale.ROOT);
-            return hint.matches("[a-z]{2,3}") ? hint : "auto";
+            String hint = normalizedHint(langHint);
+            if (hint == null) {
+                return "auto";
+            }
+            return allowed.isEmpty() || allowed.contains(hint) ? hint : allowed.get(0);
+        }
+        if (!"auto".equals(configured) && !allowed.isEmpty() && !allowed.contains(configured)) {
+            return "auto";
         }
         return configured;
+    }
+
+    String fallbackLanguage(String requested, String detected, String langHint) {
+        List<String> allowed = stt.allowedLanguages();
+        if (allowed.isEmpty() || !"auto".equals(requested) || detected == null || allowed.contains(detected)) {
+            return null;
+        }
+        String hint = normalizedHint(langHint);
+        return hint != null && allowed.contains(hint) ? hint : allowed.get(0);
+    }
+
+    public List<String> allowedLanguages() {
+        return stt.allowedLanguages();
+    }
+
+    private static String normalizedHint(String langHint) {
+        String hint = langHint == null ? "" : langHint.trim().toLowerCase(Locale.ROOT);
+        if (hint.length() > 2 && hint.charAt(2) == '-') {
+            hint = hint.substring(0, 2);
+        }
+        return hint.matches("[a-z]{2,3}") ? hint : null;
     }
 
     private SttResult whisper(byte[] wav, String language) throws Exception {

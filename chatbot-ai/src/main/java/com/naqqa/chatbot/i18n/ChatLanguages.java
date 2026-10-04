@@ -127,6 +127,22 @@ public final class ChatLanguages {
     private final Map<String, List<String>> nutritionMeals = new LinkedHashMap<>();
     private final Map<String, List<String>> nutritionProteinMeals = new LinkedHashMap<>();
     private final Map<String, List<String>> pagePhrases = new LinkedHashMap<>();
+    private final List<String> basketStrong = new ArrayList<>();
+    private final List<String> cheapestPhrases = new ArrayList<>();
+    private final List<String> priceAskPhrases = new ArrayList<>();
+    private final List<String> storeComparePhrases = new ArrayList<>();
+    private final List<String> storeCompareCheap = new ArrayList<>();
+    private final List<String> discountOnlyPhrases = new ArrayList<>();
+    private final Map<String, List<String>> storeAspects = new LinkedHashMap<>();
+    private final Map<String, String> categoryAliases = new LinkedHashMap<>();
+    private final Map<String, String> companyAliases = new LinkedHashMap<>();
+    private final Map<String, String> placeAliases = new LinkedHashMap<>();
+    private final List<Pattern> offTopicPatterns = new ArrayList<>();
+    private final Set<String> scenarioCategoryLike = new LinkedHashSet<>();
+    private final Map<String, List<String>> followUps = new LinkedHashMap<>();
+    private final Map<String, Integer> ordinals = new LinkedHashMap<>();
+    private final Set<String> pronouns = new LinkedHashSet<>();
+    private Pattern priceMaxCurrency;
     private final List<Pattern> injectionPatterns = new ArrayList<>();
     private final List<Detection> detections = new ArrayList<>();
     private final Map<String, Stemming> stemming = new LinkedHashMap<>();
@@ -234,6 +250,36 @@ public final class ChatLanguages {
             });
             JsonNode basket = pack.path("basket");
             phrases(basketTriggers, basket.path("triggers"));
+            phrases(basketStrong, basket.path("strong"));
+            phrases(cheapestPhrases, pack.path("signals").path("cheapest"));
+            phrases(priceAskPhrases, pack.path("signals").path("priceAsk"));
+            phrases(storeComparePhrases, pack.path("signals").path("storeCompare"));
+            for (JsonNode n : pack.path("signals").path("storeCompareCheap")) {
+                String v = TextNormalizer.fold(n.asText("")).trim();
+                if (!v.isEmpty() && !storeCompareCheap.contains(v)) {
+                    storeCompareCheap.add(v);
+                }
+            }
+            phrases(discountOnlyPhrases, pack.path("signals").path("discountOnly"));
+            pack.path("storeAspects").fields().forEachRemaining(e -> phrases(storeAspects.computeIfAbsent(e.getKey(),
+                    k -> new ArrayList<>()), e.getValue()));
+            pack.path("categoryAliases").fields().forEachRemaining(e -> categoryAliases.put(
+                    TextNormalizer.normalizedPhrase(e.getKey()), TextNormalizer.fold(e.getValue().asText("")).trim()));
+            pack.path("companyAliases").fields().forEachRemaining(e -> companyAliases.put(
+                    TextNormalizer.normalizedPhrase(e.getKey()), TextNormalizer.compact(e.getValue().asText(""))));
+            pack.path("placeAliases").fields().forEachRemaining(e -> placeAliases.put(
+                    TextNormalizer.normalizedPhrase(e.getKey()), TextNormalizer.fold(e.getValue().asText("")).trim()));
+            for (JsonNode n : pack.path("offTopicPatterns")) {
+                offTopicPatterns.add(Pattern.compile("(?iU)" + n.asText()));
+            }
+            for (JsonNode n : pack.path("scenarioCategoryLike")) {
+                scenarioCategoryLike.add(n.asText(""));
+            }
+            pack.path("followUps").fields().forEachRemaining(e -> phrases(followUps.computeIfAbsent(e.getKey(),
+                    k -> new ArrayList<>()), e.getValue()));
+            pack.path("ordinals").fields().forEachRemaining(e -> ordinals.put(TextNormalizer.normalizedPhrase(e.getKey()),
+                    e.getValue().asInt()));
+            addAll(pronouns, pack.path("pronouns"), true);
             basket.path("periods").fields().forEachRemaining(e -> phrases(basketPeriods.computeIfAbsent(e.getKey(),
                     k -> new ArrayList<>()), e.getValue()));
             List<BasketItem> items = new ArrayList<>();
@@ -273,7 +319,7 @@ public final class ChatLanguages {
                 human.add(n.asText());
             }
             JsonNode p = pack.path("price");
-            for (String key : List.of("rangeStart", "rangeCurrency", "rangeSeparators", "max", "min", "currency")) {
+            for (String key : List.of("rangeStart", "rangeCurrency", "rangeSeparators", "max", "min", "currency", "maxCurrency")) {
                 List<String> list = price.computeIfAbsent(key, k -> new ArrayList<>());
                 for (JsonNode n : p.path(key)) {
                     String v = n.asText("");
@@ -315,6 +361,9 @@ public final class ChatLanguages {
                 + (price.get("currency").isEmpty() ? "" : "(?:\\s*" + alt(price.get("currency")) + ")?"));
         this.priceMin = price.get("min").isEmpty() ? null : Pattern.compile(alt(price.get("min")) + "\\s+" + number
                 + (price.get("currency").isEmpty() ? "" : "\\s*" + alt(price.get("currency")) + "?"));
+        this.priceMaxCurrency = price.get("maxCurrency").isEmpty() || price.get("currency").isEmpty() ? null
+                : Pattern.compile("(?<![\\p{L}\\d])" + alt(price.get("maxCurrency")) + "\\s+" + number + "\\s*" + alt(price.get("currency"))
+                + "(?![\\p{L}\\d])");
     }
 
     public static ChatLanguages load(List<String> languages, Map<String, String> placeholders) {
@@ -717,6 +766,70 @@ public final class ChatLanguages {
 
     public Pattern priceMin() {
         return priceMin;
+    }
+
+    public Pattern priceMaxCurrency() {
+        return priceMaxCurrency;
+    }
+
+    public List<String> basketStrong() {
+        return basketStrong;
+    }
+
+    public List<String> cheapestPhrases() {
+        return cheapestPhrases;
+    }
+
+    public List<String> priceAskPhrases() {
+        return priceAskPhrases;
+    }
+
+    public List<String> storeComparePhrases() {
+        return storeComparePhrases;
+    }
+
+    public List<String> storeCompareCheap() {
+        return storeCompareCheap;
+    }
+
+    public List<String> discountOnlyPhrases() {
+        return discountOnlyPhrases;
+    }
+
+    public Map<String, List<String>> storeAspects() {
+        return storeAspects;
+    }
+
+    public Map<String, String> categoryAliases() {
+        return categoryAliases;
+    }
+
+    public Map<String, String> companyAliases() {
+        return companyAliases;
+    }
+
+    public Map<String, String> placeAliases() {
+        return placeAliases;
+    }
+
+    public List<Pattern> offTopicPatterns() {
+        return offTopicPatterns;
+    }
+
+    public Set<String> scenarioCategoryLike() {
+        return scenarioCategoryLike;
+    }
+
+    public Map<String, List<String>> followUps() {
+        return followUps;
+    }
+
+    public Map<String, Integer> ordinals() {
+        return ordinals;
+    }
+
+    public Set<String> pronouns() {
+        return pronouns;
     }
 
     public static String pick(Map<String, String> values, String lang) {

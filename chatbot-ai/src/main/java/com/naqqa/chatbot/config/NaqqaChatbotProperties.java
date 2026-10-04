@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 @Data
 @ConfigurationProperties("naqqa.chatbot")
@@ -102,6 +103,7 @@ public class NaqqaChatbotProperties {
         private String ffmpegPath = "ffmpeg";
         private long timeoutMs = 20_000L;
         private String language = "auto";
+        private List<String> languages = new ArrayList<>();
         private long connectTimeoutMs = 1_500L;
         private int maxConcurrent = 2;
         private long queueWaitMs = 10_000L;
@@ -110,6 +112,18 @@ public class NaqqaChatbotProperties {
         public String normalizedLanguage() {
             String value = language == null ? "" : language.trim().toLowerCase(Locale.ROOT);
             return value.isEmpty() ? "auto" : value;
+        }
+
+        public List<String> allowedLanguages() {
+            if (languages == null) {
+                return List.of();
+            }
+            return languages.stream()
+                    .filter(Objects::nonNull)
+                    .map(l -> l.trim().toLowerCase(Locale.ROOT))
+                    .filter(l -> l.matches("[a-z]{2,3}"))
+                    .distinct()
+                    .toList();
         }
 
         public String normalizedProvider() {

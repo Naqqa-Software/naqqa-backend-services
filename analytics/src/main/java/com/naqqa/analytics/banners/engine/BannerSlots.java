@@ -36,7 +36,7 @@ public final class BannerSlots {
     public static final String APP_PROMO_STRIP = "app_promo_strip";
 
     public static final List<Slot> ALL = List.of(
-            new Slot(HOME_HERO, "home", new Size(1200, 400), new Size(390, 300), false, false),
+            new Slot(HOME_HERO, "home", new Size(1200, 400), new Size(390, 300), false, true),
             new Slot(HOME_SIDE, "home", new Size(300, 400), new Size(390, 300), false, true),
             new Slot(HOME_BETWEEN_1, "home", new Size(1200, 150), new Size(390, 120), false, true),
             new Slot(HOME_BETWEEN_2, "home", new Size(1200, 150), new Size(390, 120), false, true),
@@ -47,11 +47,11 @@ public final class BannerSlots {
             new Slot(DETAIL_SIDE, "detail", new Size(300, 250), new Size(390, 325), false, true),
             new Slot(DETAIL_BOTTOM, "detail", new Size(1200, 150), new Size(390, 120), false, true),
             new Slot(COMPANY_TOP, "company", new Size(1200, 200), new Size(390, 150), true, true),
-            new Slot(BOOKLET_INTERSTITIAL, "booklet", new Size(600, 850), new Size(390, 552), false, false),
+            new Slot(BOOKLET_INTERSTITIAL, "booklet", new Size(600, 850), new Size(390, 552), false, true),
             new Slot(BLOG_INARTICLE, "blog", new Size(728, 90), new Size(390, 200), false, true),
             new Slot(SEARCH_TOP, "search", new Size(1200, 120), new Size(390, 100), false, true),
-            new Slot(CHAT_CARD, "chat", new Size(320, 180), new Size(320, 180), false, false),
-            new Slot(APP_PROMO_STRIP, "global", new Size(1200, 48), new Size(390, 48), false, false)
+            new Slot(CHAT_CARD, "chat", new Size(320, 180), new Size(320, 180), false, true),
+            new Slot(APP_PROMO_STRIP, "global", new Size(1200, 48), new Size(390, 48), false, true)
     );
 
     private static final Map<String, Slot> BY_ID = new LinkedHashMap<>();

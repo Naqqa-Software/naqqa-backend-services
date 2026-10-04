@@ -26,9 +26,44 @@ public class IntentRouter {
 
     public record Signals(Double minDiscount, String sort, ChatLanguages.Scenario scenario, Integer people,
                           List<String> comparePair, List<String> excluded, boolean alternative, BasketRequest basket,
-                          NutritionRequest nutrition) {
+                          NutritionRequest nutrition, boolean cheapest, boolean priceAsk, boolean storeCompare,
+                          boolean storeCompareCheap, boolean discountOnly, String storeAspect) {
 
-        public static final Signals NONE = new Signals(null, null, null, null, List.of(), List.of(), false, null, null);
+        public static final Signals NONE = new Signals(null, null, null, null, List.of(), List.of(), false, null, null,
+                false, false, false, false, false, null);
+
+        public Signals(Double minDiscount, String sort, ChatLanguages.Scenario scenario, Integer people,
+                       List<String> comparePair, List<String> excluded, boolean alternative, BasketRequest basket,
+                       NutritionRequest nutrition) {
+            this(minDiscount, sort, scenario, people, comparePair, excluded, alternative, basket, nutrition, false, false,
+                    false, false, false, null);
+        }
+
+        public Signals withExcluded(List<String> value) {
+            return new Signals(minDiscount, sort, scenario, people, comparePair, value, alternative, basket, nutrition, cheapest,
+                    priceAsk, storeCompare, storeCompareCheap, discountOnly, storeAspect);
+        }
+
+        public Signals withPeople(Integer value) {
+            return new Signals(minDiscount, sort, scenario, value, comparePair, excluded, alternative,
+                    basket == null ? null : new BasketRequest(basket.period(), value == null ? basket.people() : value), nutrition,
+                    cheapest, priceAsk, storeCompare, storeCompareCheap, discountOnly, storeAspect);
+        }
+
+        public Signals withScenario(ChatLanguages.Scenario value, BasketRequest basketValue, boolean alternativeValue) {
+            return new Signals(minDiscount, sort, value, people, comparePair, excluded, alternativeValue, basketValue, nutrition,
+                    cheapest, priceAsk, storeCompare, storeCompareCheap, discountOnly, storeAspect);
+        }
+
+        public Signals withSort(Double minDiscountValue, String sortValue, boolean cheapestValue) {
+            return new Signals(minDiscountValue, sortValue, scenario, people, comparePair, excluded, alternative, basket, nutrition,
+                    cheapestValue, priceAsk, storeCompare, storeCompareCheap, discountOnly, storeAspect);
+        }
+
+        public Signals withStoreCompare(boolean value) {
+            return new Signals(minDiscount, sort, scenario, people, comparePair, excluded, alternative, basket, nutrition,
+                    cheapest, priceAsk, value, storeCompareCheap, discountOnly, storeAspect);
+        }
 
         public boolean hasScenario() {
             return scenario != null;
@@ -139,7 +174,7 @@ public class IntentRouter {
         }
         consumeSignalPhrases(tokens, consumed);
         PlaceRef[] place = new PlaceRef[1];
-        IntentResult core = routeCore(tokens, phrase, consumed, pageSlug, hasPrice, place);
+        IntentResult core = routeCore(tokens, phrase, consumed, pageSlug, hasPrice, place, text);
         PlaceRef keptPlace = core.intent() != null && (core.intent() == location || core.intent().isCatalog()) ? place[0] : null;
         return core.with(keptPlace, price[0], price[1], sortDiscount, core.intent() != null && core.intent() == page ? pageSlug : null);
     }
@@ -149,8 +184,8 @@ public class IntentRouter {
     }
 
     private IntentResult routeCore(List<String> tokens, String phrase, Set<Integer> consumed, String pageSlug,
-                                   boolean hasPrice, PlaceRef[] placeOut) {
-        Map<String, Double> scores = score(tokens, phrase);
+                                   boolean hasPrice, PlaceRef[] placeOut, String raw) {
+        Map<String, Double> scores = score(tokens, phrase, raw);
         boolean escalate = false;
         String escalatePhrase = stripPeople(phrase);
         for (String p : languages.escalatePhrases()) {
@@ -307,15 +342,48 @@ public class IntentRouter {
         Double minDiscount = parseMinDiscount(text);
         String sort = containsAny(phrase, languages.expiringPhrases()) ? RetrievalPlan.SORT_EXPIRING
                 : containsAny(phrase, languages.newestPhrases()) ? RetrievalPlan.SORT_NEWEST : null;
-        return new Signals(minDiscount, sort, scenario(text), people(phrase), comparePair(text), excluded(phrase),
-                containsAny(phrase, languages.alternativePhrases()), basket(phrase), nutrition(text));
+        ChatLanguages.Scenario scenario = scenario(text);
+        BasketRequest basket = basket(phrase, scenario != null);
+        boolean storeCompare = containsAny(phrase, languages.storeComparePhrases());
+        boolean cheap = false;
+        for (String t : TextNormalizer.tokens(text)) {
+            for (String c : languages.storeCompareCheap()) {
+                cheap |= t.startsWith(c);
+            }
+        }
+        return new Signals(minDiscount, sort, scenario, people(phrase), comparePair(text), excluded(phrase),
+                containsAny(phrase, languages.alternativePhrases()), basket, nutrition(text),
+                containsAny(phrase, languages.cheapestPhrases()), containsAny(phrase, languages.priceAskPhrases()), storeCompare,
+                cheap, containsAny(phrase, languages.discountOnlyPhrases()), storeAspect(phrase));
+    }
+
+    public String storeAspect(String phrase) {
+        String best = null;
+        int bestAt = Integer.MAX_VALUE;
+        int bestLen = 0;
+        for (Map.Entry<String, List<String>> e : languages.storeAspects().entrySet()) {
+            for (String p : e.getValue()) {
+                int at = phrase.indexOf(p);
+                if (at >= 0 && (p.length() > bestLen || p.length() == bestLen && at < bestAt)) {
+                    best = e.getKey();
+                    bestAt = at;
+                    bestLen = p.length();
+                }
+            }
+        }
+        return best;
     }
 
     public BasketRequest basket(String phrase) {
+        return basket(phrase, false);
+    }
+
+    BasketRequest basket(String phrase, boolean scenario) {
         ChatLanguages.Basket basket = languages.basket();
         if (!containsAny(phrase, basket.triggers())) {
             return null;
         }
+        boolean strong = containsAny(phrase, languages.basketStrong());
         String period = null;
         int at = Integer.MAX_VALUE;
         for (Map.Entry<String, List<String>> e : basket.periods().entrySet()) {
@@ -328,7 +396,10 @@ public class IntentRouter {
             }
         }
         if (period == null) {
-            return null;
+            if (!strong || scenario) {
+                return null;
+            }
+            period = "week";
         }
         Integer people = people(phrase);
         return new BasketRequest(period, people == null ? 1 : people);
@@ -651,6 +722,12 @@ public class IntentRouter {
             if (m != null && m.find()) {
                 min = number(m.group(1));
             }
+            if (max == null && min == null) {
+                m = languages.priceMaxCurrency() == null ? null : languages.priceMaxCurrency().matcher(phrase);
+                if (m != null && m.find()) {
+                    max = number(m.group(1));
+                }
+            }
         }
         if (min != null && max != null && min > max) {
             Double t = min;
@@ -680,6 +757,10 @@ public class IntentRouter {
             return null;
         }
         boolean cue = containsAny(phrase, languages.placeCues());
+        Set<String> cueWords = new HashSet<>();
+        for (String c : languages.placeCues()) {
+            cueWords.addAll(TextNormalizer.tokens(c));
+        }
         List<String> stems = new ArrayList<>();
         for (String t : tokens) {
             stems.add(languages.stem(t));
@@ -688,7 +769,8 @@ public class IntentRouter {
         int bestLen = 0;
         List<Integer> bestIdx = List.of();
         for (PlaceRef place : places) {
-            if (!cue && !PlaceRef.REGION.equals(place.kind())) {
+            boolean settlement = !PlaceRef.REGION.equals(place.kind());
+            if (!cue && settlement) {
                 continue;
             }
             for (String label : place.labels().values()) {
@@ -714,8 +796,12 @@ public class IntentRouter {
                     int found = -1;
                     for (int i = 0; i < tokens.size(); i++) {
                         String s = stems.get(i);
-                        if (!consumed.contains(i) && s.length() >= 4
-                                && (s.equals(ls) || s.startsWith(ls) || (ls.startsWith(s) && s.length() >= ls.length() - 1))) {
+                        if (consumed.contains(i) || s.length() < 4) {
+                            continue;
+                        }
+                        boolean match = settlement ? s.equals(ls) && i > 0 && cueWords.contains(tokens.get(i - 1)) && !vocabulary(tokens.get(i))
+                                : s.equals(ls) || s.startsWith(ls) || (ls.startsWith(s) && s.length() >= ls.length() - 1);
+                        if (match) {
                             found = i;
                             break;
                         }
@@ -734,8 +820,74 @@ public class IntentRouter {
                 }
             }
         }
+        for (Map.Entry<String, String> alias : languages.placeAliases().entrySet()) {
+            List<String> aliasTokens = TextNormalizer.tokens(alias.getKey());
+            List<Integer> idx = new ArrayList<>();
+            int len = 0;
+            for (String at : aliasTokens) {
+                String as = languages.stem(at);
+                int found = -1;
+                for (int i = 0; i < tokens.size(); i++) {
+                    if (consumed.contains(i) || idx.contains(i)) {
+                        continue;
+                    }
+                    String s = stems.get(i);
+                    if (s.equals(as) || tokens.get(i).equals(at) || (as.length() >= 5 && s.startsWith(as))) {
+                        found = i;
+                        break;
+                    }
+                }
+                if (found < 0) {
+                    idx = null;
+                    break;
+                }
+                idx.add(found);
+                len += at.length();
+            }
+            if (idx == null || len <= bestLen) {
+                continue;
+            }
+            PlaceRef target = placeByLabel(places, alias.getValue());
+            if (target != null) {
+                best = target;
+                bestLen = len;
+                bestIdx = idx;
+            }
+        }
         consumed.addAll(bestIdx);
         return best;
+    }
+
+    private PlaceRef placeByLabel(List<PlaceRef> places, String folded) {
+        PlaceRef fallback = null;
+        for (PlaceRef p : places) {
+            for (String label : p.labels().values()) {
+                if (label == null) {
+                    continue;
+                }
+                String f = String.join(" ", TextNormalizer.tokens(label));
+                if (f.equals(folded)) {
+                    if (PlaceRef.REGION.equals(p.kind())) {
+                        return p;
+                    }
+                    if (fallback == null) {
+                        fallback = p;
+                    }
+                }
+            }
+        }
+        return fallback;
+    }
+
+    private boolean vocabulary(String token) {
+        if (expander == null) {
+            return false;
+        }
+        try {
+            return expander.isVocabulary(token);
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     public IntentResult fromQuickReply(String key) {
@@ -769,7 +921,7 @@ public class IntentRouter {
         return best;
     }
 
-    private Map<String, Double> score(List<String> tokens, String phrase) {
+    private Map<String, Double> score(List<String> tokens, String phrase, String raw) {
         Map<String, Double> scores = new HashMap<>();
         Map<String, Boolean> used = new LinkedHashMap<>();
         for (ChatLanguages.Rule rule : rules) {
@@ -791,6 +943,15 @@ public class IntentRouter {
                 String key = rule.intent() + "|" + rule.value();
                 if (used.putIfAbsent(key, true) == null) {
                     scores.merge(rule.intent(), rule.weight(), Double::sum);
+                }
+            }
+        }
+        if (offTopic != null) {
+            String folded = TextNormalizer.fold(raw == null ? "" : raw);
+            for (Pattern p : languages.offTopicPatterns()) {
+                if (p.matcher(folded).find()) {
+                    scores.merge(offTopic.id(), 3.0, Double::sum);
+                    break;
                 }
             }
         }
@@ -843,22 +1004,27 @@ public class IntentRouter {
                 }
                 vocabulary = categoryStems.contains(languages.stem(tokens.get(i)));
             }
-            generic[i] = vocabulary || genericLatin.contains(latin.get(i));
+            generic[i] = vocabulary || genericLatin.contains(latin.get(i)) || languages.isStopword(tokens.get(i));
             if (generic[i] && !strict) {
                 genericLatin.add(latin.get(i));
             }
         }
         CompanyRef best = null;
         Match bestMatch = null;
+        Map<String, List<List<String>>> extra = extraAliases();
         for (CompanyRef c : companies) {
-            List<String> alias = aliasTokens(c.name());
-            if (alias.isEmpty()) {
-                continue;
+            List<List<String>> aliases = new ArrayList<>();
+            List<String> own = aliasTokens(c.name());
+            if (!own.isEmpty()) {
+                aliases.add(own);
             }
-            Match m = matchAlias(alias, latin, cyr, generic, cue, strict, fullTokens(c.name()), taken);
-            if (m != null && (bestMatch == null || m.length() > bestMatch.length())) {
-                best = c;
-                bestMatch = m;
+            aliases.addAll(extra.getOrDefault(TextNormalizer.compact(c.name()), List.of()));
+            for (List<String> alias : aliases) {
+                Match m = matchAlias(alias, latin, cyr, generic, cue, strict, fullTokens(c.name()), taken);
+                if (m != null && (bestMatch == null || m.length() > bestMatch.length())) {
+                    best = c;
+                    bestMatch = m;
+                }
             }
         }
         if (bestMatch != null) {
@@ -870,6 +1036,26 @@ public class IntentRouter {
     }
 
     public record StoreMatch(List<CompanyRef> companies, String query) {
+    }
+
+    private volatile Map<String, List<List<String>>> extraAliases;
+
+    private Map<String, List<List<String>>> extraAliases() {
+        Map<String, List<List<String>>> m = extraAliases;
+        if (m == null) {
+            m = new HashMap<>();
+            for (Map.Entry<String, String> e : languages.companyAliases().entrySet()) {
+                List<String> alias = new ArrayList<>();
+                for (String t : TextNormalizer.tokens(e.getKey())) {
+                    alias.add(!t.isEmpty() && TextNormalizer.isCyrillic(t.charAt(0)) ? TextNormalizer.transliterate(t) : t);
+                }
+                if (!alias.isEmpty()) {
+                    m.computeIfAbsent(e.getValue(), k -> new ArrayList<>()).add(alias);
+                }
+            }
+            extraAliases = m;
+        }
+        return m;
     }
 
     public StoreMatch stores(String text) {
@@ -1029,6 +1215,9 @@ public class IntentRouter {
     }
 
     private static boolean near(String alias, String candidate, int max) {
+        if (alias.isEmpty() || candidate.isEmpty() || alias.charAt(0) != candidate.charAt(0)) {
+            return false;
+        }
         int d = TextNormalizer.levenshtein(alias, candidate, max);
         if (d > max) {
             return false;

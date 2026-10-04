@@ -21,9 +21,9 @@ public class TtsTextNormalizer {
     private static final Pattern PERCENT = Pattern.compile("(?<![\\d,.])([-−–]?)\\s?(\\d{1,3}(?:[,.]\\d+)?)\\s?%");
     private static final Pattern DECIMAL = Pattern.compile("(?<![\\d,.])(\\d+),(\\d+)(?![\\d,.])");
     private static final Pattern RANGE = Pattern.compile("(?<![\\d\\-+,.])(\\d{1,4})\\s?[-–]\\s?(\\d{1,4})(?![\\d\\-,.])");
-    private static final Pattern PER_UNIT = Pattern.compile("\\s?/\\s?(kg|кг|l|л|buc|шт)\\.?(?![\\p{L}\\d])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-    private static final Pattern UNIT = Pattern.compile("(?<![\\p{L}\\d,.])(\\d{1,5})(?:[,.](\\d{1,3}))?\\s?(kg|ml|gr|buc|l|g|кг|мл|шт|л|г)\\.?(?![\\p{L}\\d])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-    private static final Pattern DATE = Pattern.compile("(?<![\\d,.])(\\d{2})\\.(\\d{2})(?:\\.(\\d{4}))?(?![\\d,.])");
+    private static final Pattern PER_UNIT = Pattern.compile("\\s?/\\s?(kg|кг|l|л|buc|шт)(?:\\.(?!\\s+(?-i:\\p{Lu})))?(?![\\p{L}\\d])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Pattern UNIT = Pattern.compile("(?<![\\p{L}\\d,.])(\\d{1,5})(?:[,.](\\d{1,3}))?\\s?(kg|ml|gr|buc|l|g|кг|мл|шт|л|г)(?:\\.(?!\\s+(?-i:\\p{Lu})))?(?![\\p{L}\\d])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Pattern DATE = Pattern.compile("(?<![\\d,.])(\\d{2})\\.(\\d{2})(?:\\.(\\d{4}))?(?!\\d|[,.]\\d)");
     private static final Pattern CAPS_WORD = Pattern.compile("(?<![\\p{L}\\d])[\\p{Lu}]{4,}(?![\\p{L}\\d])");
     private static final Pattern LATIN_WORD = Pattern.compile("(?<![\\p{L}\\d])[A-Za-zĂÂÎȘȚŞŢăâîșțşţ]+(?![\\p{L}\\d])");
 
@@ -54,7 +54,10 @@ public class TtsTextNormalizer {
                     "min.", "minute"),
             "ru", ordered(
                     "шт.", "штук",
+                    "на ул.", "на улице",
+                    "по ул.", "по улице",
                     "ул.", "улица",
+                    "бул.", "бульвар",
                     "т.д.", "так далее",
                     "т.е.", "то есть",
                     "напр.", "например",
@@ -93,6 +96,11 @@ public class TtsTextNormalizer {
         s = decimals(s, l);
         s = abbreviations(s, ABBREVIATIONS.getOrDefault(l, Map.of()));
         s = lexicon(s, lexicon);
+        s = s.replace("&", " " + switch (l) {
+            case "ru" -> "и";
+            case "en" -> "and";
+            default -> "și";
+        } + " ");
         s = capitals(s);
         if ("ru".equals(l)) {
             s = cyrillize(s);
@@ -197,7 +205,10 @@ public class TtsTextNormalizer {
                     case 2 -> "сотых";
                     default -> "тысячных";
                 };
-                m.appendReplacement(out, Matcher.quoteReplacement(m.group(1) + " целых " + Integer.parseInt(fraction) + " " + unit));
+                String whole = "1".equals(m.group(1)) ? "одна целая" : m.group(1) + " целых";
+                int part = Integer.parseInt(fraction);
+                String tail = part == 1 ? "одна " + unit.replace("ых", "ая") : part + " " + unit;
+                m.appendReplacement(out, Matcher.quoteReplacement(whole + " " + tail));
             }
             m.appendTail(out);
             return out.toString();

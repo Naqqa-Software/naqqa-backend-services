@@ -161,7 +161,8 @@ public class ChatPublicController {
     @GetMapping("/stt/status")
     public ResponseEntity<SttStatusDto> sttStatus() {
         boolean enabled = speech != null && speech.available();
-        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofSeconds(30)).cachePublic()).body(new SttStatusDto(enabled));
+        List<String> languages = speech == null ? List.of() : speech.allowedLanguages();
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofSeconds(30)).cachePublic()).body(new SttStatusDto(enabled, languages));
     }
 
     @PostMapping(value = "/stt", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
