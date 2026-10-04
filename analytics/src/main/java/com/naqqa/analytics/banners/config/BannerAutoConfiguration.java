@@ -5,11 +5,13 @@ import com.naqqa.analytics.banners.engine.BannerSelector;
 import com.naqqa.analytics.banners.engine.BannerTargetingEngine;
 import com.naqqa.analytics.banners.security.BannerTokenService;
 import com.naqqa.analytics.banners.service.BannerAnalyticsProviderImpl;
+import com.naqqa.analytics.banners.service.BannerAssetImportService;
 import com.naqqa.analytics.banners.service.BannerAssetService;
 import com.naqqa.analytics.banners.service.BannerCampaignService;
 import com.naqqa.analytics.banners.service.BannerClickService;
 import com.naqqa.analytics.banners.service.BannerDeliveryService;
 import com.naqqa.analytics.banners.service.BannerImageInspector;
+import com.naqqa.analytics.banners.service.BannerSlotRegistry;
 import com.naqqa.analytics.banners.service.BannerStatsCalculator;
 import com.naqqa.analytics.banners.service.BannerStatsService;
 import com.naqqa.analytics.banners.service.DefaultBannerEventRecorder;
@@ -21,6 +23,7 @@ import com.naqqa.analytics.banners.spi.BannerRequestEnricher;
 import com.naqqa.analytics.banners.store.BannerCampaignCache;
 import com.naqqa.analytics.banners.store.BannerCounters;
 import com.naqqa.analytics.banners.store.BannerRepository;
+import com.naqqa.analytics.banners.store.BannerSlotRepository;
 import com.naqqa.analytics.banners.store.MemoryBannerCounters;
 import com.naqqa.analytics.banners.store.RedisBannerCounters;
 import com.naqqa.analytics.banners.web.BannerAdminController;
@@ -86,6 +89,22 @@ public class BannerAutoConfiguration {
         return repository;
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public BannerSlotRepository naqqaBannerSlotRepository(MongoTemplate mongo) {
+        return new BannerSlotRepository(mongo);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public BannerSlotRegistry naqqaBannerSlotRegistry(BannerSlotRepository repository, BannerProperties properties) {
+        BannerSlotRegistry registry = new BannerSlotRegistry(repository, CLOCK, properties.getCacheSeconds() * 1000L);
+        if (properties.isSeedSlots()) {
+            registry.seed();
+        }
+        return registry;
+    }
+
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = "org.springframework.data.redis.core.StringRedisTemplate")
     static class RedisCountersConfiguration {
@@ -137,9 +156,10 @@ public class BannerAutoConfiguration {
     @ConditionalOnMissingBean
     public BannerDeliveryService naqqaBannerDeliveryService(BannerCampaignCache cache, BannerSelector selector, BannerCounters counters,
                                                             BannerRepository repository, BannerTokenService tokens,
-                                                            BannerProperties banners, NaqqaAnalyticsProperties analytics) {
+                                                            BannerProperties banners, NaqqaAnalyticsProperties analytics,
+                                                            BannerSlotRegistry slots) {
         return new BannerDeliveryService(cache, selector, counters, repository, tokens, zone(banners, analytics), banners.getRedirectPath(),
-                ThreadLocalRandom.current());
+                ThreadLocalRandom.current(), slots);
     }
 
     @Bean
@@ -182,17 +202,26 @@ public class BannerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public BannerAssetService naqqaBannerAssetService(ObjectProvider<BannerAssetStorage> storage, BannerProperties properties) {
+    public BannerAssetService naqqaBannerAssetService(ObjectProvider<BannerAssetStorage> storage, BannerProperties properties,
+                                                      BannerSlotRegistry slots) {
         return new BannerAssetService(() -> storage.getIfAvailable(() -> BannerAssetStorage.NONE),
                 new BannerImageInspector.Rules(properties.getMaxCreativeBytes(), properties.getRatioTolerance(), properties.getMaxScale(),
-                        properties.getFormats()));
+                        properties.getFormats()), slots::slot);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public BannerAssetImportService naqqaBannerAssetImportService(BannerRepository repository, BannerCampaignCache cache,
+                                                                  ObjectProvider<BannerAssetStorage> storage, BannerProperties properties) {
+        return new BannerAssetImportService(repository, cache, () -> storage.getIfAvailable(() -> BannerAssetStorage.NONE),
+                properties.getAssetImportMaxBytes());
     }
 
     @Bean
     @ConditionalOnMissingBean
     public BannerCampaignService naqqaBannerCampaignService(BannerRepository repository, BannerCampaignCache cache, BannerPacingCalculator pacing,
-                                                            BannerProperties properties) {
-        return new BannerCampaignService(repository, cache, pacing, CLOCK, properties.getRatioTolerance());
+                                                            BannerProperties properties, BannerSlotRegistry slots) {
+        return new BannerCampaignService(repository, cache, pacing, CLOCK, properties.getRatioTolerance(), slots::slot);
     }
 
     @Bean
@@ -214,16 +243,17 @@ public class BannerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public BannerPublicController naqqaBannerPublicController(BannerDeliveryService delivery, BannerClickService clicks,
-                                                              ObjectProvider<BannerRequestEnricher> enricher) {
-        return new BannerPublicController(delivery, clicks, () -> enricher.getIfAvailable(() -> BannerRequestEnricher.NONE), CLOCK);
+                                                              ObjectProvider<BannerRequestEnricher> enricher, BannerSlotRegistry slots) {
+        return new BannerPublicController(delivery, clicks, () -> enricher.getIfAvailable(() -> BannerRequestEnricher.NONE), CLOCK, slots);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public BannerAdminController naqqaBannerAdminController(BannerCampaignService campaigns, BannerRepository repository,
                                                             BannerAssetService assets, BannerStatsService stats,
-                                                            NaqqaAnalyticsProperties analytics) {
-        return new BannerAdminController(campaigns, repository, assets, stats, analytics.getPermissions());
+                                                            NaqqaAnalyticsProperties analytics, BannerSlotRegistry slots,
+                                                            ObjectProvider<BannerAssetImportService> importer) {
+        return new BannerAdminController(campaigns, repository, assets, stats, analytics.getPermissions(), slots, importer::getIfAvailable);
     }
 
     @Bean
@@ -231,9 +261,9 @@ public class BannerAutoConfiguration {
     public BannerPartnerController naqqaBannerPartnerController(BannerCampaignService campaigns, BannerRepository repository,
                                                                 BannerAssetService assets, BannerStatsService stats,
                                                                 ObjectProvider<BannerPartnerScope> scopes,
-                                                                NaqqaAnalyticsProperties analytics) {
+                                                                NaqqaAnalyticsProperties analytics, BannerSlotRegistry slots) {
         return new BannerPartnerController(campaigns, repository, assets, stats, () -> scopes.getIfAvailable(() -> BannerPartnerScope.NONE),
-                analytics.getPermissions());
+                analytics.getPermissions(), slots);
     }
 
     @Bean

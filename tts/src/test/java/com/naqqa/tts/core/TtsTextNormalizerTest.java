@@ -20,7 +20,7 @@ class TtsTextNormalizerTest {
 
     @Test
     void doesNotTouchWordsContainingTheBrand() {
-        assertThat(n.normalize("OMYX nu e marca", "ro", ro, 400)).isEqualTo("OMYX nu e marca");
+        assertThat(n.normalize("OMYX nu e marca", "ro", ro, 400)).isEqualToIgnoringCase("OMYX nu e marca");
     }
 
     @Test
@@ -81,6 +81,34 @@ class TtsTextNormalizerTest {
         assertThat(n.normalize("Скидки в Linella", "ru", Map.of("Linella", "Линелла"), 400)).isEqualTo("Скидки в Линелла");
         assertThat(n.normalize("Скидки в Kaufland", "ru", ru, 400)).isEqualTo("Скидки в Кауфланд");
         assertThat(n.normalize("Скидка 2,5%", "ru", ru, 400)).isEqualTo("Скидка 2 целых 5 десятых процента");
+    }
+
+    @Test
+    void speaksDatesBeforePunctuation() {
+        assertThat(n.normalize("Valabil până pe 16.10.2026.", "ro", ro, 400)).isEqualTo("Valabil până pe 16 octombrie 2026.");
+        assertThat(n.normalize("Apare pe 01.11, iar promoțiile încep luni.", "ro", ro, 400)).isEqualTo("Apare pe 1 noiembrie, iar promoțiile încep luni.");
+        assertThat(n.normalize("Действует по 16.10.2026.", "ru", ru, 400)).isEqualTo("Действует по 16 октября 2026.");
+    }
+
+    @Test
+    void keepsSentenceBreakAfterUnits() {
+        assertThat(n.normalize("Banane 19,90 lei/kg\n- Mere 14 lei/kg", "ro", ro, 400)).isEqualTo("Banane 19 lei și 90 de bani pe kilogram. Mere 14 lei pe kilogram");
+        assertThat(n.normalize("Zahăr 2 kg. Făină 1 kg.", "ro", ro, 400)).isEqualTo("Zahăr 2 kilograme. Făină un kilogram");
+    }
+
+    @Test
+    void readsPhoneNumbersDigitByDigit() {
+        assertThat(n.normalize("Sună la 022 123 456.", "ro", ro, 400)).isEqualTo("Sună la 0 2 2, 1 2 3, 4 5 6.");
+        assertThat(n.normalize("Звоните +373 69 123 456", "ru", ru, 400)).isEqualTo("Звоните плюс 3 7 3, 6 9, 1 2 3, 4 5 6");
+        assertThat(n.normalize("Iphone 15 cu 1500 de lei", "ro", ro, 400)).isEqualTo("Iphone 15 cu 1500 de lei");
+    }
+
+    @Test
+    void readsAmpersandAndRussianStreetCase() {
+        assertThat(n.normalize("Șampon Head & Shoulders", "ro", Map.of("Head & Shoulders", "Hed end Șoldărs"), 400)).isEqualTo("Șampon Hed end Șoldărs");
+        assertThat(n.normalize("Lapte & pâine", "ro", ro, 400)).isEqualTo("Lapte și pâine");
+        assertThat(n.normalize("Магазин на ул. Измаил 88", "ru", ru, 400)).isEqualTo("Магазин на улице Измаил 88");
+        assertThat(n.normalize("Вода 1,5 л", "ru", ru, 400)).isEqualTo("Вода одна целая 5 десятых литра");
     }
 
     @Test

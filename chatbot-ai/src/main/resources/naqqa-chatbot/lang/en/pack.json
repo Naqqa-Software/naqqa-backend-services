@@ -1795,5 +1795,88 @@
       "gastritis",
       "ulcer"
     ]
-  }
+  },
+  "followUps": {
+    "connectors": [
+      "and",
+      "but",
+      "what about",
+      "and at",
+      "and in",
+      "how about"
+    ],
+    "fillers": [
+      "and",
+      "but",
+      "what",
+      "about",
+      "how",
+      "show",
+      "me",
+      "please",
+      "then"
+    ],
+    "cheaper": [
+      "cheaper",
+      "something cheaper",
+      "less expensive"
+    ],
+    "more": [
+      "more",
+      "show more",
+      "other offers",
+      "others"
+    ],
+    "alternative": [
+      "another option",
+      "something else",
+      "alternative"
+    ],
+    "compare": [
+      "compare them",
+      "compare these",
+      "what is the difference"
+    ],
+    "best": [
+      "which is better",
+      "which one should i",
+      "which one is best"
+    ],
+    "where": [
+      "where can i buy it",
+      "where is it",
+      "which store"
+    ],
+    "recipes": [
+      "recipes with it",
+      "what can i cook with it"
+    ],
+    "list": [
+      "add it to my list",
+      "add to list",
+      "add to my list"
+    ],
+    "priceOf": [
+      "how much",
+      "price of",
+      "what does it cost"
+    ]
+  },
+  "ordinals": {
+    "first": 1,
+    "first one": 1,
+    "second": 2,
+    "second one": 2,
+    "third": 3,
+    "third one": 3,
+    "last": -1,
+    "last one": -1
+  },
+  "pronouns": [
+    "it",
+    "this",
+    "that",
+    "this one",
+    "that one"
+  ]
 }

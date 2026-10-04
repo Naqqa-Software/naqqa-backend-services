@@ -275,8 +275,10 @@ public class NaqqaChatbotAutoConfiguration {
     }
 
     @Bean
-    public ChatMapper naqqaChatMapper(ChatSettingsService settings, ChatUserResolver users) {
-        return new ChatMapper(settings, users);
+    public ChatMapper naqqaChatMapper(ChatSettingsService settings, ChatUserResolver users, ChatLanguages languages) {
+        ChatMapper mapper = new ChatMapper(settings, users);
+        mapper.setLabels((key, lang) -> languages.template("quick_reply." + key, lang));
+        return mapper;
     }
 
     @Bean

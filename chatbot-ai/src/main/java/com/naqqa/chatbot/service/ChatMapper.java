@@ -27,10 +27,15 @@ public class ChatMapper {
 
     private final ChatSettingsService settingsService;
     private final ChatUserResolver users;
+    private volatile java.util.function.BiFunction<String, String, String> labels;
 
     public ChatMapper(ChatSettingsService settingsService, ChatUserResolver users) {
         this.settingsService = settingsService;
         this.users = users == null ? ChatUserResolver.NONE : users;
+    }
+
+    public void setLabels(java.util.function.BiFunction<String, String, String> labels) {
+        this.labels = labels;
     }
 
     public ConversationDto conversation(ChatConversationEntity c) {
@@ -82,7 +87,7 @@ public class ChatMapper {
                 avatar = avatars.computeIfAbsent(m.getSenderId(), this::avatarOf);
             }
             List<CardDto> cards = m.getCards() == null ? List.of() : m.getCards().stream().map(ChatMapper::card).toList();
-            List<QuickReplyDto> quickReplies = quickReplies(m.getQuickReplies(), settings, lang);
+            List<QuickReplyDto> quickReplies = quickReplies(m.getQuickReplies(), settings, lang, labels);
             return new MessageDto(m.getId(), m.getConversationId(), String.valueOf(m.getSenderType()), senderName, avatar,
                     m.getText(), cards, quickReplies, m.getSystemKey(), m.getCreatedAt(), m.getReadAt(), m.getFeedback(),
                     m.getRoute(), m.getQualityFlags() == null ? (admin ? List.of() : null) : m.getQualityFlags(),
@@ -108,6 +113,11 @@ public class ChatMapper {
     }
 
     public static List<QuickReplyDto> quickReplies(List<String> keys, ChatSettingsEntity settings, String lang) {
+        return quickReplies(keys, settings, lang, null);
+    }
+
+    public static List<QuickReplyDto> quickReplies(List<String> keys, ChatSettingsEntity settings, String lang,
+                                                   java.util.function.BiFunction<String, String, String> fallback) {
         if (keys == null || keys.isEmpty()) {
             return List.of();
         }
@@ -118,6 +128,10 @@ public class ChatMapper {
         return keys.stream().filter(Objects::nonNull).map(key -> {
             ChatSettingsEntity.QuickReply qr = byKey.get(key);
             String picked = qr == null ? null : ChatLanguages.pick(qr.getLabel(), lang);
+            if (picked == null && fallback != null) {
+                String f = fallback.apply(key, lang);
+                picked = f == null || f.isBlank() ? null : f;
+            }
             String label = picked != null ? picked : key;
             return new QuickReplyDto(key, label);
         }).toList();

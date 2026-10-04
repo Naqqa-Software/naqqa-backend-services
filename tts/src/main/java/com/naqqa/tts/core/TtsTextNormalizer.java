@@ -17,6 +17,8 @@ public class TtsTextNormalizer {
     private static final Pattern MD_MARKS = Pattern.compile("(\\*\\*|__|`+|~~|^#{1,6}\\s+|^>\\s*)", Pattern.MULTILINE);
     private static final Pattern BULLET = Pattern.compile("^\\s*(?:[-*•▪◦]|\\d+[.)])\\s+", Pattern.MULTILINE);
     private static final Pattern EMOJI = Pattern.compile("[\\p{So}\\p{Cn}\\x{1F000}-\\x{1FAFF}\\x{2600}-\\x{27BF}\\x{FE0F}\\x{200D}]");
+    private static final Pattern PHONE = Pattern.compile("(?<![\\p{L}\\d,.])(?:\\+\\d|0)(?:[ \\-]?\\d){5,13}(?!\\d|[,.]\\d)");
+    private static final Pattern PHONE_GROUP = Pattern.compile("[ \\-]+");
     private static final Pattern PRICE = Pattern.compile("(?<![\\d,.])(\\d{1,7})(?:[,.](\\d{1,2}))?\\s*(?:lei|leu|MDL|mdl|лей|лея)(?![\\p{L}])");
     private static final Pattern PERCENT = Pattern.compile("(?<![\\d,.])([-−–]?)\\s?(\\d{1,3}(?:[,.]\\d+)?)\\s?%");
     private static final Pattern DECIMAL = Pattern.compile("(?<![\\d,.])(\\d+),(\\d+)(?![\\d,.])");
@@ -87,6 +89,7 @@ public class TtsTextNormalizer {
         s = EMOJI.matcher(s).replaceAll("");
         s = LINE_BREAKS.matcher(s).replaceAll(". ");
         s = s.replaceAll("\\.\\s*\\.", ".").replaceAll("([!?:;])\\s*\\.", "$1");
+        s = phones(s, l);
         s = prices(s, l);
         s = perUnit(s, l);
         s = ranges(s, l);
@@ -121,6 +124,27 @@ public class TtsTextNormalizer {
         }
         int space = cut.lastIndexOf(' ');
         return (space > maxChars / 2 ? cut.substring(0, space) : cut).trim();
+    }
+
+    private static String phones(String s, String lang) {
+        Matcher m = PHONE.matcher(s);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String raw = m.group();
+            StringBuilder spoken = new StringBuilder();
+            if (raw.startsWith("+")) {
+                spoken.append("ru".equals(lang) ? "плюс " : "plus ");
+                raw = raw.substring(1);
+            }
+            List<String> groups = new ArrayList<>();
+            for (String group : PHONE_GROUP.split(raw)) {
+                groups.add(String.join(" ", group.split("")));
+            }
+            spoken.append(String.join(", ", groups));
+            m.appendReplacement(out, Matcher.quoteReplacement(spoken.toString()));
+        }
+        m.appendTail(out);
+        return out.toString();
     }
 
     private static String prices(String s, String lang) {

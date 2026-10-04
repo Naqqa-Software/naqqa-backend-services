@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 public final class BannerValidation {
 
@@ -74,6 +75,11 @@ public final class BannerValidation {
     }
 
     public static Map<String, String> creative(BannerCreative cr, BannerCampaign campaign, double ratioTolerance) {
+        return creative(cr, campaign, ratioTolerance, BannerSlots::get);
+    }
+
+    public static Map<String, String> creative(BannerCreative cr, BannerCampaign campaign, double ratioTolerance,
+                                               Function<String, BannerSlots.Slot> lookup) {
         Map<String, String> errors = new LinkedHashMap<>();
         if (cr.getDesktop() == null && cr.getMobile() == null) {
             errors.put("desktop", "banners.validation.image_required");
@@ -100,7 +106,7 @@ public final class BannerValidation {
         }
         List<String> mismatched = new ArrayList<>();
         for (String s : slots) {
-            BannerSlots.Slot slot = BannerSlots.get(s);
+            BannerSlots.Slot slot = lookup.apply(s);
             if (slot == null) {
                 continue;
             }

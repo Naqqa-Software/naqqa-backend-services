@@ -127,7 +127,7 @@ public class ChatService {
         ChatSettingsEntity s = settingsService.get();
         List<String> keys = s.getQuickReplies() == null ? List.of() : s.getQuickReplies().stream().map(ChatSettingsEntity.QuickReply::getKey).toList();
         return new ChatConfigDto(enabled, s.getBotName(), s.getAvatarUrl(), welcome(s, l),
-                ChatMapper.quickReplies(keys, s, l), s.isVoiceEnabled(), sttService.sttMode(), "browser",
+                ChatMapper.quickReplies(keys, s, l, (k, x) -> languages.template("quick_reply." + k, x)), s.isVoiceEnabled(), sttService.sttMode(), "browser",
                 enabled && operatorsOnline(), properties.getPrivacyPath(),
                 new RecaptchaActionsDto(properties.getRecaptchaActions().getStart(), properties.getRecaptchaActions().getMessage(),
                         properties.getRecaptchaActions().getVoice()), s.isAutoReadReplies());
@@ -241,7 +241,8 @@ public class ChatService {
         }
         String lang = request.lang() == null ? c.getLang() : lang(request.lang());
         if ((text == null || text.isEmpty()) && quickReply != null) {
-            text = ChatMapper.quickReplies(List.of(quickReply), settingsService.get(), lang).get(0).label();
+            text = ChatMapper.quickReplies(List.of(quickReply), settingsService.get(), lang,
+                    (k, l) -> languages.template("quick_reply." + k, l)).get(0).label();
         }
         if (text == null || text.isEmpty()) {
             throw ChatException.badRequest("Message text is required.");
@@ -429,7 +430,7 @@ public class ChatService {
                 default -> null;
             };
             if (role != null) {
-                turns.add(new AiTurn(role, m.getText()));
+                turns.add(new AiTurn(role, m.getText(), m.getAiContext()));
             }
         }
         return turns.size() > AI_HISTORY ? turns.subList(turns.size() - AI_HISTORY, turns.size()) : turns;
@@ -441,6 +442,7 @@ public class ChatService {
         ChatMessageEntity bot = newMessage(c.getId(), ChatSenderType.BOT, null, s.getBotName(), reply.text());
         bot.setSafety(safetyKind);
         bot.setRoute(reply.route());
+        bot.setAiContext(reply.context());
         bot.setLang(lang);
         bot.setQuestion(question == null ? null : question.length() > 500 ? question.substring(0, 500) : question);
         List<String> flags = new ArrayList<>(reply.qualityFlags() == null ? List.of() : reply.qualityFlags());

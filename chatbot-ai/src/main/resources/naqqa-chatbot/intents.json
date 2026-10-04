@@ -33,6 +33,8 @@
     "offers": {
       "role": "CATALOG",
       "browsable": true,
+      "yieldsToCategory": true,
+      "yieldsToPrice": true,
       "resultsTemplate": "results_offers",
       "types": {"default": ["OFFER"], "withQuery": ["OFFER", "PROMOTION"]}
     },
@@ -118,12 +120,26 @@
       "knowledgeSource": "contact",
       "quickReplies": ["promotions_today", "search_product"]
     },
+    "about_bot": {
+      "role": "KNOWLEDGE",
+      "code": "despre_bot",
+      "template": "about_bot",
+      "quickReplies": ["promotions_today", "search_product", "how_it_works"]
+    },
+    "orders": {
+      "role": "KNOWLEDGE",
+      "code": "comenzi",
+      "template": "no_orders",
+      "knowledgeSource": "orders",
+      "quickReplies": ["promotions_today", "search_product", "talk_to_operator"]
+    },
     "off_topic": {"role": "OFF_TOPIC", "quickReplies": ["promotions_today", "new_booklets", "search_product", "how_it_works"]},
     "injection": {"role": "INJECTION", "quickReplies": ["promotions_today", "new_booklets", "search_product", "how_it_works"]}
   },
-  "knowledgeOrder": ["how_it_works", "account", "mobile_app", "contact_operator"],
-  "resolutionOrder": ["contact_operator", "how_it_works", "account", "mobile_app", "categories", "contests", "recipes", "blog", "catalogs", "offers", "promotions", "store", "product_search"],
+  "knowledgeOrder": ["orders", "about_bot", "how_it_works", "account", "mobile_app", "contact_operator"],
+  "resolutionOrder": ["orders", "about_bot", "contact_operator", "how_it_works", "account", "mobile_app", "categories", "contests", "recipes", "blog", "catalogs", "offers", "promotions", "store", "product_search"],
   "priceBrowseIntent": "promotions",
+  "categoryGates": {"blog_category": ["recipes", "blog"]},
   "related": {
     "types": ["RECIPE", "BLOG"],
     "triggerTypes": ["PROMOTION", "PRODUCT", "OFFER"],

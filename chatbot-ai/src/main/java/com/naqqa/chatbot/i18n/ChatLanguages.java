@@ -142,6 +142,7 @@ public final class ChatLanguages {
     private final Map<String, List<String>> followUps = new LinkedHashMap<>();
     private final Map<String, Integer> ordinals = new LinkedHashMap<>();
     private final Set<String> pronouns = new LinkedHashSet<>();
+    private final Set<String> conditionalStopwords = new LinkedHashSet<>();
     private Pattern priceMaxCurrency;
     private final List<Pattern> injectionPatterns = new ArrayList<>();
     private final List<Detection> detections = new ArrayList<>();
@@ -280,6 +281,7 @@ public final class ChatLanguages {
             pack.path("ordinals").fields().forEachRemaining(e -> ordinals.put(TextNormalizer.normalizedPhrase(e.getKey()),
                     e.getValue().asInt()));
             addAll(pronouns, pack.path("pronouns"), true);
+            addAll(conditionalStopwords, pack.path("conditionalStopwords"), true);
             basket.path("periods").fields().forEachRemaining(e -> phrases(basketPeriods.computeIfAbsent(e.getKey(),
                     k -> new ArrayList<>()), e.getValue()));
             List<BasketItem> items = new ArrayList<>();
@@ -830,6 +832,10 @@ public final class ChatLanguages {
 
     public Set<String> pronouns() {
         return pronouns;
+    }
+
+    public Set<String> conditionalStopwords() {
+        return conditionalStopwords;
     }
 
     public static String pick(Map<String, String> values, String lang) {

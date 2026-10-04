@@ -3,19 +3,20 @@ package com.naqqa.analytics.banners.web;
 import com.naqqa.analytics.banners.engine.BannerSlots;
 import com.naqqa.analytics.banners.model.BannerCampaign;
 import com.naqqa.analytics.banners.model.BannerCreative;
+import com.naqqa.analytics.banners.model.BannerSlotSettings;
 import com.naqqa.analytics.banners.model.BannerStatus;
 import com.naqqa.analytics.banners.security.BannerAccess;
 import com.naqqa.analytics.banners.service.BannerAssetService;
 import com.naqqa.analytics.banners.service.BannerCampaignService;
 import com.naqqa.analytics.banners.service.BannerCampaignService.PartnerScope;
 import com.naqqa.analytics.banners.service.BannerException;
+import com.naqqa.analytics.banners.service.BannerSlotRegistry;
 import com.naqqa.analytics.banners.service.BannerStatsService;
 import com.naqqa.analytics.banners.spi.BannerPartnerScope;
 import com.naqqa.analytics.banners.store.BannerRepository;
 import com.naqqa.analytics.banners.web.BannerDtos.AssetDto;
 import com.naqqa.analytics.banners.web.BannerDtos.CampaignDetailDto;
 import com.naqqa.analytics.banners.web.BannerDtos.PageDto;
-import com.naqqa.analytics.banners.web.BannerDtos.SlotDto;
 import com.naqqa.analytics.config.NaqqaAnalyticsProperties;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -50,16 +51,24 @@ public class BannerPartnerController {
     private final BannerStatsService stats;
     private final Supplier<BannerPartnerScope> scopes;
     private final NaqqaAnalyticsProperties.Permissions permissions;
+    private final BannerSlotRegistry slots;
 
     public BannerPartnerController(BannerCampaignService campaigns, BannerRepository repository, BannerAssetService assets,
                                    BannerStatsService stats, Supplier<BannerPartnerScope> scopes,
                                    NaqqaAnalyticsProperties.Permissions permissions) {
+        this(campaigns, repository, assets, stats, scopes, permissions, null);
+    }
+
+    public BannerPartnerController(BannerCampaignService campaigns, BannerRepository repository, BannerAssetService assets,
+                                   BannerStatsService stats, Supplier<BannerPartnerScope> scopes,
+                                   NaqqaAnalyticsProperties.Permissions permissions, BannerSlotRegistry slots) {
         this.campaigns = campaigns;
         this.repository = repository;
         this.assets = assets;
         this.stats = stats;
         this.scopes = scopes;
         this.permissions = permissions;
+        this.slots = slots;
     }
 
     @GetMapping
@@ -74,9 +83,13 @@ public class BannerPartnerController {
     }
 
     @GetMapping("/slots")
-    public List<SlotDto> slots(Authentication authentication) {
+    public List<BannerSlotSettings> slots(Authentication authentication) {
         scope(authentication);
-        return BannerSlots.ALL.stream().filter(BannerSlots.Slot::mounted).map(SlotDto::of).toList();
+        return BannerSlots.ALL.stream()
+                .filter(BannerSlots.Slot::mounted)
+                .filter(s -> slots == null || slots.enabled(s.id()))
+                .map(s -> slots == null ? BannerSlotRegistry.defaults(s) : slots.settings(s.id()))
+                .toList();
     }
 
     @GetMapping("/companies")

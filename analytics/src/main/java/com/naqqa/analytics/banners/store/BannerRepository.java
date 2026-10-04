@@ -167,6 +167,10 @@ public class BannerRepository {
         return mongo.find(Query.query(Criteria.where("campaignId").in(campaignIds)), BannerCreative.class);
     }
 
+    public List<BannerCreative> allCreatives() {
+        return mongo.findAll(BannerCreative.class);
+    }
+
     public BannerCreative saveCreative(BannerCreative creative) {
         Instant now = Instant.now();
         if (creative.getCreatedAt() == null) {

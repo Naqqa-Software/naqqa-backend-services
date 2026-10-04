@@ -13,6 +13,7 @@ import com.naqqa.chatbot.ai.retrieval.CardFactory;
 import com.naqqa.chatbot.ai.retrieval.CategoryRef;
 import com.naqqa.chatbot.ai.retrieval.ChatRetrievalService;
 import com.naqqa.chatbot.ai.retrieval.CompanyRef;
+import com.naqqa.chatbot.ai.retrieval.PlaceRef;
 import com.naqqa.chatbot.ai.retrieval.RankedItem;
 import com.naqqa.chatbot.ai.retrieval.Ranker;
 import com.naqqa.chatbot.ai.retrieval.RetrievalPlan;
@@ -54,6 +55,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
     private ResponseRouter responseRouter;
     private TopicGuard topicGuard;
     private String operatorQuickReply;
+    private final FollowUpResolver followUps;
 
     public DefaultChatAiEngine(InputGuard inputGuard, IntentRouter router, ChatRetrievalService retriever, Ranker ranker,
                                CardFactory cardFactory, KnowledgeService knowledge, LlmProvider llm, LlmGate gate,
@@ -74,6 +76,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         this.directory = directory == null ? ChatEntityResolver.NONE : directory;
         this.links = links == null ? ChatSearchLinkBuilder.NONE : links;
         this.responseRouter = new ResponseRouter(languages, null);
+        this.followUps = new FollowUpResolver(languages, router);
     }
 
     public void setTopicGuard(TopicGuard topicGuard) {
@@ -112,6 +115,8 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         private final LlmResult llm;
         private String route = AiReply.ROUTE_TEMPLATE;
         private final List<String> flags = new ArrayList<>();
+        private String kind;
+        private boolean keepItems;
 
         private Outcome(String text, List<ChatCard> cards, double confidence, boolean escalate, LlmResult llm) {
             this.text = text;
@@ -159,10 +164,38 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             }
             return this;
         }
+
+        Outcome kind(String value) {
+            this.kind = value;
+            return this;
+        }
+
+        Outcome keepItems() {
+            this.keepItems = true;
+            return this;
+        }
+
+        Outcome prefixed(String prefix) {
+            if (prefix == null || prefix.isBlank()) {
+                return this;
+            }
+            Outcome out = new Outcome(prefix + "\n\n" + text, cards, confidence, escalate, llm).route(route).flags(flags);
+            out.kind = kind;
+            out.keepItems = keepItems;
+            return out;
+        }
+    }
+
+    private record FollowUp(Outcome outcome, IntentResult intent, IntentRouter.Signals signals, Integer focus) {
     }
 
     private record Ctx(boolean comparative, boolean followUp, boolean carried, double threshold, boolean operatorDraft,
-                       boolean recommendation, IntentRouter.Signals signals, boolean multiPart) {
+                       boolean recommendation, IntentRouter.Signals signals, boolean multiPart, Set<String> skip) {
+
+        Ctx(boolean comparative, boolean followUp, boolean carried, double threshold, boolean operatorDraft,
+            boolean recommendation, IntentRouter.Signals signals, boolean multiPart) {
+            this(comparative, followUp, carried, threshold, operatorDraft, recommendation, signals, multiPart, Set.of());
+        }
 
         boolean special() {
             return comparative || followUp || recommendation || multiPart || signals.hasScenario()
@@ -186,6 +219,21 @@ public class DefaultChatAiEngine implements ChatAiEngine {
     }
 
     private AiReply run(AiRequest request, boolean operatorDraft) {
+        if (request.quickReply() != null && catalog.quickReply(request.quickReply()) == null && request.text() != null
+                && !request.text().isBlank()) {
+            request = new AiRequest(request.conversationId(), request.lang(), request.text(), null, request.pagePath(),
+                    request.history(), request.settings());
+        }
+        ConversationContext previous = operatorDraft ? null : ConversationContext.latest(request.history());
+        String carry = previous == null ? null : previous.toJson();
+        AiReply out = runTurn(request, operatorDraft, previous);
+        if (out.context() == null && out.route() != null && AiReply.ROUTE_GUARD.equals(out.route())) {
+            return out.withContext(carry);
+        }
+        return out;
+    }
+
+    private AiReply runTurn(AiRequest request, boolean operatorDraft, ConversationContext previous) {
         long start = System.nanoTime();
         ChatSettingsEntity settings = request.settings() != null ? request.settings() : new ChatSettingsEntity();
         String requestLang = languages.normalize(request.lang());
@@ -205,6 +253,12 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             }
         }
         InputGuard.Result guard = inputGuard.inspect(masked, requestLang);
+        if (!guard.flagged()) {
+            String repaired = router.repair(guard.text());
+            if (repaired != null && !repaired.equals(guard.text())) {
+                guard = new InputGuard.Result(repaired, languages.detect(repaired, guard.lang()), false, guard.reason());
+            }
+        }
         String lang = masked.isBlank() ? requestLang : guard.lang();
         IntentDef injection = catalog.first(Role.INJECTION);
         if (guard.flagged()) {
@@ -239,14 +293,36 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 return reply(o, null, "external_link", start, true, lang, catalog.quickRepliesFor(offTopic, false), settings);
             }
         }
+        if (quickReply == null && previous != null && !operatorDraft) {
+            FollowUpResolver.Resolution resolution;
+            try {
+                resolution = followUps.resolve(guard.text(), previous);
+            } catch (RuntimeException e) {
+                resolution = FollowUpResolver.Resolution.NONE;
+            }
+            if (!resolution.none()) {
+                FollowUp fu;
+                try {
+                    fu = followUpOutcome(resolution, previous, guard.text(), lang, request, settings);
+                } catch (RuntimeException e) {
+                    log.warn("[chatbot] follow-up failed: {}", e.getMessage());
+                    fu = null;
+                }
+                if (fu != null) {
+                    ConversationContext next = context(fu.intent(), fu.signals(), fu.outcome(), lang, previous, fu.focus());
+                    return reply(fu.outcome(), fu.intent().intent(), null, start, false, lang,
+                            quickReplies(fu.outcome(), fu.intent().intent()), settings).withContext(next == null ? null : next.toJson());
+                }
+            }
+        }
         boolean followUp = quickReply == null && responseRouter.followUp(guard.text());
         boolean carried = false;
         String signalText = guard.text();
         if (followUp) {
-            String previous = lastVisitorText(request.history());
-            if (previous != null && !previous.isBlank() && !previous.trim().equals(guard.text().trim())) {
+            String previousText = lastVisitorText(request.history());
+            if (previousText != null && !previousText.isBlank() && !previousText.trim().equals(guard.text().trim())) {
                 try {
-                    String joined = TextNormalizer.clean(PiiMasker.mask(previous)) + " " + guard.text();
+                    String joined = TextNormalizer.clean(PiiMasker.mask(previousText)) + " " + guard.text();
                     IntentResult combined = router.route(joined, null);
                     if (combined.intent() != null && combined.intent().isCatalog()) {
                         intent = combined;
@@ -265,6 +341,23 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 signals = IntentRouter.Signals.NONE;
             }
         }
+        IntentResult withoutPreference = intent;
+        boolean preferredPlace = false;
+        if (previous != null && quickReply == null && !operatorDraft) {
+            if (signals.excluded().isEmpty() && !previous.prefExcluded().isEmpty() && (signals.basket() != null || signals.hasScenario())) {
+                signals = signals.withExcluded(previous.prefExcluded());
+            }
+            IntentDef d = intent.intent();
+            if (d != null && intent.place() == null && intent.company() == null && previous.prefPlaceId() != null
+                    && (d.role() == Role.SEARCH && intent.query() != null && !intent.query().isBlank() || d.role() == Role.CATALOG
+                    && d.types() != null && d.types().defaults() != null && d.types().defaults().contains("PROMOTION"))) {
+                PlaceRef place = place(previous.prefPlaceKind(), previous.prefPlaceId());
+                if (place != null) {
+                    intent = intent.with(place, intent.priceMin(), intent.priceMax(), intent.sortDiscount(), intent.page());
+                    preferredPlace = true;
+                }
+            }
+        }
         Ctx ctx = new Ctx(quickReply == null && responseRouter.comparative(guard.text()), followUp, carried,
                 ResponseRouter.threshold(settings.getLlmConfidenceThreshold()), operatorDraft,
                 quickReply == null && responseRouter.recommendation(guard.text()), signals,
@@ -272,12 +365,377 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         Outcome outcome;
         try {
             outcome = handle(intent, guard.text(), lang, request, settings, operatorDraft, ctx);
+            if (preferredPlace && (outcome.cards().isEmpty() || outcome.flags.contains(AiReply.FLAG_NO_RESULTS))) {
+                intent = withoutPreference;
+                outcome = handle(intent, guard.text(), lang, request, settings, operatorDraft, ctx);
+            }
         } catch (RuntimeException e) {
             log.warn("[chatbot] reply pipeline failed: {}", e.getMessage());
             outcome = new Outcome(languages.template("unknown", lang), List.of(), 0.3, false, null);
         }
-        return reply(outcome, intent.intent(), null, start, false, lang,
-                catalog.quickRepliesFor(intent.intent(), !outcome.cards().isEmpty()), settings);
+        ConversationContext next = operatorDraft ? null : context(intent, ctx.signals(), outcome, lang, previous, null);
+        return reply(outcome, intent.intent(), null, start, false, lang, quickReplies(outcome, intent.intent()), settings)
+                .withContext(next == null ? null : next.toJson());
+    }
+
+    private List<String> quickReplies(Outcome outcome, IntentDef def) {
+        int results = 0;
+        for (ChatCard c : outcome.cards()) {
+            if (!ChatCard.GROUP_RELATED.equals(c.getGroup()) && !"COMPANY".equals(c.getType())) {
+                results++;
+            }
+        }
+        if (outcome.keepItems) {
+            return List.of("fu_where", "fu_recipes", "fu_list", "fu_cheaper");
+        }
+        if (ConversationContext.KIND_BASKET.equals(outcome.kind) || ConversationContext.KIND_SCENARIO.equals(outcome.kind)) {
+            return List.of("fu_alternative", "fu_no_meat", "fu_more_people");
+        }
+        if (ConversationContext.KIND_SEARCH.equals(outcome.kind) && results >= 2) {
+            return List.of("fu_cheaper", "fu_compare", "fu_more", "fu_discount_only");
+        }
+        if (ConversationContext.KIND_COMPARE.equals(outcome.kind) && results >= 1) {
+            return List.of("fu_where", "fu_cheaper", "fu_recipes");
+        }
+        return catalog.quickRepliesFor(def, !outcome.cards().isEmpty());
+    }
+
+    private PlaceRef place(String kind, Long id) {
+        if (id == null) {
+            return null;
+        }
+        try {
+            for (PlaceRef p : directory.places()) {
+                if (id.equals(p.id()) && (kind == null || kind.equals(p.kind()))) {
+                    return p;
+                }
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return null;
+    }
+
+    private CategoryRef category(String taxonomy, Long id) {
+        if (id == null) {
+            return null;
+        }
+        try {
+            for (CategoryRef c : directory.categories()) {
+                if (id.equals(c.id()) && (taxonomy == null || taxonomy.equals(c.taxonomy()))) {
+                    return c;
+                }
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return null;
+    }
+
+    private ConversationContext context(IntentResult intent, IntentRouter.Signals signals, Outcome outcome, String lang,
+                                        ConversationContext previous, Integer focus) {
+        if (intent == null) {
+            return previous;
+        }
+        IntentRouter.Signals s = signals == null ? IntentRouter.Signals.NONE : signals;
+        IntentDef def = intent.intent();
+        String kind = outcome.kind;
+        if (kind == null) {
+            kind = def != null && def.isCatalog() && !outcome.cards().isEmpty() ? ConversationContext.KIND_SEARCH
+                    : def != null && (def.isKnowledge() || def.role() == Role.CONTACT || def.role() == Role.PAGE)
+                    ? ConversationContext.KIND_KNOWLEDGE : ConversationContext.KIND_OTHER;
+        }
+        List<ConversationContext.Item> items = outcome.keepItems && previous != null ? previous.items()
+                : ConversationContext.items(outcome.cards());
+        PlaceRef place = intent.place();
+        String prefPlaceKind = place != null ? place.kind() : previous == null ? null : previous.prefPlaceKind();
+        Long prefPlaceId = place != null ? place.id() : previous == null ? null : previous.prefPlaceId();
+        boolean planned = ConversationContext.KIND_BASKET.equals(kind) || ConversationContext.KIND_SCENARIO.equals(kind);
+        List<String> prefExcluded = planned && !s.excluded().isEmpty() ? s.excluded()
+                : previous == null ? List.of() : previous.prefExcluded();
+        Integer people = s.basket() != null ? Integer.valueOf(s.basket().people()) : s.people();
+        Double budget = intent.priceMin() == null ? intent.priceMax() : null;
+        return new ConversationContext(lang, def == null ? null : def.id(), kind, intent.query(),
+                intent.company() == null ? null : intent.company().id(), place == null ? null : place.kind(),
+                place == null ? null : place.id(), intent.category() == null ? null : intent.category().taxonomy(),
+                intent.category() == null ? null : intent.category().id(), intent.priceMin(), planned ? budget : intent.priceMax(),
+                s.minDiscount(), s.sort(), s.cheapest() ? Boolean.TRUE : null, people, s.excluded(),
+                s.scenario() == null ? null : s.scenario().id(), s.basket() == null ? null : s.basket().period(),
+                s.nutrition() == null ? null : s.nutrition().kcal(), items, focus, prefPlaceKind, prefPlaceId, prefExcluded);
+    }
+
+    private IntentDef previousDef(ConversationContext previous) {
+        IntentDef def = catalog.get(previous.intent());
+        if (def != null && def.isCatalog()) {
+            return def;
+        }
+        IntentDef search = catalog.first(Role.SEARCH);
+        return search != null ? search : def;
+    }
+
+    private static Candidate candidate(ConversationContext.Item item) {
+        LocalDate valid = null;
+        try {
+            valid = item.validTo() == null ? null : LocalDate.parse(item.validTo().length() > 10 ? item.validTo().substring(0, 10) : item.validTo());
+        } catch (RuntimeException ignored) {
+        }
+        return new Candidate(item.type(), item.id(), null, Candidate.titles(item.title(), item.title()), null, item.price(), null,
+                item.discount(), item.companyId(), valid, null, null, null, null, null, null, item.path());
+    }
+
+    private List<ChatCard> itemCards(List<ConversationContext.Item> items) {
+        List<ChatCard> out = new ArrayList<>();
+        for (ConversationContext.Item i : items) {
+            out.add(ChatCard.builder().type(i.type()).id(i.id()).title(i.title()).price(i.price()).discount(i.discount())
+                    .companyId(i.companyId()).company(i.company()).path(i.path()).validTo(i.validTo()).image(i.image())
+                    .originalPrice(i.originalPrice()).group(ChatCard.GROUP_RESULTS).build());
+        }
+        return out;
+    }
+
+    private String ordinalLabel(Integer ordinal, String lang) {
+        String key = ordinal == null ? "ordinal_1" : ordinal < 0 ? "ordinal_last" : "ordinal_" + ordinal;
+        String v = languages.template(key, lang);
+        return v.isBlank() ? languages.template("ordinal_1", lang) : v;
+    }
+
+    private FollowUp followUpOutcome(FollowUpResolver.Resolution res, ConversationContext prev, String text, String lang,
+                                     AiRequest request, ChatSettingsEntity settings) {
+        IntentDef def = previousDef(prev);
+        if (def == null) {
+            return null;
+        }
+        CompanyRef company = prev.companyId() == null ? null : directory.company(prev.companyId());
+        PlaceRef place = place(prev.placeKind(), prev.placeId());
+        CategoryRef category = category(prev.categoryTaxonomy(), prev.categoryId());
+        String query = prev.query() == null ? "" : prev.query();
+        IntentResult base = new IntentResult(def, 0.9, company, category, query, false, query.isBlank(), null)
+                .with(place, prev.priceMin(), prev.priceMax(), prev.minDiscount() != null, null);
+        switch (res.kind()) {
+            case DETAIL, WHERE, LIST -> {
+                Integer ordinal = res.ordinal() != null ? res.ordinal() : prev.focus() != null ? prev.focus() : 1;
+                ConversationContext.Item item = prev.item(ordinal);
+                if (item == null) {
+                    return null;
+                }
+                Outcome o = res.kind() == FollowUpResolver.Kind.DETAIL ? detailOutcome(item, ordinal, lang)
+                        : res.kind() == FollowUpResolver.Kind.WHERE ? whereOutcome(item, lang) : listOutcome(item, lang);
+                o.kind(prev.kind()).keepItems();
+                return new FollowUp(o, base, signalsOf(prev, prev.excluded(), prev.people(), false, Boolean.TRUE.equals(prev.cheapest())), ordinal);
+            }
+            case COMPARE, BEST -> {
+                Outcome o = compareShownOutcome(prev, res.kind() == FollowUpResolver.Kind.BEST, lang);
+                o.kind(prev.kind()).keepItems();
+                return new FollowUp(o, base, signalsOf(prev, prev.excluded(), prev.people(), false, false), prev.focus());
+            }
+            case RECIPES -> {
+                IntentDef recipes = catalog.get("recipes");
+                if (recipes == null) {
+                    return null;
+                }
+                String q = query;
+                ConversationContext.Item focused = prev.focused();
+                if (q.isBlank() && focused != null && focused.title() != null) {
+                    List<String> words = TextNormalizer.tokens(focused.title());
+                    q = words.isEmpty() ? "" : words.get(0);
+                }
+                IntentResult r = new IntentResult(recipes, 0.9, null, null, q, false, q.isBlank(), null);
+                Ctx c = new Ctx(false, true, true, ResponseRouter.DEFAULT_THRESHOLD, false, false, IntentRouter.Signals.NONE, false);
+                Outcome o = catalogOutcome(r, text, lang, request, settings, false, c);
+                return new FollowUp(o.prefixed(q.isBlank() ? null : languages.format("followup_recipes", lang, q)), r,
+                        IntentRouter.Signals.NONE, null);
+            }
+            default -> {
+                return modifiedOutcome(res, prev, def, company, place, category, query, text, lang, request, settings);
+            }
+        }
+    }
+
+    private IntentRouter.Signals signalsOf(ConversationContext prev, List<String> excluded, Integer people, boolean alternative,
+                                           boolean cheapest) {
+        ChatLanguages.Scenario scenario = prev.scenario() == null ? null : languages.scenarios().get(prev.scenario());
+        IntentRouter.BasketRequest basket = ConversationContext.KIND_BASKET.equals(prev.kind())
+                ? new IntentRouter.BasketRequest(prev.period() == null ? "week" : prev.period(), people == null ? 1 : people) : null;
+        return new IntentRouter.Signals(prev.minDiscount(), prev.sort(), scenario, people, List.of(), excluded, alternative, basket, null,
+                cheapest, false, ConversationContext.KIND_COMPARE.equals(prev.kind()), false, false, null);
+    }
+
+    private FollowUp modifiedOutcome(FollowUpResolver.Resolution res, ConversationContext prev, IntentDef def, CompanyRef company,
+                                     PlaceRef place, CategoryRef category, String query, String text, String lang, AiRequest request,
+                                     ChatSettingsEntity settings) {
+        Double priceMin = prev.priceMin();
+        Double priceMax = prev.priceMax();
+        Double minDiscount = prev.minDiscount();
+        boolean cheapest = Boolean.TRUE.equals(prev.cheapest());
+        List<String> excluded = new ArrayList<>(prev.excluded());
+        Integer people = prev.people();
+        boolean alternative = false;
+        Set<String> skip = new HashSet<>();
+        String prefix = null;
+        String label = query.isBlank() ? category != null ? category.label(lang) : company != null ? plain(company.name()) : "" : query;
+        switch (res.kind()) {
+            case CHEAPER -> {
+                cheapest = true;
+                Double first = prev.items().isEmpty() ? null : prev.items().get(0).price();
+                if (first != null && first > 0.02) {
+                    priceMax = round2(first - 0.01);
+                }
+                prefix = languages.format("followup_cheaper", lang, label);
+            }
+            case MORE -> {
+                for (ConversationContext.Item i : prev.items()) {
+                    skip.add(i.key());
+                }
+                prefix = languages.format("followup_more", lang, label);
+            }
+            case ALTERNATIVE -> {
+                alternative = true;
+                prefix = languages.template("followup_alternative", lang);
+            }
+            case DISCOUNT -> {
+                minDiscount = minDiscount == null ? 1.0 : Math.max(1.0, minDiscount);
+                prefix = languages.format("followup_discount", lang, label);
+            }
+            case EXCLUDE -> {
+                for (String w : res.excluded()) {
+                    if (!excluded.contains(w)) {
+                        excluded.add(w);
+                    }
+                }
+                prefix = languages.format("followup_excluded", lang, res.excluded().get(0));
+            }
+            case PEOPLE -> {
+                people = res.people();
+                prefix = languages.format("followup_people", lang, people);
+            }
+            case PRICE -> {
+                priceMin = res.current().priceMin();
+                priceMax = res.current().priceMax();
+                prefix = languages.format("followup_price", lang, priceMax != null ? priceText(priceMax, lang) : priceText(priceMin, lang));
+            }
+            case STORE -> {
+                company = res.current().company();
+                place = null;
+                prefix = query.isBlank() ? null : languages.format("followup_store", lang, plain(company.name()), query);
+            }
+            case PLACE -> {
+                place = res.current().place();
+                company = null;
+                prefix = languages.format("followup_place", lang, place.label(lang), label);
+            }
+            case SUBJECT -> {
+                query = res.residual();
+                category = null;
+            }
+            default -> {
+                return null;
+            }
+        }
+        IntentRouter.Signals s = signalsOf(prev, excluded, people, alternative, cheapest);
+        s = s.withSort(minDiscount, prev.sort(), cheapest);
+        IntentResult r = new IntentResult(def, 0.9, company, category, query, false, query.isBlank(), null)
+                .with(place, priceMin, priceMax, minDiscount != null, null);
+        Ctx c = new Ctx(false, true, true, ResponseRouter.DEFAULT_THRESHOLD, false, false, s, false, skip);
+        Outcome o = null;
+        String kind = prev.kind();
+        if (ConversationContext.KIND_BASKET.equals(kind)) {
+            o = basketOutcome(r, lang, settings, c);
+        } else if (ConversationContext.KIND_SCENARIO.equals(kind) && s.scenario() != null) {
+            o = scenarioOutcome(r, lang, settings, c);
+        } else if (ConversationContext.KIND_COMPARE.equals(kind) && res.kind() != FollowUpResolver.Kind.SUBJECT) {
+            o = storesCompareOutcome(r, lang, settings, c);
+        }
+        if (o == null) {
+            o = catalogOutcome(r, text, lang, request, settings, false, c);
+            if (res.kind() == FollowUpResolver.Kind.CHEAPER && o.cards().isEmpty()) {
+                IntentResult open = r.with(place, priceMin, prev.priceMax(), minDiscount != null, null);
+                o = catalogOutcome(open, text, lang, request, settings, false, c);
+                prefix = languages.format("followup_already_cheapest", lang, label);
+                r = open;
+            }
+        }
+        if (o.kind == null && !o.cards().isEmpty()) {
+            o.kind(ConversationContext.KIND_SEARCH);
+        }
+        return new FollowUp(o.prefixed(prefix), r, s, null);
+    }
+
+    private Outcome detailOutcome(ConversationContext.Item item, Integer ordinal, String lang) {
+        Candidate c = candidate(item);
+        String discount = item.discount() != null && item.discount() >= 1 && item.discount() <= 99
+                ? languages.format("scenario_discount", lang, Math.round(item.discount())) : "";
+        StringBuilder sb = new StringBuilder(languages.format("detail_header", lang, ordinalLabel(ordinal, lang), itemLink(c, lang),
+                item.price() == null ? "" : priceText(item.price(), lang), discount));
+        sb.append(where(c, lang));
+        if (c.validTo() != null) {
+            sb.append(languages.format("detail_valid", lang, c.validTo().toString()));
+        }
+        return new Outcome(sb.toString(), verified(List.of(item)), 0.95, false, null).route(AiReply.ROUTE_SEARCH);
+    }
+
+    private List<ChatCard> verified(List<ConversationContext.Item> items) {
+        Set<String> allowed = new HashSet<>();
+        for (ConversationContext.Item i : items) {
+            allowed.add(i.key());
+        }
+        return outputGuard.verifyCards(itemCards(items), allowed, LocalDate.now());
+    }
+
+    private Outcome whereOutcome(ConversationContext.Item item, String lang) {
+        Candidate c = candidate(item);
+        CompanyRef company = item.companyId() == null ? null : directory.company(item.companyId());
+        List<ChatCard> cards = new ArrayList<>(verified(List.of(item)));
+        String text;
+        if (company == null) {
+            text = languages.format("where_unknown", lang, itemLink(c, lang));
+        } else {
+            text = languages.format("where_header", lang, itemLink(c, lang), plain(company.name()), companyPath(company));
+            RankedItem companyItem = companyItem(company);
+            if (companyItem != null) {
+                ChatCard card = cardFactory.card(companyItem, lang);
+                if (card != null) {
+                    cards.add(card);
+                }
+            }
+        }
+        return new Outcome(text, cards, 0.95, false, null).route(AiReply.ROUTE_SEARCH);
+    }
+
+    private Outcome listOutcome(ConversationContext.Item item, String lang) {
+        String path = item.path() != null && outputGuard.isInternalPath(item.path()) ? item.path() : "/promotions";
+        String text = languages.format("list_add", lang, plain(item.title()), path);
+        return new Outcome(text, verified(List.of(item)), 0.95, false, null).route(AiReply.ROUTE_TEMPLATE);
+    }
+
+    private Outcome compareShownOutcome(ConversationContext prev, boolean best, String lang) {
+        List<ConversationContext.Item> items = prev.items().subList(0, Math.min(3, prev.items().size()));
+        StringBuilder sb = new StringBuilder(languages.template("compare_shown_header", lang));
+        ConversationContext.Item cheapest = null;
+        ConversationContext.Item deepest = null;
+        for (ConversationContext.Item i : items) {
+            Candidate c = candidate(i);
+            String discount = i.discount() != null && i.discount() >= 1 && i.discount() <= 99
+                    ? languages.format("scenario_discount", lang, Math.round(i.discount())) : "";
+            String store = i.company() != null ? plain(i.company()) : storeName(c);
+            sb.append("\n").append(languages.format("compare_shown_line", lang, itemLink(c, lang),
+                    i.price() == null ? "—" : priceText(i.price(), lang), discount, store));
+            if (i.price() != null && (cheapest == null || i.price() < cheapest.price())) {
+                cheapest = i;
+            }
+            if (i.discount() != null && i.discount() <= 99 && (deepest == null || i.discount() > deepest.discount())) {
+                deepest = i;
+            }
+        }
+        sb.append("\n\n");
+        if (cheapest != null) {
+            sb.append(languages.format("compare_shown_cheapest", lang, plain(cheapest.title()), priceText(cheapest.price(), lang)));
+        }
+        if (deepest != null && deepest != cheapest && deepest.discount() >= 1) {
+            sb.append(languages.format("compare_shown_discount", lang, plain(deepest.title()), Math.round(deepest.discount())));
+        }
+        if (best) {
+            ConversationContext.Item pick = cheapest != null ? cheapest : items.get(0);
+            sb.append("\n").append(languages.format("compare_shown_best", lang, plain(pick.title())));
+        }
+        return new Outcome(sb.toString(), verified(items), 0.9, false, null).route(AiReply.ROUTE_SEARCH);
     }
 
     private Outcome handle(IntentResult intent, String text, String lang, AiRequest request,
@@ -298,7 +756,22 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 return basket;
             }
         }
-        if (!operatorDraft && request.quickReply() == null && ctx.signals().hasScenario() && scenarioApplies(def)
+        if (!operatorDraft && request.quickReply() == null && intent.company() != null && ctx.signals().storeAspect() != null) {
+            Outcome store = storeAspectOutcome(intent, text, lang, request, settings, ctx);
+            if (store != null) {
+                return store;
+            }
+        }
+        if (!operatorDraft && request.quickReply() == null && ctx.signals().storeCompare() && scenarioApplies(def)
+                && !hasSeveralStores(text)) {
+            Outcome compared = storesCompareOutcome(intent, lang, settings, ctx);
+            if (compared != null) {
+                return compared;
+            }
+        }
+        boolean categoryScenario = ctx.signals().hasScenario() && intent.category() != null
+                && languages.scenarioCategoryLike().contains(ctx.signals().scenario().id());
+        if (!operatorDraft && request.quickReply() == null && ctx.signals().hasScenario() && scenarioApplies(def) && !categoryScenario
                 && !(ctx.recommendation() && responseRouter.allows(ResponseRouter.LlmReason.RECOMMENDATION))) {
             Outcome scenario = scenarioOutcome(intent, lang, settings, ctx);
             if (scenario != null) {
@@ -428,12 +901,44 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         List<Candidate> candidates = retriever.retrieve(plan);
         Ranker.Options options = Ranker.Options.from(settings, Math.max(maxCards, LLM_ITEMS));
         List<RankedItem> ranked = signalFilter(relevant(ranker.rank(candidates, options, today), intent), ctx.signals(), today);
+        if (!ctx.skip().isEmpty()) {
+            ranked = new ArrayList<>(ranked);
+            ranked.removeIf(r -> ctx.skip().contains(r.candidate().key()));
+        }
         CompanyRef company = intent.company();
         RankedItem companyItem = company == null ? null : companyItem(company);
         LadderResult ladder = LadderResult.EMPTY;
+        boolean hasQueryText = intent.query() != null && !intent.query().isBlank();
+        if (ranked.isEmpty() && intent.quickReply() == null && hasQueryText && (intent.hasPrice() || ctx.signals().minDiscount() != null)) {
+            Outcome relaxed = relaxedOutcome(intent, plan, options, lang, today, ctx, maxCards);
+            if (relaxed != null) {
+                return relaxed;
+            }
+        }
+        if (ranked.isEmpty() && intent.quickReply() == null && company != null && (hasQueryText || intent.category() != null)) {
+            Outcome alternatives = alternativesOutcome(intent, plan, options, lang, today, ctx, maxCards);
+            if (alternatives != null) {
+                return alternatives;
+            }
+        }
         if (ranked.isEmpty() && intent.quickReply() == null) {
             ladder = ladder(plan, options, today, ctx.signals());
             ranked = ladder.items();
+        }
+        if (ranked.isEmpty() && hasQueryText && intent.quickReply() == null && def.types() != null && def.types().defaults() != null
+                && def.types().defaults().equals(List.of("RECIPE"))) {
+            IntentResult browse = new IntentResult(def, intent.confidence(), null, null, "", false, true, null);
+            List<RankedItem> recipes = rankSafely(plan(browse, lang, IntentRouter.Signals.NONE), options, today);
+            if (!recipes.isEmpty()) {
+                List<RankedItem> top = recipes.size() > maxCards ? recipes.subList(0, maxCards) : recipes;
+                Set<String> keys = new HashSet<>();
+                for (RankedItem r : top) {
+                    keys.add(r.candidate().key());
+                }
+                List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(top, lang), keys, today);
+                return new Outcome(languages.format("recipes_fallback", lang, intent.query().trim()), cards, 0.6, false, null)
+                        .route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_SEARCH);
+            }
         }
         if (ranked.isEmpty()) {
             boolean hasQuery = intent.query() != null && !intent.query().isBlank();
@@ -456,6 +961,14 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             }
             Outcome fallback = noResultsFallback(intent, def, company, companyItem, text, lang, ctx, hasQuery);
             return call.wanted() ? fallback.flag(AiReply.FLAG_LLM_FALLBACK) : fallback;
+        }
+        boolean priceFocus = (ctx.signals().cheapest() || ctx.signals().priceAsk()) && intent.query() != null
+                && !intent.query().isBlank() && ranked.stream().anyMatch(r -> r.candidate().price() != null && r.candidate().price() > 0);
+        if (priceFocus) {
+            ranked = byPrice(ranked);
+        } else if (hasQueryText && (def.role() == Role.SEARCH || def.role() == Role.CATALOG || def.role() == Role.COMPANY
+                || def.role() == Role.LOCATION)) {
+            ranked = headFirst(ranked, intent.query(), lang);
         }
         List<RankedItem> top = ranked.size() > maxCards ? ranked.subList(0, maxCards) : ranked;
         Set<String> allowed = new HashSet<>();
@@ -496,7 +1009,10 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 llmResult = new LlmResult("", List.of(), 0, false, llmResult.tokensIn(), llmResult.tokensOut());
             }
         }
-        chosen = ctx.signals().sort() == null ? Ranker.displayOrder(chosen) : chosen;
+        chosen = ctx.signals().sort() == null && !priceFocus ? Ranker.displayOrder(chosen) : chosen;
+        if (!priceFocus && hasQueryText) {
+            chosen = headFirst(chosen, intent.query(), lang);
+        }
         List<ChatCard> cards = cardFactory.cards(chosen, lang);
         if (companyItem != null && cards.size() < maxCards) {
             ChatCard companyCard = cardFactory.card(companyItem, lang);
@@ -511,6 +1027,9 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         boolean usedLlm = message != null;
         if (message == null) {
             message = ladderHeader(ladder, lang);
+            if (message == null && priceFocus) {
+                message = priceHeader(intent, lang, chosen, ctx.signals());
+            }
             if (message == null) {
                 message = templateHeader(intent, lang, chosen, ctx.signals());
             }
@@ -526,7 +1045,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             }
         }
         Outcome out = new Outcome(message, cards, confidence, escalate, llmResult)
-                .route(usedLlm ? AiReply.ROUTE_LLM : AiReply.ROUTE_SEARCH);
+                .route(usedLlm ? AiReply.ROUTE_LLM : AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_SEARCH);
         if (guardModified) {
             out.flag(AiReply.FLAG_OUTPUT_GUARD);
         }
@@ -823,13 +1342,28 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 cheapestStore = e.getKey();
             }
         }
+        if (withItems < 2 && !q.isEmpty() && !operatorDraft) {
+            IntentResult open = new IntentResult(intent.intent(), intent.confidence(), null, intent.category(), q, false, false, null)
+                    .with(intent.place(), intent.priceMin(), intent.priceMax(), false, null);
+            Ctx c = new Ctx(true, false, false, ResponseRouter.DEFAULT_THRESHOLD, false, false, IntentRouter.Signals.NONE, false);
+            Outcome wide = storesCompareOutcome(open, lang, settings, c);
+            if (wide != null) {
+                List<String> missing = new ArrayList<>();
+                for (java.util.Map.Entry<CompanyRef, List<RankedItem>> e : perStore.entrySet()) {
+                    if (e.getValue().isEmpty()) {
+                        missing.add(plain(e.getKey().name()));
+                    }
+                }
+                return missing.isEmpty() ? wide : wide.prefixed(languages.format("compare_two_missing", lang, String.join(", ", missing), q));
+            }
+        }
         if (cheapest != null && withItems >= 2) {
             String title = cheapest.candidate().title(lang);
             sb.append("\n\n").append(languages.format("compare_cheapest", lang, title == null ? "" : title,
                     cheapestStore.name(), priceText(cheapest.candidate().price(), lang)));
         }
         Outcome out = new Outcome(sb.toString(), groupedCards(perStore, lang, maxCards, today), withItems > 0 ? 0.8 : 0.4,
-                false, call.result()).route(AiReply.ROUTE_SEARCH);
+                false, call.result()).route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_COMPARE);
         if (withItems == 0) {
             out.flag(AiReply.FLAG_NO_RESULTS);
         }
@@ -1582,7 +2116,408 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             }
         }
         List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(chosen, lang), allowed, today);
-        return new Outcome(sb.toString(), cards, 0.85, false, null).route(AiReply.ROUTE_SEARCH);
+        return new Outcome(sb.toString(), cards, 0.85, false, null).route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_SCENARIO);
+    }
+
+    private String aspectResidual(String query, String aspect) {
+        if (query == null || query.isBlank()) {
+            return "";
+        }
+        Set<String> words = new HashSet<>();
+        for (String p : languages.storeAspects().getOrDefault(aspect, List.of())) {
+            words.addAll(TextNormalizer.tokens(p));
+        }
+        List<String> out = new ArrayList<>();
+        for (String t : TextNormalizer.tokens(query)) {
+            if (!words.contains(t) && !languages.isStopword(t)) {
+                out.add(t);
+            }
+        }
+        return String.join(" ", out);
+    }
+
+    private List<RankedItem> headFirst(List<RankedItem> items, String query, String lang) {
+        List<String> q = new ArrayList<>();
+        for (String t : TextNormalizer.tokens(query)) {
+            if (t.length() >= 3 && !languages.isStopword(t)) {
+                q.add(languages.stem(t));
+            }
+        }
+        if (q.isEmpty() || items.size() < 2) {
+            return items;
+        }
+        List<RankedItem> head = new ArrayList<>();
+        List<RankedItem> rest = new ArrayList<>();
+        for (RankedItem r : items) {
+            String title = r.candidate().title(lang);
+            List<String> tokens = TextNormalizer.tokens(title == null ? "" : title);
+            boolean hit = false;
+            for (int i = 0; i < Math.min(2, tokens.size()); i++) {
+                String stem = languages.stem(tokens.get(i));
+                for (String s : q) {
+                    hit |= stem.length() >= 3 && (stem.startsWith(s) || s.startsWith(stem) && stem.length() >= s.length() - 1);
+                }
+            }
+            (hit ? head : rest).add(r);
+        }
+        if (head.isEmpty() || rest.isEmpty()) {
+            return items;
+        }
+        head.addAll(rest);
+        return head;
+    }
+
+    private Outcome relaxedOutcome(IntentResult intent, RetrievalPlan plan, Ranker.Options options, String lang, LocalDate today,
+                                   Ctx ctx, int maxCards) {
+        String q = intent.query().trim();
+        RetrievalPlan open = new RetrievalPlan(plan.intent(), plan.types(), q, lang, plan.companyId(), plan.category(), false,
+                plan.perType(), null, null, false, plan.place(), RetrievalPlan.RELAX_NONE, null, plan.sort());
+        IntentRouter.Signals loose = ctx.signals().withSort(null, ctx.signals().sort(), ctx.signals().cheapest());
+        List<RankedItem> items = signalFilter(relevantTo(rankSafely(open, options, today), q), loose, today);
+        List<RankedItem> priced = new ArrayList<>();
+        for (RankedItem r : items) {
+            if (r.candidate().price() != null && r.candidate().price() > 0) {
+                priced.add(r);
+            }
+        }
+        if (priced.isEmpty()) {
+            return null;
+        }
+        String message;
+        if (intent.hasPrice()) {
+            priced = byPrice(priced);
+            String constraint = intent.priceMin() != null && intent.priceMax() != null
+                    ? languages.format("constraint_range", lang, priceText(intent.priceMin(), lang), priceText(intent.priceMax(), lang))
+                    : intent.priceMax() != null ? languages.format("constraint_max", lang, priceText(intent.priceMax(), lang))
+                    : languages.format("constraint_min", lang, priceText(intent.priceMin(), lang));
+            Candidate first = priced.get(0).candidate();
+            message = languages.format("price_relaxed", lang, q, constraint, priceText(first.price(), lang));
+        } else {
+            priced.sort(java.util.Comparator.comparingDouble((RankedItem r) -> r.candidate().discount() == null ? -1
+                    : r.candidate().discount()).reversed());
+            Double top = priced.get(0).candidate().discount();
+            message = languages.format("discount_relaxed", lang, Math.round(ctx.signals().minDiscount()), q,
+                    top == null ? 0 : Math.round(top));
+        }
+        List<RankedItem> chosen = priced.size() > maxCards ? priced.subList(0, maxCards) : priced;
+        Set<String> allowed = new HashSet<>();
+        for (RankedItem r : chosen) {
+            allowed.add(r.candidate().key());
+        }
+        List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(chosen, lang), allowed, today);
+        if (cards.isEmpty()) {
+            return null;
+        }
+        return new Outcome(message, cards, 0.75, false, null).route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_SEARCH);
+    }
+
+    private static List<RankedItem> byPrice(List<RankedItem> items) {
+        List<RankedItem> out = new ArrayList<>(items);
+        out.sort(java.util.Comparator.comparingDouble(i -> i.candidate().price() == null || i.candidate().price() <= 0
+                ? Double.MAX_VALUE : i.candidate().price()));
+        return out;
+    }
+
+    private String priceHeader(IntentResult intent, String lang, List<RankedItem> chosen, IntentRouter.Signals signals) {
+        RankedItem first = null;
+        for (RankedItem r : chosen) {
+            if (r.candidate().price() != null && r.candidate().price() > 0) {
+                first = r;
+                break;
+            }
+        }
+        if (first == null) {
+            return null;
+        }
+        String q = intent.query() == null ? "" : intent.query().trim();
+        Candidate c = first.candidate();
+        String header = signals.cheapest()
+                ? languages.format("cheapest_header", lang, q, itemLink(c, lang), priceText(c.price(), lang), where(c, lang))
+                : languages.format("price_header", lang, q, priceText(c.price(), lang), itemLink(c, lang), where(c, lang));
+        if (chosen.size() > 1) {
+            header = header + "\n" + languages.template("cheapest_more", lang);
+        }
+        return header;
+    }
+
+    private static String companyPath(CompanyRef company) {
+        return "/company/" + (company.slug() == null || company.slug().isBlank() ? company.id() : company.slug());
+    }
+
+    private static String plain(String value) {
+        return value == null ? "" : value.replace("[", "").replace("]", "").trim();
+    }
+
+    private Outcome storeAspectOutcome(IntentResult intent, String text, String lang, AiRequest request,
+                                       ChatSettingsEntity settings, Ctx ctx) {
+        String aspect = ctx.signals().storeAspect();
+        CompanyRef company = intent.company();
+        String name = plain(company.name());
+        String path = companyPath(company);
+        int maxCards = settings.getMaxCards() > 0 ? Math.min(settings.getMaxCards(), 10) : 5;
+        LocalDate today = LocalDate.now();
+        switch (aspect) {
+            case "location", "schedule", "loyalty" -> {
+                if (aspect.equals("location") && ctx.signals().storeCompare()) {
+                    return null;
+                }
+                String message = languages.format("store_" + aspect, lang, name, path);
+                List<ChatCard> cards = new ArrayList<>();
+                RankedItem companyItem = companyItem(company);
+                if (companyItem != null) {
+                    ChatCard card = cardFactory.card(companyItem, lang);
+                    if (card != null) {
+                        cards.add(card);
+                    }
+                }
+                List<String> types = retriever.usable(pricedTypes(), true);
+                if (!types.isEmpty() && !aspect.equals("loyalty")) {
+                    RetrievalPlan p = new RetrievalPlan(intent.intent() == null ? null : intent.intent().id(), types, "", lang,
+                            company.id(), null, true, 3, null, null, true, null);
+                    List<RankedItem> items = rankSafely(p, Ranker.Options.from(settings, 3), today);
+                    List<RankedItem> top = items.size() > 3 ? items.subList(0, 3) : items;
+                    Set<String> allowed = new HashSet<>();
+                    for (RankedItem r : top) {
+                        allowed.add(r.candidate().key());
+                    }
+                    cards.addAll(outputGuard.verifyCards(cardFactory.cards(top, lang), allowed, today));
+                }
+                return new Outcome(message, cards, 0.9, false, null).route(AiReply.ROUTE_TEMPLATE);
+            }
+            case "catalog" -> {
+                IntentDef booklets = catalog.get("catalogs");
+                if (booklets == null) {
+                    return null;
+                }
+                IntentResult r = new IntentResult(booklets, 0.9, company, null, "", false, true, null)
+                        .with(intent.place(), null, null, false, null);
+                RetrievalPlan p = plan(r, lang, IntentRouter.Signals.NONE);
+                List<RankedItem> items = rankSafely(p, Ranker.Options.from(settings, maxCards), today);
+                if (items.isEmpty()) {
+                    return null;
+                }
+                List<RankedItem> top = items.size() > maxCards ? items.subList(0, maxCards) : items;
+                Set<String> allowed = new HashSet<>();
+                for (RankedItem i : top) {
+                    allowed.add(i.candidate().key());
+                }
+                List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(top, lang), allowed, today);
+                String message = languages.format("results_company_booklets", lang, name);
+                return new Outcome(message, cards, 0.9, false, null).route(AiReply.ROUTE_SEARCH);
+            }
+            case "deals", "count" -> {
+                if (!aspectResidual(intent.query(), aspect).isBlank() && aspect.equals("deals")) {
+                    return null;
+                }
+                IntentDef def = intent.intent() != null && intent.intent().isCatalog() ? intent.intent() : catalog.first(Role.COMPANY);
+                if (def == null) {
+                    return null;
+                }
+                IntentResult r = new IntentResult(def, 0.9, company, intent.category(), "", false, true, null)
+                        .with(intent.place(), intent.priceMin(), intent.priceMax(), true, null);
+                return catalogOutcome(r, text, lang, request, settings, false, ctx);
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    private Outcome alternativesOutcome(IntentResult intent, RetrievalPlan plan, Ranker.Options options, String lang,
+                                        LocalDate today, Ctx ctx, int maxCards) {
+        String q = intent.query() == null ? "" : intent.query().trim();
+        List<String> types = retriever.usable(pricedTypes(), true);
+        if (types.isEmpty()) {
+            return null;
+        }
+        RetrievalPlan open = new RetrievalPlan(plan.intent(), types, q, lang, null, plan.category(), q.isEmpty(), 10, plan.priceMin(),
+                plan.priceMax(), plan.sortDiscount(), plan.place(), RetrievalPlan.RELAX_NONE, plan.minDiscount(), plan.sort());
+        List<RankedItem> items = signalFilter(q.isEmpty() ? rankSafely(open, options, today) : relevantTo(rankSafely(open, options, today), q),
+                ctx.signals(), today);
+        if (q.isEmpty() && intent.category() != null) {
+            q = intent.category().label(lang);
+        }
+        if (items.isEmpty()) {
+            return null;
+        }
+        items = byPrice(items);
+        List<RankedItem> top = items.size() > maxCards ? items.subList(0, maxCards) : items;
+        Set<String> allowed = new HashSet<>();
+        for (RankedItem r : top) {
+            allowed.add(r.candidate().key());
+        }
+        List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(top, lang), allowed, today);
+        if (cards.isEmpty()) {
+            return null;
+        }
+        Candidate best = top.get(0).candidate();
+        StringBuilder sb = new StringBuilder(languages.format("store_alternatives", lang, plain(intent.company().name()), q));
+        if (best.price() != null) {
+            sb.append("\n").append(languages.format("compare_stores_line", lang, storeName(best), itemLink(best, lang),
+                    priceText(best.price(), lang)));
+        }
+        RankedItem companyItem = companyItem(intent.company());
+        if (companyItem != null) {
+            ChatCard card = cardFactory.card(companyItem, lang);
+            if (card != null) {
+                cards.add(card);
+            }
+        }
+        return new Outcome(sb.toString(), cards, 0.8, false, null).route(AiReply.ROUTE_SEARCH);
+    }
+
+    private String storeName(Candidate c) {
+        if (c.companyId() == null) {
+            return "";
+        }
+        try {
+            CompanyRef company = directory.company(c.companyId());
+            return company == null || company.name() == null ? "" : plain(company.name());
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    private Outcome storesCompareOutcome(IntentResult intent, String lang, ChatSettingsEntity settings, Ctx ctx) {
+        String q = intent.query() == null ? "" : intent.query().trim();
+        List<String> types = retriever.usable(pricedTypes(), true);
+        if (types.isEmpty()) {
+            return null;
+        }
+        if (q.isEmpty() && intent.category() == null) {
+            return ctx.signals().storeCompareCheap() ? basketCompareOutcome(intent, lang, settings, ctx) : null;
+        }
+        LocalDate today = LocalDate.now();
+        Ranker.Options options = Ranker.Options.from(settings, 40);
+        RetrievalPlan p = new RetrievalPlan(intent.intent() == null ? null : intent.intent().id(), types, q, lang, null,
+                intent.category(), q.isEmpty(), 30, intent.priceMin(), intent.priceMax(), false, intent.place(),
+                RetrievalPlan.RELAX_NONE, ctx.signals().minDiscount(), null);
+        List<RankedItem> items = q.isEmpty() ? rankSafely(p, options, today) : relevantTo(rankSafely(p, options, today), q);
+        if (items.isEmpty() && !q.isEmpty()) {
+            items = looseRelevant(rankSafely(p.withRelax(RetrievalPlan.RELAX_VARIANTS), options, today), q);
+        }
+        items = signalFilter(items, ctx.signals(), today);
+        java.util.Map<Long, RankedItem> cheapest = new java.util.LinkedHashMap<>();
+        for (RankedItem r : byPrice(items)) {
+            Candidate c = r.candidate();
+            if (c.companyId() == null || c.price() == null || c.price() <= 0 || cheapest.containsKey(c.companyId())) {
+                continue;
+            }
+            cheapest.put(c.companyId(), r);
+        }
+        if (cheapest.size() < 2) {
+            return null;
+        }
+        List<RankedItem> stores = new ArrayList<>(cheapest.values());
+        List<RankedItem> shown = new ArrayList<>(stores.subList(0, Math.min(5, stores.size())));
+        if (intent.company() != null && cheapest.containsKey(intent.company().id()) && !shown.contains(cheapest.get(intent.company().id()))) {
+            shown.set(shown.size() - 1, cheapest.get(intent.company().id()));
+        }
+        String label = q.isEmpty() ? intent.category().label(lang) : q;
+        StringBuilder sb = new StringBuilder(languages.format("compare_stores_header", lang, label));
+        for (RankedItem r : shown) {
+            Candidate c = r.candidate();
+            sb.append("\n").append(languages.format("compare_stores_line", lang, storeName(c), itemLink(c, lang), priceText(c.price(), lang)));
+        }
+        Candidate best = shown.get(0).candidate();
+        Candidate worst = shown.get(shown.size() - 1).candidate();
+        double saved = round2(worst.price() - best.price());
+        sb.append("\n\n");
+        if (saved > 0) {
+            long percent = Math.round(saved * 100.0 / worst.price());
+            sb.append(languages.format("compare_stores_best", lang, storeName(best), priceText(best.price(), lang), storeName(worst),
+                    priceText(saved, lang), percent));
+        } else {
+            sb.append(languages.format("compare_stores_same", lang, priceText(best.price(), lang)));
+        }
+        if (intent.company() != null && !cheapest.containsKey(intent.company().id())) {
+            sb.append("\n").append(languages.format("compare_stores_missing", lang, plain(intent.company().name()), label));
+        }
+        int maxCards = settings.getMaxCards() > 0 ? Math.min(settings.getMaxCards(), 10) : 5;
+        List<RankedItem> top = shown.size() > maxCards ? shown.subList(0, maxCards) : shown;
+        Set<String> allowed = new HashSet<>();
+        for (RankedItem r : top) {
+            allowed.add(r.candidate().key());
+        }
+        List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(top, lang), allowed, today);
+        return new Outcome(sb.toString(), cards, 0.85, false, null).route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_COMPARE);
+    }
+
+    private Outcome basketCompareOutcome(IntentResult intent, String lang, ChatSettingsEntity settings, Ctx ctx) {
+        List<String> terms = new ArrayList<>();
+        for (ChatLanguages.BasketItem item : languages.basket().items(lang)) {
+            if (item.essential() && terms.size() < 8 && !excludedText(item.term(), ctx.signals().excluded())) {
+                terms.add(item.term());
+            }
+        }
+        List<String> types = retriever.usable(pricedTypes(), true);
+        if (terms.size() < 2 || types.isEmpty()) {
+            return null;
+        }
+        LocalDate today = LocalDate.now();
+        Ranker.Options options = Ranker.Options.from(settings, 30);
+        java.util.Map<Long, java.util.Map<String, RankedItem>> perStore = new java.util.LinkedHashMap<>();
+        for (String term : terms) {
+            RetrievalPlan p = new RetrievalPlan(intent.intent() == null ? null : intent.intent().id(), types, term, lang, null, null,
+                    false, 30, null, null, false, intent.place());
+            for (RankedItem r : byPrice(relevantTo(rankSafely(p, options, today), term))) {
+                Candidate c = r.candidate();
+                if (c.companyId() == null || c.price() == null || c.price() <= 0) {
+                    continue;
+                }
+                perStore.computeIfAbsent(c.companyId(), k -> new java.util.LinkedHashMap<>()).putIfAbsent(term, r);
+            }
+        }
+        int maxCoverage = 0;
+        for (java.util.Map<String, RankedItem> m : perStore.values()) {
+            maxCoverage = Math.max(maxCoverage, m.size());
+        }
+        if (maxCoverage < 2) {
+            return null;
+        }
+        int floor = Math.max(2, maxCoverage - 1);
+        List<java.util.Map.Entry<Long, java.util.Map<String, RankedItem>>> ranked = new ArrayList<>();
+        for (java.util.Map.Entry<Long, java.util.Map<String, RankedItem>> e : perStore.entrySet()) {
+            if (e.getValue().size() >= floor) {
+                ranked.add(e);
+            }
+        }
+        if (ranked.size() < 2) {
+            return null;
+        }
+        ranked.sort(java.util.Comparator.<java.util.Map.Entry<Long, java.util.Map<String, RankedItem>>>comparingInt(e -> -e.getValue().size())
+                .thenComparingDouble(e -> total(e.getValue())));
+        List<java.util.Map.Entry<Long, java.util.Map<String, RankedItem>>> shown = ranked.subList(0, Math.min(4, ranked.size()));
+        StringBuilder sb = new StringBuilder(languages.format("compare_basket_header", lang, String.join(", ", terms)));
+        for (java.util.Map.Entry<Long, java.util.Map<String, RankedItem>> e : shown) {
+            CompanyRef company = directory.company(e.getKey());
+            String name = company == null ? String.valueOf(e.getKey()) : plain(company.name());
+            sb.append("\n").append(languages.format("compare_basket_line", lang, name, priceText(round2(total(e.getValue())), lang),
+                    e.getValue().size(), terms.size()));
+        }
+        java.util.Map.Entry<Long, java.util.Map<String, RankedItem>> winner = shown.get(0);
+        CompanyRef best = directory.company(winner.getKey());
+        sb.append("\n\n").append(languages.format("compare_basket_best", lang, best == null ? "" : plain(best.name()),
+                priceText(round2(total(winner.getValue())), lang)));
+        int maxCards = settings.getMaxCards() > 0 ? Math.min(settings.getMaxCards(), 10) : 5;
+        List<RankedItem> chosen = new ArrayList<>(winner.getValue().values());
+        if (chosen.size() > maxCards) {
+            chosen = chosen.subList(0, maxCards);
+        }
+        Set<String> allowed = new HashSet<>();
+        for (RankedItem r : chosen) {
+            allowed.add(r.candidate().key());
+        }
+        List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(chosen, lang), allowed, today);
+        return new Outcome(sb.toString(), cards, 0.85, false, null).route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_COMPARE);
+    }
+
+    private static double total(java.util.Map<String, RankedItem> items) {
+        double sum = 0;
+        for (RankedItem r : items.values()) {
+            sum += r.candidate().price();
+        }
+        return sum;
     }
 
     private String itemLink(Candidate c, String lang) {
@@ -1708,7 +2643,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         int maxCards = Math.min(10, Math.max(settings.getMaxCards() > 0 ? settings.getMaxCards() : 5, chosen.size()));
         List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(chosen.size() > maxCards ? chosen.subList(0, maxCards)
                 : chosen, lang), allowed, today);
-        return new Outcome(sb.toString(), cards, 0.85, false, null).route(AiReply.ROUTE_SEARCH);
+        return new Outcome(sb.toString(), cards, 0.85, false, null).route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_BASKET);
     }
 
     private Outcome nutritionOutcome(IntentRouter.NutritionRequest request, IntentResult intent, String lang,
@@ -1768,7 +2703,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         int maxCards = Math.min(10, Math.max(settings.getMaxCards() > 0 ? settings.getMaxCards() : 5, chosen.size()));
         List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(chosen.size() > maxCards ? chosen.subList(0, maxCards)
                 : chosen, lang), allowed, today);
-        return new Outcome(sb.toString(), cards, 0.85, false, null).route(AiReply.ROUTE_SEARCH);
+        return new Outcome(sb.toString(), cards, 0.85, false, null).route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_NUTRITION);
     }
 
     private volatile List<ShoppingPlanner.Food> foods;
@@ -1854,7 +2789,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             }
         }
         List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(chosen, lang), allowed, today);
-        return new Outcome(sb.toString(), cards, 0.8, false, null).route(AiReply.ROUTE_SEARCH);
+        return new Outcome(sb.toString(), cards, 0.8, false, null).route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_COMPARE);
     }
 
     private static double discountOf(RankedItem item) {

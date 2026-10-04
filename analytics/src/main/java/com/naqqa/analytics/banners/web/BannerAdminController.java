@@ -1,21 +1,26 @@
 package com.naqqa.analytics.banners.web;
 
+import com.naqqa.analytics.banners.engine.BannerSlotDefaults;
 import com.naqqa.analytics.banners.engine.BannerSlots;
 import com.naqqa.analytics.banners.model.BannerCampaign;
 import com.naqqa.analytics.banners.model.BannerCreative;
 import com.naqqa.analytics.banners.model.BannerPriority;
+import com.naqqa.analytics.banners.model.BannerSlotSettings;
 import com.naqqa.analytics.banners.model.BannerStatus;
 import com.naqqa.analytics.banners.security.BannerAccess;
+import com.naqqa.analytics.banners.service.BannerAssetImportService;
 import com.naqqa.analytics.banners.service.BannerAssetService;
 import com.naqqa.analytics.banners.service.BannerCampaignService;
 import com.naqqa.analytics.banners.service.BannerException;
+import com.naqqa.analytics.banners.service.BannerSlotRegistry;
 import com.naqqa.analytics.banners.service.BannerStatsService;
 import com.naqqa.analytics.banners.store.BannerRepository;
+import com.naqqa.analytics.banners.web.BannerDtos.AdminSlotDto;
 import com.naqqa.analytics.banners.web.BannerDtos.AssetDto;
 import com.naqqa.analytics.banners.web.BannerDtos.CampaignDetailDto;
 import com.naqqa.analytics.banners.web.BannerDtos.DecisionRequest;
 import com.naqqa.analytics.banners.web.BannerDtos.PageDto;
-import com.naqqa.analytics.banners.web.BannerDtos.SlotDto;
+import com.naqqa.analytics.banners.web.BannerDtos.SlotOptionsDto;
 import com.naqqa.analytics.banners.web.BannerDtos.SummaryDto;
 import com.naqqa.analytics.config.NaqqaAnalyticsProperties;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -38,6 +43,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 @RestController
 @RequestMapping("${naqqa.analytics.banners.admin-path:/api/admin/ad-campaigns}")
@@ -48,14 +54,24 @@ public class BannerAdminController {
     private final BannerAssetService assets;
     private final BannerStatsService stats;
     private final NaqqaAnalyticsProperties.Permissions permissions;
+    private final BannerSlotRegistry slots;
+    private final Supplier<BannerAssetImportService> importer;
 
     public BannerAdminController(BannerCampaignService campaigns, BannerRepository repository, BannerAssetService assets,
                                  BannerStatsService stats, NaqqaAnalyticsProperties.Permissions permissions) {
+        this(campaigns, repository, assets, stats, permissions, null, () -> null);
+    }
+
+    public BannerAdminController(BannerCampaignService campaigns, BannerRepository repository, BannerAssetService assets,
+                                 BannerStatsService stats, NaqqaAnalyticsProperties.Permissions permissions, BannerSlotRegistry slots,
+                                 Supplier<BannerAssetImportService> importer) {
         this.campaigns = campaigns;
         this.repository = repository;
         this.assets = assets;
         this.stats = stats;
         this.permissions = permissions;
+        this.slots = slots;
+        this.importer = importer;
     }
 
     @GetMapping
@@ -79,9 +95,39 @@ public class BannerAdminController {
     }
 
     @GetMapping("/slots")
-    public List<SlotDto> slots(Authentication authentication) {
+    public List<BannerSlotSettings> slots(Authentication authentication) {
         read(authentication);
-        return BannerSlots.ALL.stream().map(SlotDto::of).toList();
+        return BannerSlots.ALL.stream().map(s -> slots == null ? BannerSlotRegistry.defaults(s) : slots.settings(s.id())).toList();
+    }
+
+    @GetMapping("/slots/config")
+    public List<AdminSlotDto> slotConfig(Authentication authentication) {
+        read(authentication);
+        return BannerSlots.ALL.stream().map(s -> adminSlot(slots == null ? BannerSlotRegistry.defaults(s) : slots.settings(s.id()))).toList();
+    }
+
+    @PutMapping("/slots/{slotId}")
+    public AdminSlotDto updateSlot(@PathVariable String slotId, @RequestBody BannerSlotSettings body, Authentication authentication) {
+        BannerAccess access = manage(authentication);
+        return adminSlot(registry().update(slotId, body, access.userId()));
+    }
+
+    @PostMapping("/slots/{slotId}/reset")
+    public AdminSlotDto resetSlot(@PathVariable String slotId, Authentication authentication) {
+        BannerAccess access = manage(authentication);
+        return adminSlot(registry().reset(slotId, access.userId()));
+    }
+
+    @PostMapping("/assets/import")
+    public BannerAssetImportService.ImportResult importAssets(@RequestParam String base, @RequestParam(required = false) String prefix,
+                                                             @RequestParam(defaultValue = "false") boolean dryRun,
+                                                             Authentication authentication) {
+        manage(authentication);
+        BannerAssetImportService service = importer.get();
+        if (service == null) {
+            throw new BannerException(HttpStatus.SERVICE_UNAVAILABLE, "banners.storage_unavailable", "Asset import is not configured");
+        }
+        return service.importRelative(base, prefix, dryRun);
     }
 
     @GetMapping("/pending")
@@ -191,6 +237,19 @@ public class BannerAdminController {
                                          Authentication authentication) {
         read(authentication);
         return BannerCsvResponse.of(stats.campaign(campaigns.require(id), from, to));
+    }
+
+    private BannerSlotRegistry registry() {
+        if (slots == null) {
+            throw new BannerException(HttpStatus.SERVICE_UNAVAILABLE, "banners.slots_unavailable", "Slot settings are not configured");
+        }
+        return slots;
+    }
+
+    private static AdminSlotDto adminSlot(BannerSlotSettings settings) {
+        BannerSlots.Slot slot = BannerSlots.get(settings.getId());
+        BannerSlotDefaults.Defaults defaults = BannerSlotDefaults.get(settings.getId());
+        return new AdminSlotDto(settings, new SlotOptionsDto(defaults.pageTypeOptions(), defaults.params(), BannerSlotRegistry.defaults(slot)));
     }
 
     private BannerAccess read(Authentication authentication) {

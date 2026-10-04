@@ -1,6 +1,7 @@
 package com.naqqa.analytics.banners.service;
 
 import com.naqqa.analytics.banners.engine.BannerPacingCalculator;
+import com.naqqa.analytics.banners.engine.BannerSlots;
 import com.naqqa.analytics.banners.model.BannerCampaign;
 import com.naqqa.analytics.banners.model.BannerCreative;
 import com.naqqa.analytics.banners.model.BannerPriority;
@@ -17,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 public class BannerCampaignService {
 
@@ -33,14 +35,21 @@ public class BannerCampaignService {
     private final BannerPacingCalculator pacing;
     private final Clock clock;
     private final double ratioTolerance;
+    private final Function<String, BannerSlots.Slot> slots;
 
     public BannerCampaignService(BannerRepository repository, BannerCampaignCache cache, BannerPacingCalculator pacing, Clock clock,
                                  double ratioTolerance) {
+        this(repository, cache, pacing, clock, ratioTolerance, BannerSlots::get);
+    }
+
+    public BannerCampaignService(BannerRepository repository, BannerCampaignCache cache, BannerPacingCalculator pacing, Clock clock,
+                                 double ratioTolerance, Function<String, BannerSlots.Slot> slots) {
         this.repository = repository;
         this.cache = cache;
         this.pacing = pacing;
         this.clock = clock;
         this.ratioTolerance = ratioTolerance;
+        this.slots = slots;
     }
 
     public CampaignDetailDto detail(BannerCampaign c) {
@@ -216,7 +225,7 @@ public class BannerCampaignService {
         cr.setAlt(trimTexts(cr.getAlt(), 250));
         cr.setTitle(trimTexts(cr.getTitle(), 120));
         cr.setCta(trimTexts(cr.getCta(), 40));
-        Map<String, String> errors = BannerValidation.creative(cr, campaign, ratioTolerance);
+        Map<String, String> errors = BannerValidation.creative(cr, campaign, ratioTolerance, slots);
         if (!errors.isEmpty()) {
             throw new BannerException(HttpStatus.BAD_REQUEST, "banners.validation", "Invalid creative", Map.of("errors", errors));
         }

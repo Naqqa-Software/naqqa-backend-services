@@ -69,6 +69,9 @@ public class ChatMessageEntity {
     @Field("route")
     private String route;
 
+    @Field("ai_context")
+    private String aiContext;
+
     @Field("lang")
     private String lang;
 

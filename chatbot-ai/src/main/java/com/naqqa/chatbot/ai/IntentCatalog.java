@@ -43,6 +43,7 @@ public final class IntentCatalog {
     private final String defaultPage;
     private final TypeRules defaultTypes;
     private final RelatedDef related;
+    private final Map<String, List<String>> categoryGates = new LinkedHashMap<>();
 
     public IntentCatalog(JsonNode root) {
         root.path("intents").fields().forEachRemaining(e -> {
@@ -73,6 +74,7 @@ public final class IntentCatalog {
         this.priceBrowseIntent = text(root, "priceBrowseIntent");
         this.defaultPage = root.path("defaultPage").asText("faq");
         this.defaultTypes = types(root.path("defaultTypes"));
+        root.path("categoryGates").fields().forEachRemaining(e -> categoryGates.put(e.getKey(), orEmpty(list(e.getValue()))));
         JsonNode r = root.path("related");
         this.related = new RelatedDef(orEmpty(list(r.path("types"))), orEmpty(list(r.path("triggerTypes"))),
                 Math.max(0, Math.min(6, r.path("max").asInt(3))), r.path("minRelevance").asDouble(0.35));
@@ -194,6 +196,10 @@ public final class IntentCatalog {
 
     public RelatedDef related() {
         return related;
+    }
+
+    public Map<String, List<String>> categoryGates() {
+        return categoryGates;
     }
 
     public List<String> quickRepliesFor(IntentDef intent, boolean hasResults) {

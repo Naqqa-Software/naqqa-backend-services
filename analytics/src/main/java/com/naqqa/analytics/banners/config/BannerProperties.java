@@ -22,6 +22,8 @@ public class BannerProperties {
     private String fallbackRedirect = "/";
     private int clickDedupSeconds = 30;
     private int cacheSeconds = 30;
+    private boolean seedSlots = true;
+    private long assetImportMaxBytes = 5L * 1024 * 1024;
     private boolean excludeCompetitorsOnCompanyPage = true;
     private double pacingTolerance = 0.02;
     private long pacingMinSlack = 20;

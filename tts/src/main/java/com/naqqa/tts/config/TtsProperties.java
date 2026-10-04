@@ -14,6 +14,7 @@ public class TtsProperties {
     private String path = "/api/public/tts";
     private String dataDir = System.getProperty("java.io.tmpdir") + "/naqqa-tts";
     private Piper piper = new Piper();
+    private Audio audio = new Audio();
     private Map<String, Voice> voices = new LinkedHashMap<>();
     private Map<String, Map<String, String>> lexicon = new LinkedHashMap<>();
     private int maxChars = 400;
@@ -51,11 +52,34 @@ public class TtsProperties {
         public void setSentenceSilence(double sentenceSilence) { this.sentenceSilence = sentenceSilence; }
     }
 
+    public static class Audio {
+        private boolean enabled = true;
+        private int fadeMs = 8;
+        private Double peakDb = -1.0;
+        private Double targetRmsDb = -20.0;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public int getFadeMs() { return fadeMs; }
+        public void setFadeMs(int fadeMs) { this.fadeMs = fadeMs; }
+        public Double getPeakDb() { return peakDb; }
+        public void setPeakDb(Double peakDb) { this.peakDb = peakDb; }
+        public Double getTargetRmsDb() { return targetRmsDb; }
+        public void setTargetRmsDb(Double targetRmsDb) { this.targetRmsDb = targetRmsDb; }
+
+        public String id() {
+            return enabled ? fadeMs + "|" + (peakDb == null ? "" : peakDb) + "|" + (targetRmsDb == null ? "" : targetRmsDb) : "off";
+        }
+    }
+
     public static class Voice {
         private String name;
         private String model;
         private String url;
         private Double lengthScale;
+        private Double noiseScale;
+        private Double noiseW;
+        private Double sentenceSilence;
         private Integer speaker;
 
         public String getName() { return name; }
@@ -66,11 +90,18 @@ public class TtsProperties {
         public void setUrl(String url) { this.url = url; }
         public Double getLengthScale() { return lengthScale; }
         public void setLengthScale(Double lengthScale) { this.lengthScale = lengthScale; }
+        public Double getNoiseScale() { return noiseScale; }
+        public void setNoiseScale(Double noiseScale) { this.noiseScale = noiseScale; }
+        public Double getNoiseW() { return noiseW; }
+        public void setNoiseW(Double noiseW) { this.noiseW = noiseW; }
+        public Double getSentenceSilence() { return sentenceSilence; }
+        public void setSentenceSilence(Double sentenceSilence) { this.sentenceSilence = sentenceSilence; }
         public Integer getSpeaker() { return speaker; }
         public void setSpeaker(Integer speaker) { this.speaker = speaker; }
 
         public String id() {
-            return (name == null ? model : name) + "|" + (lengthScale == null ? "" : lengthScale) + "|" + (speaker == null ? "" : speaker);
+            return (name == null ? model : name) + "|" + (lengthScale == null ? "" : lengthScale) + "|" + (speaker == null ? "" : speaker)
+                    + "|" + (noiseScale == null ? "" : noiseScale) + "|" + (noiseW == null ? "" : noiseW) + "|" + (sentenceSilence == null ? "" : sentenceSilence);
         }
     }
 
@@ -82,6 +113,8 @@ public class TtsProperties {
     public void setDataDir(String dataDir) { this.dataDir = dataDir; }
     public Piper getPiper() { return piper; }
     public void setPiper(Piper piper) { this.piper = piper; }
+    public Audio getAudio() { return audio; }
+    public void setAudio(Audio audio) { this.audio = audio; }
     public Map<String, Voice> getVoices() { return voices; }
     public void setVoices(Map<String, Voice> voices) { this.voices = voices; }
     public Map<String, Map<String, String>> getLexicon() { return lexicon; }

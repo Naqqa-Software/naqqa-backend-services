@@ -6,7 +6,7 @@ import java.util.List;
 
 public record AiReply(String text, List<ChatCard> cards, List<String> quickReplies, String intent,
                       double confidence, boolean escalate, boolean llmUsed, int tokensIn, int tokensOut,
-                      long latencyMs, boolean flagged, String route, List<String> qualityFlags, String lang) {
+                      long latencyMs, boolean flagged, String route, List<String> qualityFlags, String lang, String context) {
 
     public static final String ROUTE_GUARD = "GUARD";
     public static final String ROUTE_TEMPLATE = "TEMPLATE";
@@ -24,6 +24,18 @@ public record AiReply(String text, List<ChatCard> cards, List<String> quickRepli
 
     public AiReply {
         qualityFlags = qualityFlags == null ? List.of() : List.copyOf(qualityFlags);
+    }
+
+    public AiReply(String text, List<ChatCard> cards, List<String> quickReplies, String intent,
+                   double confidence, boolean escalate, boolean llmUsed, int tokensIn, int tokensOut,
+                   long latencyMs, boolean flagged, String route, List<String> qualityFlags, String lang) {
+        this(text, cards, quickReplies, intent, confidence, escalate, llmUsed, tokensIn, tokensOut, latencyMs, flagged, route,
+                qualityFlags, lang, null);
+    }
+
+    public AiReply withContext(String value) {
+        return new AiReply(text, cards, quickReplies, intent, confidence, escalate, llmUsed, tokensIn, tokensOut, latencyMs, flagged,
+                route, qualityFlags, lang, value);
     }
 
     public AiReply(String text, List<ChatCard> cards, List<String> quickReplies, String intent,

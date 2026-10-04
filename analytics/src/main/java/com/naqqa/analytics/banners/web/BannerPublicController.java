@@ -5,6 +5,8 @@ import com.naqqa.analytics.banners.engine.BannerTargetingEngine;
 import com.naqqa.analytics.banners.security.BannerAccess;
 import com.naqqa.analytics.banners.service.BannerClickService;
 import com.naqqa.analytics.banners.service.BannerDeliveryService;
+import com.naqqa.analytics.banners.service.BannerSlotRegistry;
+import com.naqqa.analytics.banners.web.BannerDtos.PublicSlotDto;
 import com.naqqa.analytics.banners.spi.BannerRequestEnricher;
 import com.naqqa.analytics.banners.web.BannerDtos.ServeDto;
 import com.naqqa.analytics.collect.UserAgentParser;
@@ -22,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 import java.time.Clock;
+import java.time.Duration;
+import java.util.List;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -34,12 +38,27 @@ public class BannerPublicController {
     private final BannerClickService clicks;
     private final Supplier<BannerRequestEnricher> enricher;
     private final Clock clock;
+    private final BannerSlotRegistry slots;
 
     public BannerPublicController(BannerDeliveryService delivery, BannerClickService clicks, Supplier<BannerRequestEnricher> enricher, Clock clock) {
+        this(delivery, clicks, enricher, clock, null);
+    }
+
+    public BannerPublicController(BannerDeliveryService delivery, BannerClickService clicks, Supplier<BannerRequestEnricher> enricher, Clock clock,
+                                  BannerSlotRegistry slots) {
         this.delivery = delivery;
         this.clicks = clicks;
         this.enricher = enricher;
         this.clock = clock;
+        this.slots = slots;
+    }
+
+    @GetMapping("${naqqa.analytics.banners.public-path:/api/public/banners}/slots")
+    public ResponseEntity<List<PublicSlotDto>> slots() {
+        if (slots == null) {
+            return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+        }
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofSeconds(60)).cachePublic()).body(slots.publicView());
     }
 
     @GetMapping("${naqqa.analytics.banners.public-path:/api/public/banners}/serve")

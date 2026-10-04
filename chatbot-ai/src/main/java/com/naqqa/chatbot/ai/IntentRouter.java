@@ -145,6 +145,42 @@ public class IntentRouter {
         return catalog;
     }
 
+    public String repair(String text) {
+        if (expander == null || text == null || text.isBlank()) {
+            return text;
+        }
+        StringBuilder out = new StringBuilder();
+        boolean changed = false;
+        for (String word : text.split(" ")) {
+            String core = word.replaceAll("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$", "");
+            String fixed = null;
+            String folded = TextNormalizer.fold(core);
+            if (core.length() >= 3 && !core.chars().allMatch(Character::isDigit) && !vocabulary(core) && !languages.isStopword(folded)) {
+                List<String> candidates;
+                try {
+                    candidates = expander.layoutCandidates(core);
+                } catch (RuntimeException e) {
+                    candidates = List.of();
+                }
+                for (String c : candidates == null ? List.<String>of() : candidates) {
+                    String fc = TextNormalizer.fold(c);
+                    if (fc.length() >= 2 && (vocabulary(fc) || languages.isStopword(fc))) {
+                        fixed = fc;
+                        break;
+                    }
+                }
+            }
+            if (fixed != null && !fixed.isBlank() && !fixed.equals(core)) {
+                out.append(word.replace(core, fixed));
+                changed = true;
+            } else {
+                out.append(word);
+            }
+            out.append(' ');
+        }
+        return changed ? out.toString().trim() : text;
+    }
+
     public IntentResult route(String text, String quickReply) {
         if (quickReply != null && !quickReply.isBlank()) {
             IntentResult qr = fromQuickReply(quickReply.trim());
@@ -196,7 +232,8 @@ public class IntentRouter {
         }
         Set<String> genericLatin = new HashSet<>();
         CompanyRef companyRef = detectCompany(tokens, consumed, false, genericLatin);
-        CategoryRef categoryRef = detectCategory(tokens, consumed);
+        Set<String> gated = gatedTaxonomies(scores);
+        CategoryRef categoryRef = detectCategory(tokens, consumed, gated);
         PlaceRef place = companyRef == null ? detectPlace(tokens, phrase, consumed) : null;
         if (expander != null && (companyRef == null || categoryRef == null || place == null)) {
             List<String> variants;
@@ -215,7 +252,16 @@ public class IntentRouter {
                     companyRef = detectCompany(vTokens, new HashSet<>(), true, genericLatin);
                 }
                 if (categoryRef == null) {
-                    categoryRef = detectCategory(vTokens, new HashSet<>());
+                    Set<Integer> covered = new HashSet<>();
+                    CategoryRef c = detectCategory(vTokens, covered, gated);
+                    boolean all = c != null;
+                    for (int i = 0; all && i < vTokens.size(); i++) {
+                        String t = vTokens.get(i);
+                        all = covered.contains(i) || languages.isStopword(t) || t.length() <= 2 || Character.isDigit(t.charAt(0));
+                    }
+                    if (all) {
+                        categoryRef = c;
+                    }
                 }
                 if (companyRef == null && place == null) {
                     place = detectPlace(vTokens, TextNormalizer.normalizedPhrase(variant), new HashSet<>());
@@ -344,7 +390,7 @@ public class IntentRouter {
                 : containsAny(phrase, languages.newestPhrases()) ? RetrievalPlan.SORT_NEWEST : null;
         ChatLanguages.Scenario scenario = scenario(text);
         BasketRequest basket = basket(phrase, scenario != null);
-        boolean storeCompare = containsAny(phrase, languages.storeComparePhrases());
+        boolean storeCompare = containsAny(phrase, languages.storeComparePhrases()) || containsAllTokens(phrase, languages.storeComparePhrases());
         boolean cheap = false;
         for (String t : TextNormalizer.tokens(text)) {
             for (String c : languages.storeCompareCheap()) {
@@ -675,6 +721,17 @@ public class IntentRouter {
             }
         }
         return null;
+    }
+
+    private static boolean containsAllTokens(String phrase, List<String> phrases) {
+        Set<String> have = new HashSet<>(TextNormalizer.tokens(phrase));
+        for (String p : phrases) {
+            List<String> need = TextNormalizer.tokens(p);
+            if (need.size() >= 2 && have.containsAll(need)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean containsAny(String phrase, List<String> phrases) {
@@ -1093,11 +1150,16 @@ public class IntentRouter {
 
     List<String> aliasTokens(String name) {
         List<String> out = new ArrayList<>();
+        List<String> all = new ArrayList<>();
         for (String t : TextNormalizer.tokens(name)) {
             String latin = !t.isEmpty() && TextNormalizer.isCyrillic(t.charAt(0)) ? TextNormalizer.transliterate(t) : t;
+            all.add(latin);
             if (!languages.legalSuffixes().contains(latin)) {
                 out.add(latin);
             }
+        }
+        if (out.size() == 1 && all.size() > 1 && out.get(0).length() <= 4) {
+            return all;
         }
         if (out.size() == 1 && (out.get(0).length() < 3 || languages.isStopword(out.get(0)))) {
             return List.of();
@@ -1211,7 +1273,25 @@ public class IntentRouter {
             }
             return max > 0 && (near(alias, token, max) || near(alias, base, max));
         }
-        return alias.length() >= 6 && TextNormalizer.levenshtein(alias, token, 1) <= 1;
+        return alias.length() >= 6 && (TextNormalizer.levenshtein(alias, token, 1) <= 1 || transposed(alias, token));
+    }
+
+    private static boolean transposed(String a, String b) {
+        if (a.length() != b.length()) {
+            return false;
+        }
+        int first = -1;
+        for (int i = 0; i < a.length(); i++) {
+            if (a.charAt(i) != b.charAt(i)) {
+                if (first < 0) {
+                    first = i;
+                } else {
+                    return i == first + 1 && a.charAt(first) == b.charAt(i) && a.charAt(i) == b.charAt(first)
+                            && a.substring(i + 1).equals(b.substring(i + 1));
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean near(String alias, String candidate, int max) {
@@ -1225,7 +1305,67 @@ public class IntentRouter {
         return d <= 1 || alias.charAt(alias.length() - 1) == candidate.charAt(candidate.length() - 1);
     }
 
-    private CategoryRef detectCategory(List<String> tokens, Set<Integer> consumed) {
+    private Set<String> gatedTaxonomies(Map<String, Double> scores) {
+        Set<String> out = new HashSet<>();
+        for (Map.Entry<String, List<String>> gate : catalog.categoryGates().entrySet()) {
+            boolean open = false;
+            for (String intent : gate.getValue()) {
+                open |= scores.getOrDefault(intent, 0.0) > 0;
+            }
+            if (!open) {
+                out.add(gate.getKey());
+            }
+        }
+        return out;
+    }
+
+    private CategoryRef categoryAlias(List<String> tokens, List<CategoryRef> categories, Set<String> gated, Set<Integer> consumed) {
+        String phrase = " " + String.join(" ", tokens) + " ";
+        CategoryRef best = null;
+        int bestLen = 0;
+        String bestAlias = null;
+        for (Map.Entry<String, String> alias : languages.categoryAliases().entrySet()) {
+            if (!phrase.contains(alias.getKey()) || alias.getKey().length() <= bestLen) {
+                continue;
+            }
+            String target = languages.stem(alias.getValue().split(" ")[0]);
+            for (CategoryRef c : categories) {
+                if (gated.contains(c.taxonomy())) {
+                    continue;
+                }
+                boolean hit = false;
+                for (String label : c.labels().values()) {
+                    if (label == null) {
+                        continue;
+                    }
+                    for (String lt : TextNormalizer.tokens(label)) {
+                        String ls = languages.stem(lt);
+                        hit |= ls.length() >= 3 && target.length() >= 3 && (ls.startsWith(target) || target.startsWith(ls));
+                    }
+                }
+                if (hit) {
+                    best = c;
+                    bestLen = alias.getKey().length();
+                    bestAlias = alias.getKey();
+                    break;
+                }
+            }
+        }
+        if (best != null) {
+            List<String> aliasTokens = TextNormalizer.tokens(bestAlias);
+            for (int i = 0; i + aliasTokens.size() <= tokens.size(); i++) {
+                if (tokens.subList(i, i + aliasTokens.size()).equals(aliasTokens)) {
+                    for (int k = i; k < i + aliasTokens.size(); k++) {
+                        consumed.add(k);
+                    }
+                    break;
+                }
+            }
+        }
+        return best;
+    }
+
+    private CategoryRef detectCategory(List<String> tokens, Set<Integer> consumed, Set<String> gated) {
         List<CategoryRef> categories;
         try {
             categories = directory.categories();
@@ -1240,9 +1380,12 @@ public class IntentRouter {
             stems.add(languages.stem(t));
         }
         CategoryRef best = null;
-        int bestLen = 0;
+        int bestScore = 0;
         List<Integer> bestIdx = List.of();
         for (CategoryRef c : categories) {
+            if (gated != null && gated.contains(c.taxonomy())) {
+                continue;
+            }
             for (String label : c.labels().values()) {
                 if (label == null) {
                     continue;
@@ -1258,8 +1401,10 @@ public class IntentRouter {
                 }
                 List<Integer> idx = new ArrayList<>();
                 boolean all = true;
+                boolean head = false;
                 int len = 0;
-                for (String ls : labelStems) {
+                for (int k = 0; k < labelStems.size(); k++) {
+                    String ls = labelStems.get(k);
                     if (ls.length() < 4) {
                         all = false;
                         break;
@@ -1267,6 +1412,9 @@ public class IntentRouter {
                     int found = -1;
                     for (int i = 0; i < stems.size(); i++) {
                         String s = stems.get(i);
+                        if (consumed.contains(i) || idx.contains(i)) {
+                            continue;
+                        }
                         if (s.length() >= 4 && (s.startsWith(ls) || ls.startsWith(s) && s.length() >= ls.length() - 1)) {
                             found = i;
                             break;
@@ -1274,17 +1422,34 @@ public class IntentRouter {
                     }
                     if (found < 0) {
                         all = false;
-                        break;
+                        continue;
+                    }
+                    if (k == 0) {
+                        head = true;
                     }
                     idx.add(found);
                     len += ls.length();
                 }
-                if (all && len > bestLen) {
+                int score;
+                if (all && idx.size() == labelStems.size()) {
+                    score = len * 2;
+                } else if (head && labelStems.size() > 1 && labelStems.get(0).length() >= 5 && idx.size() == 1) {
+                    score = len * 2 - 1;
+                } else {
+                    continue;
+                }
+                if ("product_category".equals(c.taxonomy()) || "promotion_category".equals(c.taxonomy())) {
+                    score += 1;
+                }
+                if (score > bestScore) {
                     best = c;
-                    bestLen = len;
+                    bestScore = score;
                     bestIdx = idx;
                 }
             }
+        }
+        if (best == null) {
+            return categoryAlias(tokens, categories, gated == null ? Set.of() : gated, consumed);
         }
         consumed.addAll(bestIdx);
         return best;
@@ -1295,6 +1460,9 @@ public class IntentRouter {
         for (int i = 0; i < tokens.size(); i++) {
             String t = tokens.get(i);
             if (consumed.contains(i) || languages.isStopword(t)) {
+                continue;
+            }
+            if (languages.conditionalStopwords().contains(t) && i + 1 < tokens.size() && Character.isDigit(tokens.get(i + 1).charAt(0))) {
                 continue;
             }
             if (t.length() < 2 && !Character.isDigit(t.charAt(0))) {

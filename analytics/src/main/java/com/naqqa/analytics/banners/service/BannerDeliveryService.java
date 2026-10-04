@@ -35,10 +35,17 @@ public class BannerDeliveryService {
     private final ZoneId zone;
     private final String redirectPath;
     private final RandomGenerator random;
+    private final BannerSlotRegistry slots;
 
     public BannerDeliveryService(BannerCampaignCache cache, BannerSelector selector, BannerCounters counters,
                                  BannerRepository repository, BannerTokenService tokens, ZoneId zone, String redirectPath,
                                  RandomGenerator random) {
+        this(cache, selector, counters, repository, tokens, zone, redirectPath, random, null);
+    }
+
+    public BannerDeliveryService(BannerCampaignCache cache, BannerSelector selector, BannerCounters counters,
+                                 BannerRepository repository, BannerTokenService tokens, ZoneId zone, String redirectPath,
+                                 RandomGenerator random, BannerSlotRegistry slots) {
         this.cache = cache;
         this.selector = selector;
         this.counters = counters;
@@ -47,10 +54,14 @@ public class BannerDeliveryService {
         this.zone = zone;
         this.redirectPath = redirectPath == null ? "/t/b" : redirectPath.replaceAll("/+$", "");
         this.random = random;
+        this.slots = slots;
     }
 
     public ServeDto serve(BannerRequest request) {
         if (request.slot() == null || !BannerSlots.exists(request.slot())) {
+            return null;
+        }
+        if (slots != null && !slots.servable(request)) {
             return null;
         }
         LocalDate day = request.now().atZone(zone).toLocalDate();

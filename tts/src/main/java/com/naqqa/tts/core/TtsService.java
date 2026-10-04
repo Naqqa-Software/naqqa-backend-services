@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TtsService {
 
     private static final Logger log = LoggerFactory.getLogger(TtsService.class);
-    private static final String VERSION = "1";
+    private static final String VERSION = "2";
 
     public record Audio(String key, byte[] bytes, boolean cached) {
     }
@@ -34,6 +34,7 @@ public class TtsService {
     private final TtsCache cache;
     private final TtsRateLimiter limiter;
     private final TtsTextNormalizer normalizer;
+    private final TtsAudioProcessor audio;
     private final AtomicInteger failures = new AtomicInteger();
     private final AtomicLong openUntil = new AtomicLong();
 
@@ -43,6 +44,7 @@ public class TtsService {
         this.cache = cache;
         this.limiter = limiter;
         this.normalizer = normalizer;
+        this.audio = new TtsAudioProcessor(properties.getAudio());
     }
 
     public Set<String> languages() {
@@ -70,7 +72,8 @@ public class TtsService {
         if (clean.isBlank()) {
             throw new TtsException(TtsException.Reason.INVALID, "Nothing to speak");
         }
-        return new Prepared(hash(VERSION + "|" + l + "|" + voice.id() + "|" + clean), l, clean, voice);
+        String settings = voice.id() + "|" + properties.getPiper().getSentenceSilence() + "|" + properties.getAudio().id();
+        return new Prepared(hash(VERSION + "|" + l + "|" + settings + "|" + clean), l, clean, voice);
     }
 
     public Audio speak(Prepared prepared, String clientKey) {
@@ -92,6 +95,9 @@ public class TtsService {
         try {
             temp = cache.tempFile(prepared.key());
             Path out = engine.synthesize(prepared.text(), prepared.lang(), prepared.voice(), temp);
+            if (properties.getAudio().isEnabled()) {
+                Files.write(out, audio.process(Files.readAllBytes(out)));
+            }
             byte[] bytes = cache.put(prepared.key(), out);
             failures.set(0);
             return new Audio(prepared.key(), bytes, false);

@@ -9,4 +9,8 @@ public interface ChatQueryExpander {
     default boolean isVocabulary(String token) {
         return false;
     }
+
+    default List<String> layoutCandidates(String token) {
+        return List.of();
+    }
 }

@@ -108,16 +108,23 @@ public class PiperEngine implements TtsEngine {
         command.add("--model");
         command.add(model.toString());
         command.add("--json-input");
+        double silence = voice.getSentenceSilence() != null ? voice.getSentenceSilence() : properties.getPiper().getSentenceSilence();
         command.add("--sentence_silence");
-        command.add(String.format(Locale.ROOT, "%.2f", properties.getPiper().getSentenceSilence()));
-        if (voice.getLengthScale() != null) {
-            command.add("--length_scale");
-            command.add(String.format(Locale.ROOT, "%.2f", voice.getLengthScale()));
-        }
+        command.add(String.format(Locale.ROOT, "%.3f", silence));
+        option(command, "--length_scale", voice.getLengthScale());
+        option(command, "--noise_scale", voice.getNoiseScale());
+        option(command, "--noise_w", voice.getNoiseW());
         Path dir = binary.getParent();
         String ld = System.getenv("LD_LIBRARY_PATH");
         Map<String, String> env = Map.of("LD_LIBRARY_PATH", ld == null || ld.isBlank() ? dir.toString() : dir + ":" + ld);
         return new PiperProcess(command, dir, env, voice.getSpeaker());
+    }
+
+    private static void option(List<String> command, String name, Double value) {
+        if (value != null) {
+            command.add(name);
+            command.add(String.format(Locale.ROOT, "%.3f", value));
+        }
     }
 
     private void unloadIdle() {

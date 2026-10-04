@@ -2,12 +2,15 @@ package com.naqqa.analytics.banners.web;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.naqqa.analytics.banners.engine.BannerPacingCalculator;
+import com.naqqa.analytics.banners.engine.BannerSlotDefaults;
 import com.naqqa.analytics.banners.engine.BannerSlots;
 import com.naqqa.analytics.banners.model.BannerCampaign;
 import com.naqqa.analytics.banners.model.BannerCreative;
 import com.naqqa.analytics.banners.model.BannerImage;
+import com.naqqa.analytics.banners.model.BannerSlotSettings;
 
 import java.util.List;
+import java.util.Map;
 
 public final class BannerDtos {
 
@@ -50,5 +53,20 @@ public final class BannerDtos {
     }
 
     public record SummaryDto(long pending, long active) {
+    }
+
+    public record PublicSlotDto(String id, boolean enabled, String page, BannerSlotSettings.Size desktop, BannerSlotSettings.Size mobile,
+                                boolean desktopEnabled, boolean mobileEnabled, List<String> pageTypes, Boolean showLabel, Boolean lazy,
+                                Boolean reserve, Boolean eager, Map<String, Object> params) {
+        public static PublicSlotDto of(BannerSlotSettings s) {
+            return new PublicSlotDto(s.getId(), s.isEnabled() && s.isMounted(), s.getPage(), s.getDesktop(), s.getMobile(), s.isDesktopEnabled(),
+                    s.isMobileEnabled(), s.getPageTypes(), s.getShowLabel(), s.getLazy(), s.getReserve(), s.getEager(), s.getParams());
+        }
+    }
+
+    public record SlotOptionsDto(List<String> pageTypes, List<BannerSlotDefaults.ParamSpec> params, BannerSlotSettings defaults) {
+    }
+
+    public record AdminSlotDto(BannerSlotSettings settings, SlotOptionsDto options) {
     }
 }

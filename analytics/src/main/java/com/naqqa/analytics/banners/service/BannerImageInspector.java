@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 
 public final class BannerImageInspector {
 
@@ -55,6 +56,10 @@ public final class BannerImageInspector {
     }
 
     public static List<Violation> validate(ImageInfo info, String slotId, String variant, Rules rules) {
+        return validate(info, slotId, variant, rules, BannerSlots::get);
+    }
+
+    public static List<Violation> validate(ImageInfo info, String slotId, String variant, Rules rules, Function<String, BannerSlots.Slot> lookup) {
         List<Violation> out = new ArrayList<>();
         if (info == null) {
             out.add(new Violation("banners.creative.format", "Unsupported image. Allowed: " + String.join(", ", rules.formats())));
@@ -70,7 +75,7 @@ public final class BannerImageInspector {
             out.add(new Violation("banners.creative.dimensions", "Image dimensions could not be read"));
             return out;
         }
-        BannerSlots.Slot slot = BannerSlots.get(slotId);
+        BannerSlots.Slot slot = lookup.apply(slotId);
         if (slot == null) {
             return out;
         }
