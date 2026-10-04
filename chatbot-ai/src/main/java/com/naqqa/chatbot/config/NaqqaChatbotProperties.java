@@ -101,6 +101,16 @@ public class NaqqaChatbotProperties {
         private String whisperUrl = "http://127.0.0.1:8178";
         private String ffmpegPath = "ffmpeg";
         private long timeoutMs = 20_000L;
+        private String language = "auto";
+        private long connectTimeoutMs = 1_500L;
+        private int maxConcurrent = 2;
+        private long queueWaitMs = 10_000L;
+        private long cooldownMs = 30_000L;
+
+        public String normalizedLanguage() {
+            String value = language == null ? "" : language.trim().toLowerCase(Locale.ROOT);
+            return value.isEmpty() ? "auto" : value;
+        }
 
         public String normalizedProvider() {
             return provider == null || provider.isBlank() ? STT_BROWSER : provider.trim().toLowerCase(Locale.ROOT);
