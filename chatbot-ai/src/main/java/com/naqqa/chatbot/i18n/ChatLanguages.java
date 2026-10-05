@@ -139,6 +139,8 @@ public final class ChatLanguages {
     private final Map<String, String> placeAliases = new LinkedHashMap<>();
     private final List<Pattern> offTopicPatterns = new ArrayList<>();
     private final Set<String> scenarioCategoryLike = new LinkedHashSet<>();
+    private final Set<String> headBreaks = new LinkedHashSet<>();
+    private final List<String> foreignMarkers = new ArrayList<>();
     private final Map<String, List<String>> followUps = new LinkedHashMap<>();
     private final Map<String, Integer> ordinals = new LinkedHashMap<>();
     private final Set<String> pronouns = new LinkedHashSet<>();
@@ -149,6 +151,7 @@ public final class ChatLanguages {
     private final List<Detection> detections = new ArrayList<>();
     private final Map<String, Stemming> stemming = new LinkedHashMap<>();
     private final Pattern humanRequest;
+    private final Pattern peopleCount;
     private final Pattern priceRange;
     private final Pattern priceMax;
     private final Pattern priceMin;
@@ -277,6 +280,8 @@ public final class ChatLanguages {
             for (JsonNode n : pack.path("scenarioCategoryLike")) {
                 scenarioCategoryLike.add(n.asText(""));
             }
+            addAll(headBreaks, pack.path("headBreaks"), true);
+            phrases(foreignMarkers, pack.path("foreignMarkers"));
             pack.path("followUps").fields().forEachRemaining(e -> phrases(followUps.computeIfAbsent(e.getKey(),
                     k -> new ArrayList<>()), e.getValue()));
             pack.path("ordinals").fields().forEachRemaining(e -> ordinals.put(TextNormalizer.normalizedPhrase(e.getKey()),
@@ -357,6 +362,12 @@ public final class ChatLanguages {
             dayNames.put(lang, days);
         }
         this.humanRequest = human.isEmpty() ? null : Pattern.compile("(" + String.join("|", human) + ")",
+                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
+        List<String> people = new ArrayList<>();
+        for (String w : peopleWords) {
+            people.add(Pattern.quote(w));
+        }
+        this.peopleCount = people.isEmpty() ? null : Pattern.compile("\\d{1,2}\\s+(?:de\\s+)?(?:" + String.join("|", people) + ")\\b",
                 Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
         String number = "(\\d+(?:[.,]\\d+)?)";
         this.priceRange = price.get("rangeStart").isEmpty() || price.get("rangeSeparators").isEmpty() ? null
@@ -622,7 +633,10 @@ public final class ChatLanguages {
     }
 
     public boolean isHumanRequest(String text) {
-        return humanRequest != null && text != null && humanRequest.matcher(text).find();
+        if (humanRequest == null || text == null) {
+            return false;
+        }
+        return humanRequest.matcher(peopleCount == null ? text : peopleCount.matcher(text).replaceAll(" ")).find();
     }
 
     public List<Rule> rules() {
@@ -823,6 +837,21 @@ public final class ChatLanguages {
 
     public Set<String> scenarioCategoryLike() {
         return scenarioCategoryLike;
+    }
+
+    public boolean isHeadBreak(String token) {
+        return headBreaks.contains(token);
+    }
+
+    public boolean foreignTo(String title, String term) {
+        String phrase = TextNormalizer.normalizedPhrase(title);
+        String own = TextNormalizer.normalizedPhrase(term);
+        for (String marker : foreignMarkers) {
+            if (phrase.contains(marker) && !own.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public Map<String, List<String>> followUps() {

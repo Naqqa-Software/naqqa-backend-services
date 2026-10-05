@@ -2351,7 +2351,18 @@
         "cadou pentru iubita",
         "cadou pentru prietena",
         "cadou pentru sora",
-        "cadou pentru bunica"
+        "cadou pentru bunica",
+        "cadou pentru sotia",
+        "cadou pentru mamica",
+        "cadou pentru femeie",
+        "cadou pentru o femeie",
+        "cadou pentru ea",
+        "cadou mamei",
+        "cadou sotiei",
+        "cadou iubitei",
+        "cadou prietenei",
+        "cadou surorii",
+        "cadou bunicii"
       ],
       "terms": [
         "parfum",
@@ -2372,7 +2383,22 @@
         "cadou pentru iubit",
         "cadou pentru frate",
         "cadou pentru coleg",
-        "cadou pentru bunic"
+        "cadou pentru bunic",
+        "cadou pentru sotul",
+        "cadou pentru tatal",
+        "cadou pentru tati",
+        "cadou pentru iubitul",
+        "cadou pentru fratele",
+        "cadou pentru bunicul",
+        "cadou pentru barbat",
+        "cadou pentru un barbat",
+        "cadou pentru el",
+        "cadou sotului",
+        "cadou tatalui",
+        "cadou iubitului",
+        "cadou fratelui",
+        "cadou bunicului",
+        "cadou barbatului"
       ],
       "terms": [
         "parfum",
@@ -2393,7 +2419,16 @@
         "cadou pentru fiica",
         "cadou pentru nepot",
         "cadou pentru nepoata",
-        "cadou copil"
+        "cadou copil",
+        "cadou pentru copii",
+        "cadou pentru copilul",
+        "cadou pentru fiul",
+        "cadou copilului",
+        "cadou copiilor",
+        "cadou fiului",
+        "cadou fiicei",
+        "cadou nepotului",
+        "cadou nepoatei"
       ],
       "terms": [
         "jucării",
@@ -2811,7 +2846,7 @@
     "kishiniov": "chisinau"
   },
   "offTopicPatterns": [
-    "\\b\\d+\\s*(?:[+*/x:]|ori|plus|minus|impartit la)\\s*\\d+\\b"
+    "\\b\\d+\\s*(?:[+*/:]|ori|plus|minus|impartit la)\\s*\\d+\\b"
   ],
   "scenarioCategoryLike": [
     "cleaning",
@@ -2820,6 +2855,45 @@
     "pets",
     "back_to_school",
     "baby"
+  ],
+  "headBreaks": [
+    "cu",
+    "din",
+    "pentru",
+    "fara",
+    "in",
+    "la",
+    "aroma",
+    "gust"
+  ],
+  "foreignMarkers": [
+    "caini",
+    "caine",
+    "catei",
+    "catel",
+    "pisici",
+    "pisica",
+    "pisoi",
+    "animale",
+    "dog",
+    "dogs",
+    "cat",
+    "cats",
+    "chow",
+    "pedigree",
+    "whiskas",
+    "purina",
+    "friskies",
+    "kitekat",
+    "felix",
+    "suc propriu",
+    "conserva",
+    "conserve",
+    "detergent",
+    "lenor",
+    "perle parfumate",
+    "balsam de rufe",
+    "odorizant"
   ],
   "followUps": {
     "connectors": [

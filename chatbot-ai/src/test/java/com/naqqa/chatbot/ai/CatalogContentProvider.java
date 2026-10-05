@@ -110,7 +110,9 @@ class CatalogContentProvider implements ChatContentProvider {
                 {"BLOG", "Sfaturi pentru cumpărături inteligente", "Советы для умных покупок", "Smart shopping tips", null, null, null, 41L},
                 {"BLOG", "Cum economisești la cumpărături", "Как экономить на покупках", "How to save on shopping", null, null, null, 41L},
                 {"BOOKLET", "Catalog Linella săptămâna aceasta", "Каталог Линелла на неделю", "Linella weekly catalog", null, null, 5L, 31L},
-                {"BOOKLET", "Catalog Kaufland", "Каталог Кауфланд", "Kaufland catalog", null, null, 3L, 31L}
+                {"BOOKLET", "Catalog Kaufland", "Каталог Кауфланд", "Kaufland catalog", null, null, 3L, 31L},
+                {"PROMOTION", "Hrană uscată pentru câini Pedigree 2kg", "Сухой корм для собак Педигри 2кг", "Pedigree dry dog food 2kg", 129.0, 15.0, 4L, null},
+                {"PROMOTION", "Șampon Head & Shoulders 400ml", "Шампунь Хед энд Шолдерс 400мл", "Head & Shoulders shampoo 400ml", 79.0, 20.0, 5L, null}
         };
         long id = 100;
         for (Object[] r : rows) {

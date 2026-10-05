@@ -212,6 +212,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
 
     static final int STAGE_CATEGORY = 6;
     static final int STAGE_CLOSEST = 7;
+    static final int STAGE_TOKENS = 8;
     private static final int SCENARIO_MAX_TERMS = 8;
     private static final int EXPIRING_DAYS = 3;
 
@@ -1056,7 +1057,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 && (intent.query() != null && !intent.query().isBlank() || intent.category() != null)
                 && ranked.stream().anyMatch(r -> r.candidate().price() != null && r.candidate().price() > 0);
         if (priceFocus) {
-            ranked = byPrice(ranked);
+            ranked = hasQueryText ? headFirst(byPrice(ranked), intent.query(), lang) : byPrice(ranked);
         } else if (hasQueryText && (def.role() == Role.SEARCH || def.role() == Role.CATALOG || def.role() == Role.COMPANY
                 || def.role() == Role.LOCATION)) {
             ranked = headFirst(ranked, intent.query(), lang);
@@ -1997,6 +1998,27 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 return new LadderResult(found, level, null);
             }
         }
+        List<String> words = new ArrayList<>();
+        for (String t : TextNormalizer.tokens(q)) {
+            if (t.length() >= 3 && !languages.isStopword(t) && !Character.isDigit(t.charAt(0)) && words.size() < 3) {
+                words.add(t);
+            }
+        }
+        if (words.size() >= 2) {
+            List<RankedItem> covering = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            for (String t : words) {
+                RetrievalPlan single = plan.withQuery(t, false).withRelax(RetrievalPlan.RELAX_FUZZY);
+                for (RankedItem item : signalFilter(rankSafely(single, options, today), signals, today)) {
+                    if (covers(item.candidate(), words) && seen.add(item.candidate().key())) {
+                        covering.add(item);
+                    }
+                }
+            }
+            if (!covering.isEmpty()) {
+                return new LadderResult(covering, STAGE_TOKENS, null);
+            }
+        }
         if (plan.category() == null) {
             List<CategoryRef> categories;
             try {
@@ -2044,6 +2066,21 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         } catch (RuntimeException e) {
             return List.of();
         }
+    }
+
+    private boolean covers(Candidate c, List<String> words) {
+        StringBuilder text = new StringBuilder();
+        for (String title : c.titles().values()) {
+            if (title != null) {
+                text.append(' ').append(title);
+            }
+        }
+        for (String w : words) {
+            if (!matchesLoosely(text.toString(), List.of(w))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String ladderHeader(LadderResult ladder, String lang) {
@@ -2149,6 +2186,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         Double budget = intent.priceMin() == null ? intent.priceMax() : null;
         Long company = intent.company() == null ? null : intent.company().id();
         Ranker.Options options = Ranker.Options.from(settings, 6);
+        boolean food = !languages.scenarioCategoryLike().contains(scenario.id());
         java.util.Map<String, List<RankedItem>> perTerm = new java.util.LinkedHashMap<>();
         for (String term : terms) {
             if (excludedText(term, ctx.signals().excluded())) {
@@ -2157,12 +2195,12 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             RetrievalPlan p = new RetrievalPlan(intent.intent() == null ? null : intent.intent().id(), types, term, lang,
                     company, null, false, 6, null, budget, true, intent.place(), RetrievalPlan.RELAX_NONE,
                     ctx.signals().minDiscount(), null);
-            List<RankedItem> items = signalFilter(relevantTo(rankSafely(p, options, today), term), ctx.signals(), today);
+            List<RankedItem> items = headOnly(signalFilter(relevantTo(rankSafely(p, options, today), term), ctx.signals(), today),
+                    term, lang, food);
             if (items.isEmpty()) {
-                items = signalFilter(looseRelevant(rankSafely(p.withRelax(RetrievalPlan.RELAX_VARIANTS), options, today), term),
-                        ctx.signals(), today);
+                items = headOnly(signalFilter(looseRelevant(rankSafely(p.withRelax(RetrievalPlan.RELAX_VARIANTS), options, today),
+                        term), ctx.signals(), today), term, lang, food);
             }
-            items = headOnly(items, term, lang);
             List<RankedItem> priced = new ArrayList<>();
             for (RankedItem i : items) {
                 if (i.candidate().price() != null && i.candidate().price() > 0) {
@@ -2267,33 +2305,112 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         return String.join(" ", out);
     }
 
-    private List<RankedItem> headFirst(List<RankedItem> items, String query, String lang) {
+    private List<String> headStems(String query) {
         List<String> q = new ArrayList<>();
         for (String t : TextNormalizer.tokens(query)) {
-            if (t.length() >= 3 && !languages.isStopword(t)) {
+            if (t.length() >= 2 && !languages.isStopword(t) && !Character.isDigit(t.charAt(0))) {
                 q.add(languages.stem(t));
             }
         }
+        return q;
+    }
+
+    private static boolean sameWord(String stem, String s) {
+        return stem.length() >= 2 && (stem.startsWith(s) && stem.length() <= s.length() + 1
+                || s.startsWith(stem) && stem.length() >= s.length() - 1);
+    }
+
+    private volatile Set<String> typeStems;
+
+    private Set<String> typeStems() {
+        Set<String> out = typeStems;
+        if (out == null) {
+            List<String> terms = new ArrayList<>();
+            for (ChatLanguages.Scenario s : languages.scenarios().values()) {
+                for (List<String> list : s.terms().values()) {
+                    terms.addAll(list);
+                }
+            }
+            for (List<ChatLanguages.BasketItem> list : languages.basket().items().values()) {
+                for (ChatLanguages.BasketItem item : list) {
+                    terms.add(item.term());
+                }
+            }
+            out = new HashSet<>();
+            for (String term : terms) {
+                List<String> tokens = TextNormalizer.tokens(term);
+                if (tokens.size() == 1 && tokens.get(0).length() >= 2) {
+                    out.add(languages.stem(tokens.get(0)));
+                }
+            }
+            typeStems = out;
+        }
+        return out;
+    }
+
+    private boolean otherType(String stem, List<String> q) {
+        for (String s : q) {
+            if (sameWord(stem, s)) {
+                return false;
+            }
+        }
+        for (String type : typeStems()) {
+            if (sameWord(stem, type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int headRank(String title, List<String> q) {
+        List<String> tokens = TextNormalizer.tokens(title == null ? "" : title);
+        for (int i = 0; i < Math.min(3, tokens.size()); i++) {
+            if (languages.isHeadBreak(tokens.get(i))) {
+                return -1;
+            }
+            String stem = languages.stem(tokens.get(i));
+            for (String s : q) {
+                if (sameWord(stem, s)) {
+                    return i == 0 ? 0 : 1;
+                }
+            }
+            if (otherType(stem, q)) {
+                return -1;
+            }
+        }
+        return -1;
+    }
+
+    private boolean hasAll(String title, List<String> q) {
+        List<String> stems = new ArrayList<>();
+        for (String t : TextNormalizer.tokens(title == null ? "" : title)) {
+            stems.add(languages.stem(t));
+        }
+        for (String s : q) {
+            boolean found = false;
+            for (String stem : stems) {
+                found |= stem.startsWith(s) || s.length() >= 3 && s.startsWith(stem) && stem.length() >= s.length() - 1;
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<RankedItem> headFirst(List<RankedItem> items, String query, String lang) {
+        List<String> q = headStems(query);
         if (q.isEmpty() || items.size() < 2) {
             return items;
         }
         List<RankedItem> head = new ArrayList<>();
+        List<RankedItem> near = new ArrayList<>();
         List<RankedItem> rest = new ArrayList<>();
         for (RankedItem r : items) {
-            String title = r.candidate().title(lang);
-            List<String> tokens = TextNormalizer.tokens(title == null ? "" : title);
-            boolean hit = false;
-            for (int i = 0; i < Math.min(2, tokens.size()); i++) {
-                String stem = languages.stem(tokens.get(i));
-                for (String s : q) {
-                    hit |= stem.length() >= 3 && (stem.startsWith(s) || s.startsWith(stem) && stem.length() >= s.length() - 1);
-                }
-            }
-            (hit ? head : rest).add(r);
+            int rank = headRank(r.candidate().title(lang), q);
+            (rank == 0 ? head : rank == 1 ? near : rest).add(r);
         }
-        if (head.isEmpty() || rest.isEmpty()) {
-            return items;
-        }
+        head.addAll(near);
         head.addAll(rest);
         return head;
     }
@@ -2767,33 +2884,26 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         return outputGuard.isInternalPath(path) ? languages.format("where_store", lang, plain(company.name()), path) : "";
     }
 
-    private List<RankedItem> headOnly(List<RankedItem> items, String term, String lang) {
-        List<RankedItem> ordered = headFirst(items, term, lang);
-        if (ordered == items || ordered.isEmpty()) {
+    private List<RankedItem> headOnly(List<RankedItem> items, String term, String lang, boolean food) {
+        List<String> q = headStems(term);
+        if (q.isEmpty()) {
             return items;
         }
-        List<String> q = new ArrayList<>();
-        for (String t : TextNormalizer.tokens(term)) {
-            if (t.length() >= 3 && !languages.isStopword(t)) {
-                q.add(languages.stem(t));
-            }
-        }
         List<RankedItem> head = new ArrayList<>();
-        for (RankedItem r : ordered) {
+        List<RankedItem> near = new ArrayList<>();
+        for (RankedItem r : items) {
             String title = r.candidate().title(lang);
-            List<String> tokens = TextNormalizer.tokens(title == null ? "" : title);
-            boolean hit = false;
-            for (int i = 0; i < Math.min(2, tokens.size()); i++) {
-                String stem = languages.stem(tokens.get(i));
-                for (String s : q) {
-                    hit |= stem.length() >= 3 && (stem.startsWith(s) || s.startsWith(stem) && stem.length() >= s.length() - 1);
-                }
+            if (title == null || !hasAll(title, q) || food && languages.foreignTo(title, term)) {
+                continue;
             }
-            if (hit) {
+            int rank = headRank(title, q);
+            if (rank == 0) {
                 head.add(r);
+            } else if (rank == 1) {
+                near.add(r);
             }
         }
-        return head.isEmpty() ? items : head;
+        return head.isEmpty() ? near : head;
     }
 
     private String where(Candidate c, String lang) {
@@ -2865,12 +2975,13 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             RetrievalPlan p = new RetrievalPlan(intent.intent() == null ? null : intent.intent().id(), types, line.term(), lang,
                     company, null, false, 8, null, null, true, intent.place(), RetrievalPlan.RELAX_NONE,
                     ctx.signals().minDiscount(), null);
-            List<RankedItem> items = signalFilter(relevantTo(rankSafely(p, options, today), line.term()), ctx.signals(), today);
+            List<RankedItem> items = headOnly(signalFilter(relevantTo(rankSafely(p, options, today), line.term()), ctx.signals(),
+                    today), line.term(), lang, true);
             if (items.isEmpty()) {
-                items = signalFilter(looseRelevant(rankSafely(p.withRelax(RetrievalPlan.RELAX_VARIANTS), options, today),
-                        line.term()), ctx.signals(), today);
+                items = headOnly(signalFilter(looseRelevant(rankSafely(p.withRelax(RetrievalPlan.RELAX_VARIANTS), options, today),
+                        line.term()), ctx.signals(), today), line.term(), lang, true);
             }
-            candidates.put(line.term(), headOnly(items, line.term(), lang));
+            candidates.put(line.term(), items);
         }
         Double budget = intent.priceMin() == null ? intent.priceMax() : null;
         int people = Math.max(1, request.people());

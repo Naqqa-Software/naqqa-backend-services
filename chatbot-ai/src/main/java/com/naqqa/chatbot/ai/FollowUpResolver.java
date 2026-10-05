@@ -150,6 +150,10 @@ public class FollowUpResolver {
         if (!searchable) {
             return Resolution.NONE;
         }
+        ChatLanguages.Scenario named = router.scenario(text);
+        if (named != null && !named.id().equals(previous.scenario())) {
+            return Resolution.NONE;
+        }
         boolean planned = ConversationContext.KIND_BASKET.equals(kind) || ConversationContext.KIND_SCENARIO.equals(kind);
         List<String> excluded = router.excluded(phrase);
         Integer people = router.people(phrase);

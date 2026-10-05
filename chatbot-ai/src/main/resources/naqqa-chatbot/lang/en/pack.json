@@ -1552,7 +1552,15 @@
         "gift for my wife",
         "gift for my girlfriend",
         "gift for her",
-        "gift for my sister"
+        "gift for my sister",
+        "gift for my mom",
+        "gift for my mother",
+        "gift for a woman",
+        "gift for women",
+        "gift for my grandma",
+        "present for my wife",
+        "present for mom",
+        "present for her"
       ],
       "terms": [
         "perfume",
@@ -1572,7 +1580,15 @@
         "gift for my husband",
         "gift for my boyfriend",
         "gift for him",
-        "gift for my brother"
+        "gift for my brother",
+        "gift for my dad",
+        "gift for my father",
+        "gift for a man",
+        "gift for men",
+        "gift for my grandpa",
+        "present for my husband",
+        "present for dad",
+        "present for him"
       ],
       "terms": [
         "perfume",
@@ -1592,7 +1608,14 @@
         "gift for my son",
         "gift for my daughter",
         "gift for kids",
-        "gift for a kid"
+        "gift for a kid",
+        "gift for my kid",
+        "gift for my kids",
+        "gift for children",
+        "gift for my grandson",
+        "gift for my granddaughter",
+        "present for a child",
+        "present for kids"
       ],
       "terms": [
         "toys",
@@ -1606,6 +1629,39 @@
       ]
     }
   },
+  "headBreaks": [
+    "with",
+    "for",
+    "from",
+    "without",
+    "in",
+    "flavour",
+    "flavor",
+    "flavored",
+    "flavoured"
+  ],
+  "foreignMarkers": [
+    "dog",
+    "dogs",
+    "cat",
+    "cats",
+    "puppy",
+    "kitten",
+    "chow",
+    "pedigree",
+    "whiskas",
+    "purina",
+    "friskies",
+    "kitekat",
+    "felix",
+    "own juice",
+    "canned",
+    "detergent",
+    "laundry",
+    "lenor",
+    "fabric softener",
+    "air freshener"
+  ],
   "basket": {
     "triggers": [
       "groceries",
