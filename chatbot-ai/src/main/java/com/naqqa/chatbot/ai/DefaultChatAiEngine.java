@@ -2355,6 +2355,16 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             words.addAll(rule.before());
             words.addAll(rule.with());
         }
+        words.addAll(languages.peopleWords());
+        for (String p : languages.familyPhrases()) {
+            words.addAll(TextNormalizer.tokens(p));
+        }
+        for (String p : languages.basket().triggers()) {
+            words.addAll(TextNormalizer.tokens(p));
+        }
+        for (String p : languages.nutrition().triggers()) {
+            words.addAll(TextNormalizer.tokens(p));
+        }
         List<String> out = new ArrayList<>();
         for (String t : TextNormalizer.tokens(query)) {
             if (t.length() >= 3 && !words.contains(t) && !languages.isStopword(t) && !Character.isDigit(t.charAt(0))) {
