@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -77,7 +78,7 @@ public class ChatStatsService {
                         .append("ai", new Document("$sum", new Document("$cond", List.of(
                                 new Document("$and", List.of(
                                         new Document("$ne", List.of("$escalated", true)),
-                                        new Document("$eq", List.of(new Document("$ifNull", List.of("$assigned_operator_id", null)), null)))),
+                                        new Document("$eq", Arrays.asList(new Document("$ifNull", Arrays.asList("$assigned_operator_id", null)), null)))),
                                 1, 0))))))));
         if (totals != null) {
             total = number(totals.get("total"));
@@ -130,7 +131,7 @@ public class ChatStatsService {
                         .append("title", new Document("$first", "$title"))
                         .append("shown", new Document("$sum", 1))
                         .append("clicked", new Document("$sum", new Document("$cond", List.of(
-                                new Document("$gt", List.of(new Document("$ifNull", List.of("$clicked_at", null)), null)), 1, 0))))),
+                                new Document("$gt", Arrays.asList(new Document("$ifNull", Arrays.asList("$clicked_at", null)), null)), 1, 0))))),
                 new Document("$sort", new Document("shown", -1)),
                 new Document("$limit", 100)))) {
             Document id = (Document) d.get("_id");
