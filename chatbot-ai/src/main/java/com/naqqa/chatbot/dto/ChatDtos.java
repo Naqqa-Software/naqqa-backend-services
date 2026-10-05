@@ -156,7 +156,8 @@ public final class ChatDtos {
 
     public record ReviewItemDto(String messageId, String conversationId, Instant createdAt, String lang, String question,
                                 String answer, String route, String intent, Double confidence, List<String> flags,
-                                Integer feedback, String feedbackReason, boolean resolved, String note) {
+                                Integer feedback, String feedbackReason, boolean resolved, String note, List<CardDto> cards,
+                                List<QuickReplyDto> quickReplies, String kind) {
     }
 
     public record SuggestionItemDto(String type, String lang, String text, String intent, long count, List<String> examples) {

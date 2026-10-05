@@ -92,14 +92,29 @@ public class ChatReviewService {
         Query query = query(from, to, flag, route, lang, includeResolved);
         long total = messages.count(query);
         query.with(Sort.by(Sort.Direction.DESC, "createdAt")).skip((long) p * s).limit(s);
-        List<ReviewItemDto> items = messages.find(query).stream().map(ChatReviewService::item).toList();
+        com.naqqa.chatbot.entities.ChatSettingsEntity current = settings.get();
+        List<ReviewItemDto> items = messages.find(query).stream().map(m -> item(m, current, labels())).toList();
         return new PageDto<>(items, total, (int) Math.ceil(total / (double) s), p);
     }
 
+    private java.util.function.BiFunction<String, String, String> labels() {
+        return languages == null ? null : (key, lang) -> languages.template("quick_reply." + key, lang);
+    }
+
     public static ReviewItemDto item(ChatMessageEntity m) {
+        return item(m, new com.naqqa.chatbot.entities.ChatSettingsEntity(), null);
+    }
+
+    public static ReviewItemDto item(ChatMessageEntity m, com.naqqa.chatbot.entities.ChatSettingsEntity settings,
+                                     java.util.function.BiFunction<String, String, String> labels) {
+        List<com.naqqa.chatbot.dto.ChatDtos.CardDto> cards = m.getCards() == null ? List.of()
+                : m.getCards().stream().map(ChatMapper::card).toList();
+        List<com.naqqa.chatbot.dto.ChatDtos.QuickReplyDto> quickReplies = ChatMapper.quickReplies(m.getQuickReplies(),
+                settings == null ? new com.naqqa.chatbot.entities.ChatSettingsEntity() : settings, m.getLang(), labels);
         return new ReviewItemDto(m.getId(), m.getConversationId(), m.getCreatedAt(), m.getLang(), m.getQuestion(), m.getText(),
                 m.getRoute(), m.getIntent(), m.getConfidence(), m.getQualityFlags() == null ? List.of() : m.getQualityFlags(),
-                m.getFeedback(), m.getFeedbackReason(), m.getReviewResolvedAt() != null, m.getReviewNote());
+                m.getFeedback(), m.getFeedbackReason(), m.getReviewResolvedAt() != null, m.getReviewNote(), cards, quickReplies,
+                ChatMapper.kind(m));
     }
 
     public ReviewItemDto resolve(ChatOperator operator, String messageId, String note) {
@@ -116,7 +131,7 @@ public class ChatReviewService {
         m.setReviewedBy(operator == null ? null : operator.id());
         ChatMessageEntity saved = messages.save(m);
         audit.log(operator, ChatAuditAction.REVIEW_RESOLVE, m.getConversationId(), "message=" + messageId);
-        return item(saved);
+        return item(saved, settings.get(), labels());
     }
 
     public SuggestionsDto suggestions() {

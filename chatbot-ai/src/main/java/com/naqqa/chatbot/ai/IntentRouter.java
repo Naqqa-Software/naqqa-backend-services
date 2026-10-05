@@ -145,17 +145,189 @@ public class IntentRouter {
         return catalog;
     }
 
-    public String repair(String text) {
-        if (expander == null || text == null || text.isBlank()) {
+    private volatile Set<String> knownWords;
+
+    private Set<String> knownWords() {
+        Set<String> k = knownWords;
+        if (k == null) {
+            k = new HashSet<>();
+            List<List<String>> lists = new ArrayList<>(List.of(languages.cheapestPhrases(), languages.priceAskPhrases(),
+                    languages.storeComparePhrases(), languages.discountOnlyPhrases(), languages.newestPhrases(), languages.expiringPhrases(),
+                    languages.comparativePhrases(), languages.recommendationPhrases()));
+            lists.addAll(languages.followUps().values());
+            lists.addAll(languages.storeAspects().values());
+            for (List<String> list : lists) {
+                for (String p : list) {
+                    for (String t : TextNormalizer.tokens(p)) {
+                        if (t.length() >= 3) {
+                            k.add(t);
+                        }
+                    }
+                }
+            }
+            for (ChatLanguages.Rule rule : rules) {
+                for (String t : TextNormalizer.tokens(rule.value())) {
+                    if (t.length() >= 3) {
+                        k.add(t);
+                    }
+                }
+            }
+            for (Map<String, String> aliases : List.of(languages.categoryAliases(), languages.placeAliases())) {
+                for (String key : aliases.keySet()) {
+                    for (String t : TextNormalizer.tokens(key)) {
+                        if (t.length() >= 3) {
+                            k.add(t);
+                        }
+                    }
+                }
+            }
+            knownWords = k;
+        }
+        return k;
+    }
+
+    private boolean exactKnown(String folded) {
+        return languages.isStopword(folded) || knownWords().contains(folded) || vocabulary(folded);
+    }
+
+    private boolean known(String folded) {
+        if (folded.length() < 2) {
+            return false;
+        }
+        if (languages.isStopword(folded) || vocabulary(folded)) {
+            return true;
+        }
+        Set<String> k = knownWords();
+        if (k.contains(folded)) {
+            return true;
+        }
+        for (ChatLanguages.Rule rule : rules) {
+            int min = !rule.value().isEmpty() && TextNormalizer.isCyrillic(rule.value().charAt(0)) ? 3 : 4;
+            if ("stem".equals(rule.match()) && rule.value().length() >= min && folded.startsWith(rule.value())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static String collapseRepeats(String word, int keep) {
+        StringBuilder sb = new StringBuilder(word.length());
+        int run = 0;
+        for (int i = 0; i < word.length(); i++) {
+            char c = word.charAt(i);
+            if (i > 0 && Character.toLowerCase(c) == Character.toLowerCase(word.charAt(i - 1)) && Character.isLetter(c)) {
+                run++;
+                if (run >= keep) {
+                    continue;
+                }
+            } else {
+                run = 0;
+            }
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    private String collapseRepeats(String text) {
+        if (!text.matches("(?s).*(\\p{L})\\1\\1.*")) {
             return text;
         }
+        List<String> out = new ArrayList<>();
+        for (String word : text.split(" ")) {
+            if (!word.matches("(?s).*(\\p{L})\\1\\1.*")) {
+                out.add(word);
+                continue;
+            }
+            String one = collapseRepeats(word, 1);
+            String two = collapseRepeats(word, 2);
+            String coreOne = TextNormalizer.fold(one.replaceAll("[^\\p{L}\\p{N}]", ""));
+            String coreTwo = TextNormalizer.fold(two.replaceAll("[^\\p{L}\\p{N}]", ""));
+            if (exactKnown(coreTwo) && !exactKnown(coreOne)) {
+                out.add(two);
+            } else if (expander == null || exactKnown(coreOne) || known(coreOne)) {
+                out.add(one);
+            } else {
+                out.add(two);
+            }
+        }
+        return String.join(" ", out);
+    }
+
+    public String repair(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+        String collapsed = collapseRepeats(text);
+        if (expander == null) {
+            return collapsed;
+        }
+        String layout = repairLayout(collapsed);
+        return repairTranslit(layout);
+    }
+
+    private String repairTranslit(String text) {
+        List<String> words = new ArrayList<>(List.of(text.split(" ")));
+        int latin = 0;
+        int converted = 0;
+        List<String> out = new ArrayList<>();
+        for (String word : words) {
+            String core = word.replaceAll("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$", "");
+            String folded = TextNormalizer.fold(core);
+            String fixed = null;
+            boolean isLatin = !core.isEmpty() && core.chars().allMatch(ch -> ch < 0x0250 && (Character.isLetter(ch) || Character.isDigit(ch)))
+                    && core.chars().anyMatch(Character::isLetter);
+            if (isLatin && core.length() >= 2) {
+                latin++;
+                if (!known(folded) && core.length() >= 3) {
+                    String c = null;
+                    try {
+                        c = expander.transliterate(core);
+                    } catch (RuntimeException ignored) {
+                    }
+                    if (c != null) {
+                        String fc = TextNormalizer.fold(c);
+                        if (!fc.equals(folded) && known(fc)) {
+                            fixed = fc;
+                        }
+                    }
+                }
+                if (fixed != null || known(folded) && !languages.isStopword(folded)) {
+                    converted += fixed != null ? 1 : 0;
+                }
+            }
+            out.add(fixed == null ? word : word.replace(core, fixed));
+        }
+        if (converted < 2 || converted * 2 < latin) {
+            return text;
+        }
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < words.size(); i++) {
+            String word = out.get(i);
+            String core = word.replaceAll("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$", "");
+            if (core.equals(words.get(i).replaceAll("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$", "")) && core.length() >= 1
+                    && core.chars().allMatch(ch -> ch < 0x0250)) {
+                String c = null;
+                try {
+                    c = core.length() <= 2 ? expander.transliterate(core) : null;
+                } catch (RuntimeException ignored) {
+                }
+                if (c != null && languages.isStopword(TextNormalizer.fold(c))) {
+                    word = word.replace(core, TextNormalizer.fold(c));
+                }
+            }
+            result.add(word);
+        }
+        return String.join(" ", result);
+    }
+
+    private String repairLayout(String text) {
         StringBuilder out = new StringBuilder();
         boolean changed = false;
         for (String word : text.split(" ")) {
             String core = word.replaceAll("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$", "");
             String fixed = null;
             String folded = TextNormalizer.fold(core);
-            if (core.length() >= 3 && !core.chars().allMatch(Character::isDigit) && !vocabulary(core) && !languages.isStopword(folded)) {
+            if (core.length() >= 2 && !core.chars().allMatch(Character::isDigit) && !known(folded)) {
                 List<String> candidates;
                 try {
                     candidates = expander.layoutCandidates(core);
@@ -163,8 +335,8 @@ public class IntentRouter {
                     candidates = List.of();
                 }
                 for (String c : candidates == null ? List.<String>of() : candidates) {
-                    String fc = TextNormalizer.fold(c);
-                    if (fc.length() >= 2 && (vocabulary(fc) || languages.isStopword(fc))) {
+                    String fc = TextNormalizer.fold(c).replaceAll("[^\\p{L}\\p{N}]", "");
+                    if (fc.length() >= 2 && (core.length() >= 3 ? known(fc) : languages.isStopword(fc))) {
                         fixed = fc;
                         break;
                     }
@@ -179,6 +351,25 @@ public class IntentRouter {
             out.append(' ');
         }
         return changed ? out.toString().trim() : text;
+    }
+
+    public boolean aspectOnly(String phrase, String aspect, String query) {
+        if (aspect == null) {
+            return false;
+        }
+        if (query == null || query.isBlank()) {
+            return true;
+        }
+        Set<String> words = new HashSet<>();
+        for (String p : languages.storeAspects().getOrDefault(aspect, List.of())) {
+            words.addAll(TextNormalizer.tokens(p));
+        }
+        for (String t : TextNormalizer.tokens(query)) {
+            if (!words.contains(t) && !languages.isStopword(t) && !knownWords().contains(t)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public IntentResult route(String text, String quickReply) {
@@ -264,7 +455,7 @@ public class IntentRouter {
                     }
                 }
                 if (companyRef == null && place == null) {
-                    place = detectPlace(vTokens, TextNormalizer.normalizedPhrase(variant), new HashSet<>());
+                    place = detectPlace(vTokens, TextNormalizer.normalizedPhrase(variant), new HashSet<>(), true);
                 }
             }
         }
@@ -295,7 +486,7 @@ public class IntentRouter {
         IntentDef knowledge = bestOf(scores, catalog.knowledgeOrder());
         double knowledgeScore = knowledge == null ? 0 : scores.get(knowledge.id());
         if (companyRef != null && company != null) {
-            if (knowledgeScore >= 3 && catalogScore < 2) {
+            if (knowledgeScore >= 3 && catalogScore < 2 && storeAspect(phrase) == null) {
                 return result(knowledge, knowledgeScore, companyRef, categoryRef, query, false);
             }
             return new IntentResult(company, 0.9, companyRef, categoryRef, query, false, query.isBlank(), null);
@@ -312,6 +503,20 @@ public class IntentRouter {
         }
         IntentDef best = bestOf(scores, catalog.resolutionOrder());
         double bestScore = best == null ? 0 : scores.get(best.id());
+        if (categoryRef != null && best != null && bestScore >= 3 && best.types() != null && best.types().defaults() != null
+                && best.types().defaults().equals(List.of("BOOKLET")) && !"booklet_category".equals(categoryRef.taxonomy())) {
+            Set<String> others = new HashSet<>();
+            for (CategoryRef c : directory.categories()) {
+                if (!"booklet_category".equals(c.taxonomy())) {
+                    others.add(c.taxonomy());
+                }
+            }
+            CategoryRef booklet = detectCategory(tokens, new HashSet<>(), others);
+            if (booklet != null) {
+                return new IntentResult(best, 0.85, null, booklet, query, false, true, null);
+            }
+            return new IntentResult(best, 0.8, null, categoryRef, query, false, query.isBlank(), null);
+        }
         if (categoryRef != null && category != null && (best == null || best.yieldsToCategory() || bestScore < 3)) {
             return new IntentResult(category, 0.85, null, categoryRef, query, false, query.isBlank(), null);
         }
@@ -583,6 +788,11 @@ public class IntentRouter {
         while (m.find()) {
             found = Integer.parseInt(m.group(1));
         }
+        for (Map.Entry<String, Integer> e : languages.peopleAlone().entrySet()) {
+            if (phrase.contains(e.getKey())) {
+                found = e.getValue();
+            }
+        }
         for (String fam : languages.familyPhrases()) {
             Matcher f = Pattern.compile(Pattern.quote(fam) + "(\\d{1,2}) ").matcher(phrase);
             while (f.find()) {
@@ -804,6 +1014,10 @@ public class IntentRouter {
     }
 
     private PlaceRef detectPlace(List<String> tokens, String phrase, Set<Integer> consumed) {
+        return detectPlace(tokens, phrase, consumed, false);
+    }
+
+    private PlaceRef detectPlace(List<String> tokens, String phrase, Set<Integer> consumed, boolean exactPlaces) {
         List<PlaceRef> places;
         try {
             places = directory.places();
@@ -845,11 +1059,16 @@ public class IntentRouter {
                 }
                 List<Integer> idx = new ArrayList<>();
                 int len = 0;
+                List<String> significant = new ArrayList<>();
                 for (String ls : labelStems) {
-                    if (ls.length() < 4) {
-                        idx = null;
-                        break;
+                    if (ls.length() >= 4) {
+                        significant.add(ls);
                     }
+                }
+                if (significant.isEmpty()) {
+                    continue;
+                }
+                for (String ls : significant) {
                     int found = -1;
                     for (int i = 0; i < tokens.size(); i++) {
                         String s = stems.get(i);
@@ -857,7 +1076,7 @@ public class IntentRouter {
                             continue;
                         }
                         boolean match = settlement ? s.equals(ls) && i > 0 && cueWords.contains(tokens.get(i - 1)) && !vocabulary(tokens.get(i))
-                                : s.equals(ls) || s.startsWith(ls) || (ls.startsWith(s) && s.length() >= ls.length() - 1);
+                                : exactPlaces ? s.equals(ls) : s.equals(ls) || s.startsWith(ls) && s.length() <= ls.length() + 2;
                         if (match) {
                             found = i;
                             break;
@@ -870,7 +1089,9 @@ public class IntentRouter {
                     idx.add(found);
                     len += ls.length();
                 }
-                if (idx != null && len > bestLen) {
+                boolean regionTie = idx != null && len == bestLen && best != null && PlaceRef.REGION.equals(place.kind())
+                        && !PlaceRef.REGION.equals(best.kind());
+                if (idx != null && (len > bestLen || regionTie)) {
                     best = place;
                     bestLen = len;
                     bestIdx = idx;
@@ -981,27 +1202,26 @@ public class IntentRouter {
     private Map<String, Double> score(List<String> tokens, String phrase, String raw) {
         Map<String, Double> scores = new HashMap<>();
         Map<String, Boolean> used = new LinkedHashMap<>();
+        Map<String, Double> tokenBest = new HashMap<>();
         for (ChatLanguages.Rule rule : rules) {
-            boolean hit;
             if (rule.phrase()) {
-                hit = phrase.contains(rule.value());
-            } else if (rule.exact()) {
-                hit = tokens.contains(rule.value());
-            } else {
-                hit = false;
-                for (String t : tokens) {
-                    if (t.startsWith(rule.value())) {
-                        hit = true;
-                        break;
-                    }
-                }
-            }
-            if (hit) {
-                String key = rule.intent() + "|" + rule.value();
-                if (used.putIfAbsent(key, true) == null) {
+                if (phrase.contains(rule.value()) && used.putIfAbsent(rule.intent() + "|" + rule.value(), true) == null) {
                     scores.merge(rule.intent(), rule.weight(), Double::sum);
                 }
+                continue;
             }
+            for (int i = 0; i < tokens.size(); i++) {
+                String t = tokens.get(i);
+                boolean hit = rule.exact() ? t.equals(rule.value()) : t.startsWith(rule.value());
+                if (hit) {
+                    tokenBest.merge(rule.intent() + "|" + i, rule.weight(), Math::max);
+                    break;
+                }
+            }
+        }
+        for (Map.Entry<String, Double> e : tokenBest.entrySet()) {
+            String intent = e.getKey().substring(0, e.getKey().lastIndexOf('|'));
+            scores.merge(intent, e.getValue(), Double::sum);
         }
         if (offTopic != null) {
             String folded = TextNormalizer.fold(raw == null ? "" : raw);
@@ -1088,6 +1308,9 @@ public class IntentRouter {
             for (int i = bestMatch.start(); i < bestMatch.end(); i++) {
                 consumed.add(i);
             }
+            for (int i = bestMatch.end(); i < latin.size() && languages.legalSuffixes().contains(latin.get(i)); i++) {
+                consumed.add(i);
+            }
         }
         return best;
     }
@@ -1158,7 +1381,7 @@ public class IntentRouter {
                 out.add(latin);
             }
         }
-        if (out.size() == 1 && all.size() > 1 && out.get(0).length() <= 4) {
+        if (out.size() == 1 && all.size() > 1 && (out.get(0).length() <= 3 || languages.isStopword(out.get(0)))) {
             return all;
         }
         if (out.size() == 1 && (out.get(0).length() < 3 || languages.isStopword(out.get(0)))) {
@@ -1273,7 +1496,7 @@ public class IntentRouter {
             }
             return max > 0 && (near(alias, token, max) || near(alias, base, max));
         }
-        return alias.length() >= 6 && (TextNormalizer.levenshtein(alias, token, 1) <= 1 || transposed(alias, token));
+        return alias.length() >= 6 && TextNormalizer.levenshtein(alias, token, 1) <= 1 || alias.length() >= 5 && transposed(alias, token);
     }
 
     private static boolean transposed(String a, String b) {
@@ -1328,8 +1551,13 @@ public class IntentRouter {
             if (!phrase.contains(alias.getKey()) || alias.getKey().length() <= bestLen) {
                 continue;
             }
-            String target = languages.stem(alias.getValue().split(" ")[0]);
-            for (CategoryRef c : categories) {
+            List<CategoryRef> ordered = new ArrayList<>(categories);
+            ordered.sort(java.util.Comparator.comparingInt(c -> "product_category".equals(c.taxonomy()) ? 0
+                    : "booklet_category".equals(c.taxonomy()) ? 1 : "promotion_category".equals(c.taxonomy()) ? 2 : 3));
+            boolean done = false;
+            for (String option : alias.getValue().split("\\|")) {
+            String target = languages.stem(option.trim().split(" ")[0]);
+            for (CategoryRef c : ordered) {
                 if (gated.contains(c.taxonomy())) {
                     continue;
                 }
@@ -1347,8 +1575,13 @@ public class IntentRouter {
                     best = c;
                     bestLen = alias.getKey().length();
                     bestAlias = alias.getKey();
+                    done = true;
                     break;
                 }
+            }
+            if (done) {
+                break;
+            }
             }
         }
         if (best != null) {

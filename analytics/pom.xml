@@ -13,7 +13,7 @@
 
     <groupId>com.naqqa</groupId>
     <artifactId>naqqa-web-analytics</artifactId>
-    <version>0.0.4</version>
+    <version>0.0.5</version>
     <name>Naqqa Web Analytics</name>
     <description>First-party web analytics (collector, sessions, rollups, admin and partner query API, banners) for Naqqa backend apps</description>
     <packaging>jar</packaging>

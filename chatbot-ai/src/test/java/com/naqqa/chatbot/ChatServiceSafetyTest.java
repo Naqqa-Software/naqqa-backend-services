@@ -106,6 +106,11 @@ class ChatServiceSafetyTest {
 
     private void send(String text) {
         service.send("c1", "good", new SendMessageRequest(text, null, "ro", "/"));
+        try {
+            Thread.sleep(3);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private ChatMessageEntity lastBot() {

@@ -7,10 +7,13 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationOptions;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.mapping.MongoPersistentEntity;
+import org.springframework.data.mongodb.core.mapping.MongoPersistentProperty;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,19 +73,30 @@ public class MongoEventSource implements EventSource {
         return mongo.find(q, AnalyticsEvent.class, collection);
     }
 
+    String stored(String property) {
+        if (property.indexOf('.') >= 0) {
+            return property;
+        }
+        MongoPersistentEntity<?> entity = mongo.getConverter().getMappingContext().getPersistentEntity(AnalyticsEvent.class);
+        MongoPersistentProperty p = entity == null ? null : entity.getPersistentProperty(property);
+        return p == null ? property : p.getFieldName();
+    }
+
     @Override
     public List<Group> group(AnalyticsQuery query, String name, List<String> keys) {
         Document id = new Document();
         for (String k : keys) {
-            id.append(k.replace('.', '_'), "$" + (k.equals("slot") ? "props.slot" : k));
+            id.append(k.replace('.', '_'), "$" + (k.equals("slot") ? "props.slot" : stored(k)));
         }
-        Aggregation agg = Aggregation.newAggregation(
+        String position = "$" + stored("position");
+        Aggregation agg = Aggregation.newAggregation(AnalyticsEvent.class,
                 Aggregation.match(criteria(query, Set.of(name), null)),
                 ctx -> new Document("$group", new Document("_id", id)
                         .append("n", new Document("$sum", 1))
-                        .append("ps", new Document("$sum", new Document("$ifNull", List.of("$position", 0))))
-                        .append("pc", new Document("$sum", new Document("$cond", List.of(new Document("$ne", List.of(new Document("$ifNull", List.of("$position", null)), null)), 1, 0))))
-                        .append("v", new Document("$addToSet", "$vid"))),
+                        .append("ps", new Document("$sum", new Document("$ifNull", Arrays.asList(position, 0))))
+                        .append("pc", new Document("$sum", new Document("$cond", Arrays.asList(
+                                new Document("$ne", Arrays.asList(new Document("$ifNull", Arrays.asList(position, null)), null)), 1, 0))))
+                        .append("v", new Document("$addToSet", "$" + stored("vid")))),
                 ctx -> new Document("$project", new Document("n", 1).append("ps", 1).append("pc", 1)
                         .append("u", new Document("$size", "$v"))))
                 .withOptions(AggregationOptions.builder().allowDiskUse(true).build());
@@ -120,9 +134,9 @@ public class MongoEventSource implements EventSource {
         if (prefix != null && !prefix.isBlank()) {
             extra.add(Criteria.where(field).regex("^" + java.util.regex.Pattern.quote(prefix), "i"));
         }
-        Aggregation agg = Aggregation.newAggregation(
+        Aggregation agg = Aggregation.newAggregation(AnalyticsEvent.class,
                 Aggregation.match(new Criteria().andOperator(extra.toArray(new Criteria[0]))),
-                ctx -> new Document("$group", new Document("_id", "$" + field).append("n", new Document("$sum", 1))),
+                ctx -> new Document("$group", new Document("_id", "$" + stored(field)).append("n", new Document("$sum", 1))),
                 ctx -> new Document("$sort", new Document("n", -1).append("_id", 1)),
                 ctx -> new Document("$limit", limit))
                 .withOptions(AggregationOptions.builder().allowDiskUse(true).build());

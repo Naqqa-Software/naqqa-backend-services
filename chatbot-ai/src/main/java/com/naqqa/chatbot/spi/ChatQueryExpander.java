@@ -13,4 +13,8 @@ public interface ChatQueryExpander {
     default List<String> layoutCandidates(String token) {
         return List.of();
     }
+
+    default String transliterate(String token) {
+        return null;
+    }
 }

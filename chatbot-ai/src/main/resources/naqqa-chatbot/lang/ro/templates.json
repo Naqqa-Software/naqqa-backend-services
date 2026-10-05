@@ -193,5 +193,10 @@
   "constraint_min": "peste %s",
   "constraint_range": "între %s și %s",
   "recipes_fallback": "Nu am găsit rețete cu „%s”, dar iată câteva rețete populare de pe blogul OMY:",
-  "compare_two_missing": "%1$s nu au acum oferte la „%2$s”, așa că am comparat toate magazinele:"
+  "compare_two_missing": "%1$s nu au acum oferte la „%2$s”, așa că am comparat toate magazinele:",
+  "catalog_fallback": "Nu am găsit exact „%s”, dar iată ce e activ acum:",
+  "store_not_in_place": "Nu am găsit oferte %1$s cu adrese în %2$s. Iată ofertele %1$s active acum — magazinul cel mai apropiat îl vezi pe [harta OMY](/map):",
+  "query_dropped": "Nu am găsit exact „%s”, dar iată ce am găsit:",
+  "place_relaxed": "Nu am găsit „%1$s” în magazinele din %2$s, dar iată cele mai bune oferte din alte orașe:",
+  "booklets_for_category": "Cataloagele magazinelor cu cele mai multe oferte la „%s”:"
 }

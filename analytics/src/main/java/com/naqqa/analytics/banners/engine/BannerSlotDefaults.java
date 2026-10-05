@@ -78,12 +78,15 @@ public final class BannerSlotDefaults {
                 LISTINGS, List.of());
         put(BannerSlots.DETAIL_SIDE,
                 names("Pagina promoției - lângă imagine", "Страница акции - рядом с фото", "Promotion page - beside media"),
-                names("Sub galeria de imagini a promoției.", "Под галереей фото акции.", "Under the promotion media gallery."),
+                names("Nu este plasat momentan pe site (sub galeria promoției se folosește detail_bottom).",
+                        "Сейчас не размещён на сайте (под галереей акции используется detail_bottom).",
+                        "Not currently placed on the site (detail_bottom is used under the promotion gallery)."),
                 List.of(), List.of());
         put(BannerSlots.DETAIL_BOTTOM,
                 names("Pagini de detaliu - jos", "Страницы деталей - снизу", "Detail pages - bottom"),
-                names("La finalul paginilor de promoție, ofertă și catalog.", "Внизу страниц акции, предложения и каталога.",
-                        "At the bottom of promotion, offer and catalogue pages."),
+                names("Banner lat sub galeria promoției, sub vizualizatorul catalogului și la finalul paginii de ofertă.",
+                        "Широкий баннер под галереей акции, под просмотрщиком каталога и внизу страницы предложения.",
+                        "Wide banner under the promotion gallery, under the catalogue viewer and at the bottom of offer pages."),
                 List.of("promotion", "offer", "booklet"), List.of());
         put(BannerSlots.COMPANY_TOP,
                 names("Pagina companiei - sus", "Страница компании - сверху", "Company page - top"),

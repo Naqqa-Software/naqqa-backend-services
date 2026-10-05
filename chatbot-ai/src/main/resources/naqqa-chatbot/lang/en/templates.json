@@ -193,5 +193,10 @@
   "constraint_min": "over %s",
   "constraint_range": "between %s and %s",
   "recipes_fallback": "I found no recipes with \"%s\", but here are popular recipes from the OMY blog:",
-  "compare_two_missing": "%1$s have no \"%2$s\" right now, so I compared all stores:"
+  "compare_two_missing": "%1$s have no \"%2$s\" right now, so I compared all stores:",
+  "catalog_fallback": "I did not find exactly \"%s\", but here is what is active right now:",
+  "store_not_in_place": "I found no %1$s offers with addresses in %2$s. Here are the current %1$s offers — see the nearest store on the [OMY map](/map):",
+  "query_dropped": "I did not find exactly \"%s\", but here is what I found:",
+  "place_relaxed": "I found no \"%1$s\" in %2$s stores, but here are the best offers in other cities:",
+  "booklets_for_category": "Catalogues of the stores with the most \"%s\" offers:"
 }

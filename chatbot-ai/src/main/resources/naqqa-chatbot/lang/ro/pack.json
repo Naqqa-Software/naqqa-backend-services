@@ -44,6 +44,17 @@
           "pliant",
           "flyer"
         ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "catalog in pdf",
+          "catalogul in pdf",
+          "descarca catalogul",
+          "descarc un catalog",
+          "descarca un catalog"
+        ]
       }
     ],
     "offers": [
@@ -53,6 +64,15 @@
         "values": [
           "ofert",
           "deal"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 4,
+        "values": [
+          "sectiunea oferte",
+          "sectiunea de oferte",
+          "ce sunt ofertele"
         ]
       }
     ],
@@ -232,7 +252,11 @@
           "reducere personala",
           "pentru ce e",
           "cum caut",
-          "ce inseamna sectiunea"
+          "ce inseamna sectiunea",
+          "site ul in rusa",
+          "in limba rusa",
+          "in limba romana",
+          "site ul in romana"
         ]
       },
       {
@@ -412,7 +436,12 @@
           "adaugarea promotiilor",
           "add a promotion",
           "my store",
-          "my company"
+          "my company",
+          "pot adauga",
+          "adauga eu",
+          "pot publica",
+          "adaug si eu",
+          "pot sa adaug"
         ]
       }
     ],
@@ -467,7 +496,19 @@
           "pe cine contactez",
           "cum va contactez",
           "numarul vostru",
-          "adresa de email"
+          "adresa de email",
+          "va scriu",
+          "cum va scriu",
+          "telefonul {brand}",
+          "email {brand}",
+          "emailul {brand}",
+          "contact {brand}",
+          "contacte {brand}",
+          "telefonul vostru",
+          "emailul vostru",
+          "adresa voastra",
+          "va contactez",
+          "sa va scriu"
         ]
       }
     ],
@@ -604,7 +645,14 @@
           "ce ora e",
           "cat e ceasul",
           "translate this",
-          "sfat medical"
+          "sfat medical",
+          "esti prost",
+          "esti mai prost",
+          "esti inutil",
+          "bot inutil",
+          "ceva urat",
+          "vorbeste urat",
+          "nu esti bun de nimic"
         ]
       }
     ],
@@ -858,7 +906,23 @@
     "sezon",
     "weekend",
     "weekendul",
-    "ori"
+    "ori",
+    "active",
+    "activ",
+    "activa",
+    "actuale",
+    "actual",
+    "compara",
+    "comparati",
+    "alta",
+    "parte",
+    "disponibila",
+    "iau",
+    "iei",
+    "pdf",
+    "descarca",
+    "descarc",
+    "descarcat"
   ],
   "legalSuffixes": [
     "srl",
@@ -892,7 +956,9 @@
     "other",
     "si",
     "de",
-    "pentru"
+    "pentru",
+    "produse",
+    "produs"
   ],
   "escalatePhrases": [
     " operator ",
@@ -916,7 +982,12 @@
     " reducerile cele mai mari ",
     " reducere maxima ",
     " cele mai bune reduceri ",
-    " biggest discount"
+    " biggest discount",
+    " s a ieftinit ",
+    " s au ieftinit ",
+    " ieftinit cel mai mult ",
+    " reducerea maxima ",
+    " reducerea cea mai mare "
   ],
   "priceWords": [
     "lei",
@@ -1362,10 +1433,6 @@
         "handicapatule",
         "debil",
         "debilule",
-        "prost",
-        "proasta",
-        "prosti",
-        "proaste",
         "taci",
         "inutil",
         "inutila"
@@ -1724,7 +1791,11 @@
       "adaugate azi",
       "ultima ora",
       "noi adaugate",
-      "a adaugat"
+      "a adaugat",
+      "ultimele oferte",
+      "cele mai recente",
+      "ultimele reduceri",
+      "oferte recente"
     ],
     "expiring": [
       "expira azi",
@@ -1790,7 +1861,12 @@
       "pret minim",
       "mai ieftin decat de obicei",
       "cel mai mic",
-      "cele mai mici preturi"
+      "cele mai mici preturi",
+      "ieftin",
+      "ieftina",
+      "ieftine",
+      "ieftini",
+      "cat mai ieftin"
     ],
     "priceAsk": [
       "cat costa",
@@ -1816,7 +1892,12 @@
       "unde este mai ieftin",
       "compara pretul",
       "compara preturile",
-      "compara prețul"
+      "compara prețul",
+      "unde cumpar mai ieftin",
+      "unde cumpar cel mai ieftin",
+      "unde e cel mai ieftin",
+      "care supermarket e cel mai ieftin",
+      "unde e mai avantajos"
     ],
     "storeCompareCheap": [
       "ieftin",
@@ -1830,7 +1911,14 @@
       "doar la reducere",
       "numai cu reducere",
       "doar reduceri"
-    ]
+    ],
+    "peopleAlone": {
+      "pentru doi": 2,
+      "pentru doua persoane": 2,
+      "pentru trei": 3,
+      "in doi": 2,
+      "pentru amandoi": 2
+    }
   },
   "categoryHints": {
     "lapte": "lactate",
@@ -2337,7 +2425,11 @@
       "buget",
       "o masa de",
       "ajuta ma sa economisesc",
-      "sa economisesc"
+      "economisesc mai mult",
+      "cumparaturi pentru o familie",
+      "cos de produse",
+      "ce pot cumpara",
+      "ce as putea cumpara"
     ],
     "periods": {
       "day": [
@@ -2466,7 +2558,11 @@
       "buget",
       "o masa de",
       "ajuta ma sa economisesc",
-      "sa economisesc"
+      "economisesc mai mult",
+      "cumparaturi pentru o familie",
+      "cos de produse",
+      "ce pot cumpara",
+      "ce as putea cumpara"
     ]
   },
   "exclusionGroups": {
@@ -2598,7 +2694,11 @@
       "cataloage",
       "cataloagele",
       "brosura",
-      "pliant"
+      "pliant",
+      "pagini",
+      "pagina",
+      "apare",
+      "cand apare"
     ],
     "location": [
       "cel mai apropiat",
@@ -2613,7 +2713,9 @@
       "unde gasesc magazinul",
       "locatia",
       "pe harta",
-      "magazinele"
+      "magazinele",
+      "unde se gaseste",
+      "magazinele din"
     ],
     "schedule": [
       "program",
@@ -2626,7 +2728,13 @@
       "este deschis",
       "se deschide",
       "se inchide",
-      "non stop"
+      "non stop",
+      "program de lucru",
+      "de lucru",
+      "lucru",
+      "ore de lucru",
+      "deschis",
+      "inchis"
     ],
     "loyalty": [
       "card de fidelitate",
@@ -2651,7 +2759,7 @@
   },
   "categoryAliases": {
     "mezeluri": "carne",
-    "electrocasnice": "electronice",
+    "electrocasnice": "electronice|tehnologie",
     "tehnica": "electronice",
     "mobila": "casa",
     "mobilier": "casa",
@@ -2670,7 +2778,8 @@
     "produse sport": "sport",
     "haine": "imbracaminte",
     "gradina": "gradina",
-    "snacks": "gustari"
+    "snacks": "gustari",
+    "electronice": "tehnologie"
   },
   "companyAliases": {
     "numarul 1": "nr1",
@@ -2696,7 +2805,10 @@
     "hancesti": "hincesti",
     "riscani": "riscani",
     "sangerei": "singerei",
-    "bendery": "bender"
+    "bendery": "bender",
+    "kishineu": "chisinau",
+    "kishinyov": "chisinau",
+    "kishiniov": "chisinau"
   },
   "offTopicPatterns": [
     "\\b\\d+\\s*(?:[+*/x:]|ori|plus|minus|impartit la)\\s*\\d+\\b"
@@ -2859,10 +2971,7 @@
     "al cincilea": 5,
     "a cincea": 5,
     "ultimul": -1,
-    "ultima": -1,
-    "numarul 1": 1,
-    "numarul 2": 2,
-    "numarul 3": 3
+    "ultima": -1
   },
   "pronouns": [
     "acela",

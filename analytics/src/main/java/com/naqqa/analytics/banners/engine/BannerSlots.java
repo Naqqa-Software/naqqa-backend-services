@@ -44,7 +44,7 @@ public final class BannerSlots {
             new Slot(LISTING_TOP, "listing", new Size(1200, 120), new Size(390, 100), false, true),
             new Slot(LISTING_INFEED, "listing", new Size(1200, 150), new Size(390, 150), false, true),
             new Slot(LISTING_SIDEBAR, "listing", new Size(300, 600), null, false, true),
-            new Slot(DETAIL_SIDE, "detail", new Size(300, 250), new Size(390, 325), false, true),
+            new Slot(DETAIL_SIDE, "detail", new Size(300, 250), new Size(390, 325), false, false),
             new Slot(DETAIL_BOTTOM, "detail", new Size(1200, 150), new Size(390, 120), false, true),
             new Slot(COMPANY_TOP, "company", new Size(1200, 200), new Size(390, 150), true, true),
             new Slot(BOOKLET_INTERSTITIAL, "booklet", new Size(600, 850), new Size(390, 552), false, true),

@@ -68,8 +68,18 @@ public class FollowUpResolver {
         if (current == null || current.query() == null) {
             return "";
         }
-        Set<String> fillers = Set.copyOf(languages.followUps().getOrDefault("fillers", List.of()).stream()
-                .map(String::trim).toList());
+        Set<String> fillers = new java.util.HashSet<>();
+        for (Map.Entry<String, List<String>> e : languages.followUps().entrySet()) {
+            if (e.getKey().equals("connectors")) {
+                continue;
+            }
+            for (String p : e.getValue()) {
+                fillers.addAll(TextNormalizer.tokens(p));
+            }
+        }
+        for (String p : languages.discountOnlyPhrases()) {
+            fillers.addAll(TextNormalizer.tokens(p));
+        }
         List<String> out = new ArrayList<>();
         for (String t : TextNormalizer.tokens(current.query())) {
             if (fillers.contains(t) || languages.pronouns().contains(t) || languages.isStopword(t) || ordinalWord(t)) {
@@ -150,7 +160,7 @@ public class FollowUpResolver {
             return new Resolution(planned ? Kind.ALTERNATIVE : Kind.MORE, null, current, residual, excluded, people);
         }
         if (has(phrase, "more") && residual.isBlank()) {
-            return new Resolution(Kind.MORE, null, current, residual, excluded, people);
+            return new Resolution(planned ? Kind.ALTERNATIVE : Kind.MORE, null, current, residual, excluded, people);
         }
         if (containsAny(phrase, languages.discountOnlyPhrases()) && residual.isBlank()) {
             return new Resolution(Kind.DISCOUNT, null, current, residual, excluded, people);
