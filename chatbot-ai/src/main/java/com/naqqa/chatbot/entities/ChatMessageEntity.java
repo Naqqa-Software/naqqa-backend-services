@@ -102,6 +102,9 @@ public class ChatMessageEntity {
     @Field("reviewed_by")
     private Long reviewedBy;
 
+    @Field("review_dismissed_at")
+    private Instant reviewDismissedAt;
+
     @Field("read_at")
     private Instant readAt;
 

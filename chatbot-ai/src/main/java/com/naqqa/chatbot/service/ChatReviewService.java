@@ -62,6 +62,7 @@ public class ChatReviewService {
         ZoneId zone = ChatSchedule.zone(settings.get());
         List<Criteria> and = new ArrayList<>();
         and.add(Criteria.where("senderType").is(ChatSenderType.BOT));
+        and.add(Criteria.where("reviewDismissedAt").is(null));
         if (!includeResolved) {
             and.add(Criteria.where("needsReview").is(true));
         } else {
@@ -134,6 +135,22 @@ public class ChatReviewService {
         return item(saved, settings.get(), labels());
     }
 
+    public void dismiss(ChatOperator operator, String messageId) {
+        ChatMessageEntity m = messages.findById(messageId)
+                .filter(x -> x.getSenderType() == ChatSenderType.BOT)
+                .orElseThrow(() -> new ChatException(HttpStatus.NOT_FOUND, ChatException.NOT_FOUND, "Message not found."));
+        m.setNeedsReview(false);
+        m.setReviewDismissedAt(Instant.now());
+        m.setReviewedBy(operator == null ? null : operator.id());
+        messages.save(m);
+        audit.log(operator, ChatAuditAction.REVIEW_DISMISS, m.getConversationId(), "message=" + messageId);
+        try {
+            rebuild();
+        } catch (RuntimeException e) {
+            log.debug("[chatbot] cannot rebuild review suggestions: {}", e.getMessage());
+        }
+    }
+
     public SuggestionsDto suggestions() {
         try {
             Document doc = mongoTemplate.findById(SUGGESTIONS_ID, Document.class, suggestionCollection);
@@ -149,6 +166,7 @@ public class ChatReviewService {
     public SuggestionsDto rebuild() {
         Instant since = Instant.now().minus(30, ChronoUnit.DAYS);
         Query query = Query.query(Criteria.where("senderType").is(ChatSenderType.BOT).and("createdAt").gte(since)
+                .and("reviewDismissedAt").is(null)
                 .and("qualityFlags").in(AiReply.FLAG_NO_RESULTS, AiReply.FLAG_LOW_CONFIDENCE, AiReply.FLAG_REPHRASED,
                         AiReply.FLAG_THUMBS_DOWN, AiReply.FLAG_OPERATOR_REQUESTED)).limit(5000);
         Map<String, Agg> groups = new LinkedHashMap<>();

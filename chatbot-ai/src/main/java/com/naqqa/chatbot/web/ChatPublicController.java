@@ -187,8 +187,7 @@ public class ChatPublicController {
     @GetMapping(value = "/conversations/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@PathVariable String id, @RequestParam(required = false) String token, HttpServletResponse response) {
         chatService.verifyStream(id, token);
-        response.setHeader("X-Accel-Buffering", "no");
-        response.setHeader("Cache-Control", "no-cache");
+        ChatSseHub.streamHeaders(response);
         return hub.subscribeVisitor(id);
     }
 

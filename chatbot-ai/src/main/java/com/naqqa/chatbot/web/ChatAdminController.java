@@ -13,6 +13,7 @@ import com.naqqa.chatbot.dto.ChatDtos.PageDto;
 import com.naqqa.chatbot.dto.ChatDtos.ReindexDto;
 import com.naqqa.chatbot.dto.ChatDtos.ReviewItemDto;
 import com.naqqa.chatbot.dto.ChatDtos.ReviewResolveRequest;
+import com.naqqa.chatbot.dto.ChatDtos.ReviewUpdatedEvent;
 import com.naqqa.chatbot.dto.ChatDtos.SuggestionsDto;
 import com.naqqa.chatbot.service.ChatReviewService;
 import com.naqqa.chatbot.dto.ChatDtos.SponsorUpdateRequest;
@@ -134,7 +135,17 @@ public class ChatAdminController {
     public ReviewItemDto resolveReview(@PathVariable String messageId, @RequestBody(required = false) ReviewResolveRequest request,
                                        Authentication authentication) {
         requireAny(authentication, permissions.stats());
-        return review().resolve(operator(authentication), messageId, request == null ? null : request.note());
+        ReviewItemDto item = review().resolve(operator(authentication), messageId, request == null ? null : request.note());
+        hub.toAdmins(null, "review_updated", new ReviewUpdatedEvent(messageId, "resolved"));
+        return item;
+    }
+
+    @PostMapping("/review/{messageId}/dismiss")
+    public ResponseEntity<Void> dismissReview(@PathVariable String messageId, Authentication authentication) {
+        requireAny(authentication, permissions.stats());
+        review().dismiss(operator(authentication), messageId);
+        hub.toAdmins(null, "review_updated", new ReviewUpdatedEvent(messageId, "dismissed"));
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/review/suggestions")
@@ -374,8 +385,7 @@ public class ChatAdminController {
     public SseEmitter stream(Authentication authentication, HttpServletResponse response) {
         requireRead(authentication);
         ChatOperator operator = operator(authentication);
-        response.setHeader("X-Accel-Buffering", "no");
-        response.setHeader("Cache-Control", "no-cache");
+        ChatSseHub.streamHeaders(response);
         return hub.subscribeAdmin(operator.access(), operator.name());
     }
 

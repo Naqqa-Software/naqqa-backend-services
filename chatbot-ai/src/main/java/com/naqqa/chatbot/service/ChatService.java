@@ -708,8 +708,10 @@ public class ChatService {
             flags.add(flag);
         }
         message.setQualityFlags(flags);
-        message.setNeedsReview(true);
-        message.setReviewResolvedAt(null);
+        if (message.getReviewDismissedAt() == null) {
+            message.setNeedsReview(true);
+            message.setReviewResolvedAt(null);
+        }
         messageRepository.save(message);
     }
 
@@ -736,11 +738,13 @@ public class ChatService {
             if (!flags.contains(AiReply.FLAG_THUMBS_DOWN)) {
                 flags.add(AiReply.FLAG_THUMBS_DOWN);
             }
-            message.setNeedsReview(true);
-            message.setReviewResolvedAt(null);
+            if (message.getReviewDismissedAt() == null) {
+                message.setNeedsReview(true);
+                message.setReviewResolvedAt(null);
+            }
         } else {
             flags.remove(AiReply.FLAG_THUMBS_DOWN);
-            message.setNeedsReview(!flags.isEmpty() && message.getReviewResolvedAt() == null);
+            message.setNeedsReview(!flags.isEmpty() && message.getReviewResolvedAt() == null && message.getReviewDismissedAt() == null);
         }
         message.setQualityFlags(flags);
         messageRepository.save(message);
@@ -840,6 +844,7 @@ public class ChatService {
         }
         ChatConversationEntity updated = store.update(id, conv -> conv.setUnreadForVisitor(0));
         if (!unread.isEmpty()) {
+            hub.toAdmins(updated, "read", new com.naqqa.chatbot.dto.ChatDtos.ReadReceiptEvent(id, unread.get(unread.size() - 1).getId(), now));
             hub.toAdmins(updated, "conversation_updated", mapper.summary(updated));
         }
     }

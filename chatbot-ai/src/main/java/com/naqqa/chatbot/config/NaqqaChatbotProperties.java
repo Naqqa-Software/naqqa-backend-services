@@ -181,7 +181,7 @@ public class NaqqaChatbotProperties {
         private long inactivityInitialDelayMs = 2 * 60_000L;
         private String retentionCron = "0 30 3 * * *";
         private String retentionZone = "";
-        private long keepAliveMs = 25_000L;
+        private long keepAliveMs = 15_000L;
     }
 
     @Data

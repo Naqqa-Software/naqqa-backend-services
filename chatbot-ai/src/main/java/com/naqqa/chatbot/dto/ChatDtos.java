@@ -191,6 +191,12 @@ public final class ChatDtos {
     public record ReadEvent(String messageId) {
     }
 
+    public record ReadReceiptEvent(String conversationId, String messageId, Instant readAt) {
+    }
+
+    public record ReviewUpdatedEvent(String messageId, String action) {
+    }
+
     public record ConversationIdEvent(String conversationId) {
     }
 }

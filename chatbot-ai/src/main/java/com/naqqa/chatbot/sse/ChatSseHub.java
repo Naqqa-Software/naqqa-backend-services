@@ -4,6 +4,7 @@ import com.naqqa.chatbot.dto.ChatDtos.OperatorDto;
 import com.naqqa.chatbot.entities.ChatConversationEntity;
 import com.naqqa.chatbot.security.ChatAccess;
 import com.naqqa.chatbot.spi.ChatOperatorResolver;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -22,7 +23,9 @@ public class ChatSseHub {
     public static final long VISITOR_TIMEOUT_MS = 30 * 60_000L;
     public static final long ADMIN_TIMEOUT_MS = 60 * 60_000L;
     public static final long ADMIN_AUTHORITY_REVALIDATE_MS = 60_000L;
+    public static final long RECONNECT_MS = 3_000L;
     private static final int MAX_EMITTERS_PER_CONVERSATION = 5;
+    private static final String PADDING = " ".repeat(2048);
 
     private static final class AdminSubscriber {
         private final Long userId;
@@ -84,7 +87,7 @@ public class ChatSseHub {
             safeComplete(emitter);
         });
         emitter.onError(e -> cleanup.run());
-        send(emitter, "ping", Map.of("ts", System.currentTimeMillis()));
+        open(emitter);
         return emitter;
     }
 
@@ -98,8 +101,24 @@ public class ChatSseHub {
             safeComplete(emitter);
         });
         emitter.onError(e -> cleanup.run());
-        send(emitter, "ping", Map.of("ts", System.currentTimeMillis()));
+        open(emitter);
         return emitter;
+    }
+
+    public static void streamHeaders(HttpServletResponse response) {
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache, no-store, no-transform");
+        response.setHeader("Content-Encoding", "identity");
+    }
+
+    private void open(SseEmitter emitter) {
+        try {
+            emitter.send(SseEmitter.event().reconnectTime(RECONNECT_MS).comment(PADDING));
+        } catch (Exception e) {
+            safeComplete(emitter);
+            return;
+        }
+        send(emitter, "ping", Map.of("ts", System.currentTimeMillis()));
     }
 
     public void toVisitor(String conversationId, String type, Object data) {

@@ -14,5 +14,6 @@ public enum ChatAuditAction {
     SPONSOR_UPDATE,
     REINDEX,
     SAFETY_FLAG,
-    REVIEW_RESOLVE
+    REVIEW_RESOLVE,
+    REVIEW_DISMISS
 }
