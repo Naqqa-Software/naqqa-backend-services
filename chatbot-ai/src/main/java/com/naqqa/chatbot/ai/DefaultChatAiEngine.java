@@ -587,7 +587,8 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 if (first != null && first > 0.02) {
                     priceMax = round2(first - 0.01);
                 }
-                prefix = languages.format("followup_cheaper", lang, label);
+                prefix = label.isBlank() ? languages.template("followup_cheaper_generic", lang)
+                        : languages.format("followup_cheaper", lang, label);
             }
             case MORE -> {
                 for (ConversationContext.Item i : prev.items()) {
@@ -597,7 +598,8 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                     priceMax = null;
                 }
                 cheapest = false;
-                prefix = languages.format("followup_more", lang, label);
+                prefix = label.isBlank() ? languages.template("followup_more_generic", lang)
+                        : languages.format("followup_more", lang, label);
             }
             case ALTERNATIVE -> {
                 alternative = true;
@@ -605,7 +607,8 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             }
             case DISCOUNT -> {
                 minDiscount = minDiscount == null ? 1.0 : Math.max(1.0, minDiscount);
-                prefix = languages.format("followup_discount", lang, label);
+                prefix = label.isBlank() ? languages.template("followup_discount_generic", lang)
+                        : languages.format("followup_discount", lang, label);
             }
             case EXCLUDE -> {
                 for (String w : res.excluded()) {
@@ -658,8 +661,10 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         }
         if (o == null) {
             o = catalogOutcome(r, text, lang, request, settings, false, c);
-            if (res.kind() == FollowUpResolver.Kind.CHEAPER && o.cards().isEmpty()) {
-                IntentResult open = r.with(place, priceMin, prev.priceMax(), minDiscount != null, null);
+            if (res.kind() == FollowUpResolver.Kind.CHEAPER && (o.cards().isEmpty() || lostHead(o.cards(), prev.items(), query, lang))) {
+                Double ceiling = prev.priceMax() != null ? prev.priceMax()
+                        : prev.items().isEmpty() ? null : prev.items().get(0).price();
+                IntentResult open = r.with(place, priceMin, ceiling, minDiscount != null, null);
                 o = catalogOutcome(open, text, lang, request, settings, false, c);
                 prefix = languages.format("followup_already_cheapest", lang, label);
                 r = open;
@@ -669,6 +674,26 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             o.kind(ConversationContext.KIND_SEARCH);
         }
         return new FollowUp(o.prefixed(prefix), r, s, null);
+    }
+
+    private boolean lostHead(List<ChatCard> cards, List<ConversationContext.Item> previous, String query, String lang) {
+        List<String> q = headStems(query == null ? "" : query);
+        if (q.isEmpty()) {
+            return false;
+        }
+        boolean before = false;
+        for (ConversationContext.Item i : previous) {
+            before |= i.price() != null && headRank(i.title(), q) >= 0;
+        }
+        if (!before) {
+            return false;
+        }
+        for (ChatCard c : cards) {
+            if (c.getPrice() != null && headRank(c.getTitle(), q) >= 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private Outcome detailOutcome(ConversationContext.Item item, Integer ordinal, String lang) {
@@ -938,10 +963,38 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 return multiStoreOutcome(intent, stores, text, lang, request, settings, operatorDraft, maxCards, today);
             }
         }
+        boolean unitMode = intent.quickReply() == null && unitRequested(text) && intent.query() != null
+                && !intent.query().isBlank();
+        if (unitMode) {
+            String cleaned = withoutUnitWords(intent.query(), languages.unitPricePhrases());
+            if (!cleaned.isBlank() && !cleaned.equals(intent.query())) {
+                intent = new IntentResult(def, intent.confidence(), intent.company(), intent.category(), cleaned, intent.escalate(),
+                        intent.browse(), intent.quickReply()).with(intent.place(), intent.priceMin(), intent.priceMax(),
+                        intent.sortDiscount(), intent.page());
+            }
+        }
         RetrievalPlan plan = plan(intent, lang, ctx.signals());
         List<Candidate> candidates = retriever.retrieve(plan);
         Ranker.Options options = Ranker.Options.from(settings, Math.max(maxCards, LLM_ITEMS));
         List<RankedItem> ranked = signalFilter(relevant(ranker.rank(candidates, options, today), intent), ctx.signals(), today);
+        if (unitMode) {
+            List<RankedItem> wide = new ArrayList<>(ranked);
+            Set<String> seenKeys = new HashSet<>();
+            for (RankedItem r : ranked) {
+                seenKeys.add(r.candidate().key());
+            }
+            RetrievalPlan more = new RetrievalPlan(plan.intent(), retriever.usable(pricedTypes(), true), intent.query(), lang,
+                    plan.companyId(), plan.category(), false, 20, plan.priceMin(), plan.priceMax(), false, plan.place());
+            for (RankedItem r : relevantTo(rankSafely(more, Ranker.Options.from(settings, 40), today), intent.query())) {
+                if (seenKeys.add(r.candidate().key())) {
+                    wide.add(r);
+                }
+            }
+            Outcome unit = unitOutcome(intent, wide, lang, maxCards, today, preferredUnit(text));
+            if (unit != null) {
+                return unit;
+            }
+        }
         if (!ctx.skip().isEmpty()) {
             ranked = new ArrayList<>(ranked);
             ranked.removeIf(r -> ctx.skip().contains(r.candidate().key()));
@@ -1317,41 +1370,10 @@ public class DefaultChatAiEngine implements ChatAiEngine {
     private Outcome clarifyOutcome(IntentResult intent, String lang, boolean recommendation) {
         String q = intent.query() == null ? "" : intent.query().trim();
         String message = languages.template(q.isEmpty() || recommendation ? "clarify_generic" : "clarify_search", lang);
-        String links = categoryLinks(lang, 6);
-        return new Outcome(message + links, List.of(), Math.min(intent.confidence(), 0.35), false, null)
+        String examples = languages.template("clarify_examples", lang);
+        return new Outcome(examples.isBlank() ? message : message + "\n\n" + examples, List.of(),
+                Math.min(intent.confidence(), 0.35), false, null)
                 .route(AiReply.ROUTE_SEARCH).flag(AiReply.FLAG_NO_RESULTS);
-    }
-
-    private String categoryLinks(String lang, int limit) {
-        IntentDef list = catalog.first(Role.CATEGORY_LIST);
-        List<CategoryRef> all;
-        try {
-            all = directory.categories();
-        } catch (RuntimeException e) {
-            all = List.of();
-        }
-        if (all == null || all.isEmpty()) {
-            return "";
-        }
-        List<String> taxonomies = list == null || list.taxonomies() == null || list.taxonomies().isEmpty() ? null : list.taxonomies();
-        StringBuilder sb = new StringBuilder();
-        int n = 0;
-        for (CategoryRef c : all) {
-            if (n >= limit) {
-                break;
-            }
-            if (taxonomies != null && !taxonomies.contains(c.taxonomy())) {
-                continue;
-            }
-            String label = c.label(lang);
-            String path = categoryPath(c);
-            if (label == null || path == null || languages.genericCategoryWords().contains(TextNormalizer.fold(label))) {
-                continue;
-            }
-            sb.append("\n- [").append(label.replace("[", "").replace("]", "")).append("](").append(path).append(")");
-            n++;
-        }
-        return sb.toString();
     }
 
     private Outcome multiStoreOutcome(IntentResult intent, IntentRouter.StoreMatch stores, String text, String lang,
@@ -1377,9 +1399,23 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                     items = List.of();
                 }
             }
-            List<RankedItem> sorted = new ArrayList<>(items);
+            List<RankedItem> sorted = new ArrayList<>(headPreferred(items, q, lang));
             sorted.sort(java.util.Comparator.comparingDouble(i -> i.candidate().price() == null ? Double.MAX_VALUE : i.candidate().price()));
             perStore.put(c, sorted);
+        }
+        List<String> headTerms = headStems(q);
+        boolean anyHead = false;
+        for (List<RankedItem> items : perStore.values()) {
+            for (RankedItem r : items) {
+                anyHead |= !headTerms.isEmpty() && headRank(r.candidate().title(lang), headTerms) >= 0;
+            }
+        }
+        if (anyHead) {
+            for (java.util.Map.Entry<CompanyRef, List<RankedItem>> e : perStore.entrySet()) {
+                List<RankedItem> strict = new ArrayList<>(e.getValue());
+                strict.removeIf(r -> headRank(r.candidate().title(lang), headTerms) < 0);
+                e.setValue(strict);
+            }
         }
         List<RankedItem> interleaved = new ArrayList<>();
         for (int i = 0; interleaved.size() < LLM_ITEMS; i++) {
@@ -1529,7 +1565,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         }
         List<String> terms = new ArrayList<>();
         for (String t : TextNormalizer.tokens(q)) {
-            if (t.length() >= 3 && !languages.isStopword(t)) {
+            if (t.length() >= 3 && !languages.isStopword(t) && !Character.isDigit(t.charAt(0))) {
                 terms.add(languages.stem(t));
             }
         }
@@ -1673,7 +1709,8 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 best = closest;
             }
             if (best == closest && closestOverlap > templateOverlap && closestOverlap >= 2
-                    || best.sourceKey() != null && !best.sourceKey().equals(preferred) && specific(best, text, hits.size() == 1 ? 1 : 2)) {
+                    || best.sourceKey() != null && !best.sourceKey().equals(preferred) && specific(best, text, hits.size() == 1 ? 1 : 2)
+                    && overlap(best.title() + " " + best.text(), text) > templateOverlap) {
                 Outcome out = new Outcome(knowledgeExcerpt(best, lang), List.of(), intent.confidence(), false, llmResult)
                         .route(AiReply.ROUTE_KNOWLEDGE);
                 return call.wanted() ? out.flag(AiReply.FLAG_LLM_FALLBACK) : out;
@@ -2187,11 +2224,13 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         Long company = intent.company() == null ? null : intent.company().id();
         Ranker.Options options = Ranker.Options.from(settings, 6);
         boolean food = !languages.scenarioCategoryLike().contains(scenario.id());
-        java.util.Map<String, List<RankedItem>> perTerm = new java.util.LinkedHashMap<>();
+        List<String> wanted = new ArrayList<>();
         for (String term : terms) {
-            if (excludedText(term, ctx.signals().excluded())) {
-                continue;
+            if (!excludedText(term, ctx.signals().excluded())) {
+                wanted.add(term);
             }
+        }
+        java.util.Map<String, List<RankedItem>> perTerm = inParallel(wanted, term -> {
             RetrievalPlan p = new RetrievalPlan(intent.intent() == null ? null : intent.intent().id(), types, term, lang,
                     company, null, false, 6, null, budget, true, intent.place(), RetrievalPlan.RELAX_NONE,
                     ctx.signals().minDiscount(), null);
@@ -2213,8 +2252,8 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 priced.sort(java.util.Comparator.<RankedItem>comparingDouble(i -> i.candidate().discount() == null ? -1
                         : i.candidate().discount()).reversed().thenComparingDouble(i -> i.candidate().price()));
             }
-            perTerm.put(term, priced);
-        }
+            return priced;
+        });
         List<String> missing = new ArrayList<>();
         List<String> overBudget = new ArrayList<>();
         java.util.Map<String, RankedItem> picks = new java.util.LinkedHashMap<>();
@@ -2404,15 +2443,184 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             return items;
         }
         List<RankedItem> head = new ArrayList<>();
-        List<RankedItem> near = new ArrayList<>();
         List<RankedItem> rest = new ArrayList<>();
         for (RankedItem r : items) {
             int rank = headRank(r.candidate().title(lang), q);
-            (rank == 0 ? head : rank == 1 ? near : rest).add(r);
+            (rank >= 0 ? head : rest).add(r);
         }
-        head.addAll(near);
+        if (head.size() >= 3) {
+            rest.removeIf(r -> r.candidate().price() != null);
+        } else if (!head.isEmpty() || rest.stream().anyMatch(r -> mentionsAny(r.candidate().title(lang), q))) {
+            rest.removeIf(r -> r.candidate().price() != null && !mentionsAny(r.candidate().title(lang), q));
+        }
         head.addAll(rest);
         return head;
+    }
+
+    private boolean mentionsAny(String title, List<String> q) {
+        for (String t : TextNormalizer.tokens(title == null ? "" : title)) {
+            String stem = languages.stem(t);
+            for (String s : q) {
+                if (sameWord(stem, s)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static final Set<String> UNIT_WORDS = Set.of("kg", "kilogram", "kilogramul", "kilogramului", "kilo", "litru", "litrul",
+            "litri", "litrului", "l", "buc", "bucata", "кг", "килограмм", "килограмма", "кило", "литр", "литра", "литре", "шт",
+            "штуку", "штука", "liter", "litre", "piece");
+
+    private boolean unitRequested(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        String phrase = " " + TextNormalizer.normalizedPhrase(text).trim() + " ";
+        for (String p : languages.unitPricePhrases()) {
+            if (phrase.contains(" " + p.trim() + " ")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String withoutUnitWords(String query, List<String> phrases) {
+        Set<String> drop = new HashSet<>(UNIT_WORDS);
+        for (String p : phrases) {
+            drop.addAll(TextNormalizer.tokens(p));
+        }
+        List<String> out = new ArrayList<>();
+        for (String t : query.trim().split("\\s+")) {
+            String folded = TextNormalizer.fold(t).toLowerCase(java.util.Locale.ROOT);
+            if (!drop.contains(folded) && !drop.contains(t.toLowerCase(java.util.Locale.ROOT))) {
+                out.add(t);
+            }
+        }
+        return String.join(" ", out).trim();
+    }
+
+    private static String preferredUnit(String text) {
+        List<String> tokens = TextNormalizer.tokens(text == null ? "" : text);
+        for (String t : tokens) {
+            if (List.of("litru", "litrul", "litri", "liter", "litre", "литр", "литра", "литре").contains(t)) {
+                return UnitPrice.L;
+            }
+        }
+        for (String t : tokens) {
+            if (List.of("kg", "kilogram", "kilogramul", "kilo", "кг", "килограмм", "килограмма").contains(t)) {
+                return UnitPrice.KG;
+            }
+        }
+        return null;
+    }
+
+    private Outcome unitOutcome(IntentResult intent, List<RankedItem> ranked, String lang, int maxCards, LocalDate today,
+                                String preferred) {
+        List<RankedItem> candidates = new ArrayList<>(headPreferred(ranked, intent.query(), lang));
+        candidates.removeIf(r -> r.candidate().price() == null || languages.foreignTo(r.candidate().title(lang), intent.query()));
+        java.util.Map<String, Integer> units = new java.util.HashMap<>();
+        java.util.Map<String, UnitPrice.Size> sizes = new java.util.HashMap<>();
+        for (RankedItem r : candidates) {
+            UnitPrice.Size size = UnitPrice.size(r.candidate().title(lang));
+            if (size == null) {
+                size = UnitPrice.size(r.candidate().title("ro"));
+            }
+            if (size != null && UnitPrice.perUnit(r.candidate().price(), size) != null) {
+                sizes.put(r.candidate().key(), size);
+                units.merge(size.unit(), 1, Integer::sum);
+            }
+        }
+        String unit = null;
+        for (java.util.Map.Entry<String, Integer> e : units.entrySet()) {
+            if (unit == null || e.getValue() > units.get(unit)) {
+                unit = e.getKey();
+            }
+        }
+        if (preferred != null && units.getOrDefault(preferred, 0) >= 2) {
+            unit = preferred;
+        }
+        if (unit == null || units.get(unit) < 2) {
+            return null;
+        }
+        String chosenUnit = unit;
+        List<RankedItem> measured = new ArrayList<>();
+        for (RankedItem r : candidates) {
+            UnitPrice.Size s = sizes.get(r.candidate().key());
+            if (s != null && s.unit().equals(chosenUnit)) {
+                measured.add(r);
+            }
+        }
+        measured.sort(java.util.Comparator.comparingDouble(r -> UnitPrice.perUnit(r.candidate().price(), sizes.get(r.candidate().key()))));
+        List<RankedItem> top = measured.size() > maxCards ? measured.subList(0, maxCards) : measured;
+        String unitLabel = languages.template("unit_" + chosenUnit, lang);
+        StringBuilder sb = new StringBuilder(languages.format("unit_header", lang, intent.query().trim(), unitLabel));
+        for (RankedItem r : top) {
+            Candidate c = r.candidate();
+            Double per = UnitPrice.perUnit(c.price(), sizes.get(c.key()));
+            sb.append("\n").append(languages.format("unit_line", lang, itemLink(c, lang), priceText(c.price(), lang),
+                    priceText(per, lang), unitLabel)).append(whereStore(c, lang));
+        }
+        Candidate best = top.get(0).candidate();
+        Candidate worst = top.get(top.size() - 1).candidate();
+        Double bestPer = UnitPrice.perUnit(best.price(), sizes.get(best.key()));
+        Double worstPer = UnitPrice.perUnit(worst.price(), sizes.get(worst.key()));
+        if (top.size() > 1 && bestPer != null && worstPer != null && worstPer > bestPer) {
+            long percent = Math.round((worstPer - bestPer) * 100.0 / worstPer);
+            sb.append("\n\n").append(languages.format("unit_saving", lang, percent, unitLabel));
+        }
+        sb.append("\n").append(languages.template("unit_note", lang));
+        Set<String> allowed = new HashSet<>();
+        for (RankedItem r : top) {
+            allowed.add(r.candidate().key());
+        }
+        List<ChatCard> cards = outputGuard.verifyCards(cardFactory.cards(top, lang), allowed, today);
+        if (cards.isEmpty()) {
+            return null;
+        }
+        return new Outcome(sb.toString(), cards, 0.85, false, null).route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_SEARCH);
+    }
+
+    private static final java.util.concurrent.ExecutorService TERM_POOL = java.util.concurrent.Executors.newFixedThreadPool(8, r -> {
+        Thread t = new Thread(r, "naqqa-chat-terms");
+        t.setDaemon(true);
+        return t;
+    });
+
+    private static <V> java.util.Map<String, V> inParallel(List<String> keys, java.util.function.Function<String, V> work) {
+        java.util.Map<String, java.util.concurrent.CompletableFuture<V>> futures = new java.util.LinkedHashMap<>();
+        for (String key : keys) {
+            if (!futures.containsKey(key)) {
+                futures.put(key, java.util.concurrent.CompletableFuture.supplyAsync(() -> work.apply(key), TERM_POOL));
+            }
+        }
+        java.util.Map<String, V> out = new java.util.LinkedHashMap<>();
+        for (java.util.Map.Entry<String, java.util.concurrent.CompletableFuture<V>> e : futures.entrySet()) {
+            try {
+                V value = e.getValue().get(15, java.util.concurrent.TimeUnit.SECONDS);
+                if (value != null) {
+                    out.put(e.getKey(), value);
+                }
+            } catch (Exception ex) {
+                e.getValue().cancel(true);
+            }
+        }
+        return out;
+    }
+
+    private List<RankedItem> headPreferred(List<RankedItem> items, String query, String lang) {
+        List<String> q = headStems(query == null ? "" : query);
+        if (q.isEmpty() || items.isEmpty()) {
+            return items;
+        }
+        List<RankedItem> head = new ArrayList<>();
+        for (RankedItem r : items) {
+            if (headRank(r.candidate().title(lang), q) >= 0) {
+                head.add(r);
+            }
+        }
+        return head.isEmpty() ? items : head;
     }
 
     private Outcome relaxedOutcome(IntentResult intent, RetrievalPlan plan, Ranker.Options options, String lang, LocalDate today,
@@ -2723,7 +2931,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         if (items.isEmpty() && !q.isEmpty()) {
             items = looseRelevant(rankSafely(p.withRelax(RetrievalPlan.RELAX_VARIANTS), options, today), q);
         }
-        items = signalFilter(items, ctx.signals(), today);
+        items = headPreferred(signalFilter(items, ctx.signals(), today), q, lang);
         java.util.Map<Long, RankedItem> cheapest = new java.util.LinkedHashMap<>();
         for (RankedItem r : byPrice(items)) {
             Candidate c = r.candidate();
@@ -2970,8 +3178,12 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         LocalDate today = LocalDate.now();
         Long company = intent.company() == null ? null : intent.company().id();
         Ranker.Options options = Ranker.Options.from(settings, 8);
-        java.util.Map<String, List<RankedItem>> candidates = new java.util.LinkedHashMap<>();
+        List<String> basketTerms = new ArrayList<>();
         for (ChatLanguages.BasketItem line : lines) {
+            basketTerms.add(line.term());
+        }
+        java.util.Map<String, List<RankedItem>> candidates = inParallel(basketTerms, term -> {
+            ChatLanguages.BasketItem line = lines.get(basketTerms.indexOf(term));
             RetrievalPlan p = new RetrievalPlan(intent.intent() == null ? null : intent.intent().id(), types, line.term(), lang,
                     company, null, false, 8, null, null, true, intent.place(), RetrievalPlan.RELAX_NONE,
                     ctx.signals().minDiscount(), null);
@@ -2981,8 +3193,8 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 items = headOnly(signalFilter(looseRelevant(rankSafely(p.withRelax(RetrievalPlan.RELAX_VARIANTS), options, today),
                         line.term()), ctx.signals(), today), line.term(), lang, true);
             }
-            candidates.put(line.term(), items);
-        }
+            return items;
+        });
         Double budget = intent.priceMin() == null ? intent.priceMax() : null;
         int people = Math.max(1, request.people());
         ShoppingPlanner.Plan plan = ShoppingPlanner.greedy(lines, candidates, ShoppingPlanner.factor(request.period(), people),
@@ -3062,7 +3274,8 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             if (!types.isEmpty() && !excludedText(name, ctx.signals().excluded())) {
                 RetrievalPlan p = new RetrievalPlan(intent.intent() == null ? null : intent.intent().id(), types, name, lang,
                         company, null, false, 6, null, null, true, intent.place());
-                List<RankedItem> items = signalFilter(relevantTo(rankSafely(p, options, today), name), ctx.signals(), today);
+                List<RankedItem> items = headOnly(signalFilter(relevantTo(rankSafely(p, options, today), name), ctx.signals(), today),
+                        name, lang, true);
                 RankedItem best = null;
                 for (RankedItem r : items) {
                     if (r.candidate().price() != null && (best == null || r.candidate().price() < best.candidate().price())) {

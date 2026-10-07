@@ -35,8 +35,8 @@
   "compare_none": "- %s: nu are acum oferte potrivite",
   "compare_cheapest": "Cel mai ieftin: %1$s la %2$s (%3$s).",
   "price_value": "%s lei",
-  "clarify_search": "Nu am găsit oferte active pentru căutarea ta. Spune-mi mai exact ce produs cauți sau alege o categorie:",
-  "clarify_generic": "Nu sunt sigur ce cauți. Spune-mi ce produs te interesează sau alege o categorie:",
+  "clarify_search": "Nu am găsit oferte active pentru căutarea ta. Poate produsul are alt nume în cataloage — încearcă un sinonim, marca sau un cuvânt mai general.",
+  "clarify_generic": "Nu sunt sigur ce cauți. Spune-mi ce produs, magazin sau ocazie te interesează.",
   "no_results": "Nu am găsit oferte active pentru căutarea ta. Încearcă un alt cuvânt.",
   "no_results_generic": "Momentan nu am găsit oferte active potrivite. Încearcă un alt cuvânt.",
   "no_results_company": "%s nu are acum oferte active.",
@@ -198,5 +198,16 @@
   "store_not_in_place": "Nu am găsit oferte %1$s cu adrese în %2$s. Iată ofertele %1$s active acum — magazinul cel mai apropiat îl vezi pe [harta OMY](/map):",
   "query_dropped": "Nu am găsit exact „%s”, dar iată ce am găsit:",
   "place_relaxed": "Nu am găsit „%1$s” în magazinele din %2$s, dar iată cele mai bune oferte din alte orașe:",
-  "booklets_for_category": "Cataloagele magazinelor cu cele mai multe oferte la „%s”:"
+  "booklets_for_category": "Cataloagele magazinelor cu cele mai multe oferte la „%s”:",
+  "followup_cheaper_generic": "Iată variante mai ieftine decât cele de mai sus:",
+  "followup_more_generic": "Alte oferte pe care nu ți le-am arătat încă:",
+  "followup_discount_generic": "Am lăsat doar ofertele cu reducere:",
+  "clarify_examples": "Exemple care merg: „cel mai ieftin lapte”, „cafea sub 50 lei”, „ce oferte are Linella”, „grătar pentru 6 persoane sub 500 lei”, „cataloage noi”.",
+  "unit_header": "Cel mai avantajos „%1$s” la preț pe %2$s (calculat după gramajul din denumire):",
+  "unit_line": "- %1$s — %2$s → **%3$s/%4$s**",
+  "unit_saving": "Diferența dintre prima și ultima variantă: %1$d%% la %2$s.",
+  "unit_note": "Verifică gramajul pe eticheta din magazin — calculul e orientativ.",
+  "unit_kg": "kg",
+  "unit_l": "litru",
+  "unit_pcs": "bucată"
 }

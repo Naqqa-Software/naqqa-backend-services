@@ -133,6 +133,7 @@ public final class ChatLanguages {
     private final List<String> storeComparePhrases = new ArrayList<>();
     private final List<String> storeCompareCheap = new ArrayList<>();
     private final List<String> discountOnlyPhrases = new ArrayList<>();
+    private final List<String> unitPricePhrases = new ArrayList<>();
     private final Map<String, List<String>> storeAspects = new LinkedHashMap<>();
     private final Map<String, String> categoryAliases = new LinkedHashMap<>();
     private final Map<String, String> companyAliases = new LinkedHashMap<>();
@@ -266,6 +267,7 @@ public final class ChatLanguages {
                 }
             }
             phrases(discountOnlyPhrases, pack.path("signals").path("discountOnly"));
+            phrases(unitPricePhrases, pack.path("signals").path("unitPrice"));
             pack.path("storeAspects").fields().forEachRemaining(e -> phrases(storeAspects.computeIfAbsent(e.getKey(),
                     k -> new ArrayList<>()), e.getValue()));
             pack.path("categoryAliases").fields().forEachRemaining(e -> categoryAliases.put(
@@ -813,6 +815,10 @@ public final class ChatLanguages {
 
     public List<String> discountOnlyPhrases() {
         return discountOnlyPhrases;
+    }
+
+    public List<String> unitPricePhrases() {
+        return unitPricePhrases;
     }
 
     public Map<String, List<String>> storeAspects() {

@@ -263,9 +263,6 @@
         "values": [
           "app",
           "application",
-          "android",
-          "iphone",
-          "ios",
           "appstore"
         ]
       },
@@ -1076,7 +1073,7 @@
         "\\bsend (?:me )?(?:a |the )?link\\w*",
         "\\blink to\\b",
         "\\bwebsite\\b",
-        "\\bsite\\b"
+        "\\bsite\\b(?!\\s*$)"
       ]
     },
     "restricted": {
@@ -1186,6 +1183,15 @@
       "for one",
       "for myself",
       "single person"
+    ],
+    "unitPrice": [
+      "per kg",
+      "per kilo",
+      "per liter",
+      "per litre",
+      "best value",
+      "price per kg",
+      "price per liter"
     ]
   },
   "categoryHints": {

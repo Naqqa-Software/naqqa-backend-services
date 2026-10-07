@@ -5,7 +5,10 @@ import com.naqqa.chatbot.spi.ChatContentProvider;
 import com.naqqa.chatbot.spi.ChatEntityResolver;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public class CardFactory {
 
@@ -19,9 +22,11 @@ public class CardFactory {
 
     public List<ChatCard> cards(List<RankedItem> items, String lang) {
         List<ChatCard> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
         for (RankedItem item : items) {
             ChatCard card = card(item, lang);
-            if (card != null) {
+            if (card != null && seen.add(card.getType() + "|" + com.naqqa.chatbot.ai.TextNormalizer.fold(card.getTitle()).toLowerCase(Locale.ROOT).replaceAll("\\s+", " ")
+                    + "|" + card.getPrice() + "|" + card.getCompanyId())) {
                 out.add(card);
             }
         }

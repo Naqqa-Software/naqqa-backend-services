@@ -35,8 +35,8 @@
   "compare_none": "- %s: no matching offers right now",
   "compare_cheapest": "Cheapest: %1$s at %2$s (%3$s).",
   "price_value": "%s MDL",
-  "clarify_search": "I could not find active offers for your search. Tell me which product you are looking for or pick a category:",
-  "clarify_generic": "I am not sure what you are looking for. Tell me a product name or pick a category:",
+  "clarify_search": "I could not find active offers for your search. The product may have another name in the catalogs, try a synonym, the brand or a more general word.",
+  "clarify_generic": "I am not sure what you are looking for. Tell me a product, a store or an occasion.",
   "no_results": "I could not find active offers for your search. Try another word.",
   "no_results_generic": "I could not find matching active offers right now. Try another word.",
   "no_results_company": "%s has no active offers right now.",
@@ -198,5 +198,16 @@
   "store_not_in_place": "I found no %1$s offers with addresses in %2$s. Here are the current %1$s offers — see the nearest store on the [OMY map](/map):",
   "query_dropped": "I did not find exactly \"%s\", but here is what I found:",
   "place_relaxed": "I found no \"%1$s\" in %2$s stores, but here are the best offers in other cities:",
-  "booklets_for_category": "Catalogues of the stores with the most \"%s\" offers:"
+  "booklets_for_category": "Catalogues of the stores with the most \"%s\" offers:",
+  "followup_cheaper_generic": "Here are cheaper options than the ones above:",
+  "followup_more_generic": "More offers I have not shown you yet:",
+  "followup_discount_generic": "I kept only the discounted offers:",
+  "clarify_examples": "Examples that work: \"cheapest milk\", \"coffee under 50 lei\", \"Linella offers\", \"BBQ for 6 under 500 lei\", \"new catalogs\".",
+  "unit_header": "Best value for \"%1$s\" by price per %2$s (based on the size in the product name):",
+  "unit_line": "- %1$s — %2$s → **%3$s/%4$s**",
+  "unit_saving": "Difference between the first and the last option: %1$d%% per %2$s.",
+  "unit_note": "Check the size on the shelf label, the calculation is approximate.",
+  "unit_kg": "kg",
+  "unit_l": "liter",
+  "unit_pcs": "piece"
 }

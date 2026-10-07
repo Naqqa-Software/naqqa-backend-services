@@ -171,7 +171,23 @@
           "giveaway",
           "castig",
           "premi",
-          "loteri"
+          "loteri",
+          "licitat",
+          "licitati",
+          "auction"
+        ]
+      },
+      {
+        "match": "phrase",
+        "weight": 5,
+        "values": [
+          "licitatii",
+          "licitatiile",
+          "licitatia",
+          "licitatie",
+          "o licitatie",
+          "tombolele",
+          "tombole active"
         ]
       }
     ],
@@ -304,7 +320,17 @@
           "parole",
           "profil",
           "profilul",
-          "profilului"
+          "profilului",
+          "loga",
+          "loghez",
+          "logez",
+          "loggez",
+          "logam",
+          "logheaza",
+          "logheze",
+          "conectare",
+          "autentificare",
+          "inregistrare"
         ]
       },
       {
@@ -340,7 +366,21 @@
           "sa ma inregistrez",
           "imi fac cont",
           "fac cont",
-          "creare cont"
+          "creare cont",
+          "ma pot loga",
+          "ma loghez",
+          "sa ma loghez",
+          "intru in cont",
+          "ma conectez",
+          "cum fac o lista",
+          "cum creez o lista",
+          "fac o lista",
+          "creez o lista",
+          "adaug in lista",
+          "adaug produse in lista",
+          "lista de cumparaturi pe site",
+          "cum salvez",
+          "salvez o promotie"
         ]
       }
     ],
@@ -354,9 +394,6 @@
           "aplicatie",
           "aplicatii",
           "aplicatiei",
-          "android",
-          "iphone",
-          "ios",
           "appstore"
         ]
       },
@@ -397,7 +434,14 @@
           "carduri de fidelitate",
           "card de fidelitate",
           "carduri de reducere",
-          "carduri de discount"
+          "carduri de discount",
+          "aplicatia pe iphone",
+          "aplicatia pentru iphone",
+          "aplicatia pe android",
+          "aplicatia pentru android",
+          "pe iphone",
+          "pe android",
+          "aplicatia ios"
         ]
       }
     ],
@@ -441,7 +485,13 @@
           "adauga eu",
           "pot publica",
           "adaug si eu",
-          "pot sa adaug"
+          "pot sa adaug",
+          "am un magazin",
+          "am o firma",
+          "am o afacere",
+          "adaug promotiile",
+          "sunt producator",
+          "vreau sa vand pe omy"
         ]
       }
     ],
@@ -508,7 +558,16 @@
           "emailul vostru",
           "adresa voastra",
           "va contactez",
-          "sa va scriu"
+          "sa va scriu",
+          "apela la un moderator",
+          "un moderator",
+          "moderatorul",
+          "contactele companiei",
+          "contactele voastre",
+          "datele de contact",
+          "cum va gasesc",
+          "unde va aflati",
+          "contacte"
         ]
       }
     ],
@@ -634,7 +693,12 @@
           "rezolva",
           "cod",
           "story",
-          "capital"
+          "capital",
+          "script",
+          "scriptul",
+          "calculeaza",
+          "calculati",
+          "aritmetica"
         ]
       },
       {
@@ -652,7 +716,31 @@
           "bot inutil",
           "ceva urat",
           "vorbeste urat",
-          "nu esti bun de nimic"
+          "nu esti bun de nimic",
+          "cate zile",
+          "cate luni",
+          "cat face",
+          "cat fac",
+          "media aritmetica",
+          "suma a",
+          "suma dintre",
+          "rezolva problema",
+          "scrie un cod",
+          "scrie mi un cod",
+          "da mi un script",
+          "dami un script",
+          "cod python",
+          "ce zi e azi",
+          "cine a castigat",
+          "capitala",
+          "spune mi o gluma",
+          "povesteste mi",
+          "cati bani faci",
+          "cati bani face",
+          "cum pot scoate bani",
+          "scot bani",
+          "cati angajati",
+          "angajati are"
         ]
       }
     ],
@@ -676,7 +764,19 @@
           "vorbesti",
           "vorbiti",
           "cu cine vorbesc",
-          "esti real"
+          "esti real",
+          "cati ani ai",
+          "ce varsta ai",
+          "cine te a creat",
+          "cine te a facut",
+          "esti inteligenta artificiala",
+          "esti ai",
+          "esti chatgpt",
+          "cum functioneaza chatul",
+          "ce poti face",
+          "cu ce ma poti ajuta",
+          "cum ma poti ajuta",
+          "ce intrebari"
         ]
       }
     ],
@@ -778,7 +878,6 @@
     "acum",
     "vreau",
     "as",
-    "vrea",
     "dori",
     "doresc",
     "caut",
@@ -922,7 +1021,10 @@
     "pdf",
     "descarca",
     "descarc",
-    "descarcat"
+    "descarcat",
+    "vrau",
+    "vreua",
+    "dami"
   ],
   "legalSuffixes": [
     "srl",
@@ -1067,13 +1169,36 @@
       "modalitati de plata",
       "cum pot plati",
       "cum platesc",
-      "payment methods"
+      "payment methods",
+      "cash",
+      "numerar",
+      "metode plata",
+      "metode d eplata",
+      "metoda de plata",
+      "cum se plateste",
+      "pot plati",
+      "pot achita",
+      "cum achit",
+      "achit cash",
+      "plata cash",
+      "plata numerar"
     ],
     "about-us": [
       "despre noi",
       "cine sunteti",
       "despre companie",
-      "about us"
+      "about us",
+      "cine a creat",
+      "de cine a fost creat",
+      "de cine a fost creata",
+      "cine a facut omy",
+      "cine sta in spatele",
+      "fondator",
+      "fondatorii",
+      "proprietarul",
+      "cine detine",
+      "compania din spate",
+      "despre omy"
     ],
     "return-policy": [
       "reguli de utilizare",
@@ -1121,7 +1246,12 @@
       "mai putin de",
       "nu mai mult de",
       "under",
-      "below"
+      "below",
+      "panala",
+      "pinala",
+      "pina la",
+      "nu mai scump de",
+      "maximum"
     ],
     "min": [
       "peste",
@@ -1339,7 +1469,11 @@
       "\\bnu mai are rost sa (?:mai )?tra\\w*",
       "\\bnu mai are rost viata\\b",
       "\\bma spanzur\\w*",
-      "\\bma arunc (?:de pe|de la|in fata|sub)\\b"
+      "\\bma arunc (?:de pe|de la|in fata|sub)\\b",
+      "\\b(?:vreau|vrea|as vrea|aș vrea|o sa|am sa|ma gandesc sa|ma gindesc sa) (?:sa )?ma (?:ucid|omor|sinucid\\w*|spanzur\\w*|otravesc|arunc)\\b",
+      "\\bma ucid\\b",
+      "\\bvreau sa nu mai traiesc\\b",
+      "\\bvreau sa dispar\\b"
     ],
     "danger": [
       "\\b(?:vreau sa|o sa|am sa|pot sa) (?:te|il|o|va|ii|le) (?:omor|ucid|injunghi\\w*|impusc\\w*)\\b",
@@ -1435,7 +1569,30 @@
         "debilule",
         "taci",
         "inutil",
-        "inutila"
+        "inutila",
+        "pidar",
+        "pidaras",
+        "pidarasi",
+        "pidor",
+        "pidr",
+        "nahui",
+        "nahuy",
+        "nahuia",
+        "naher",
+        "suka",
+        "suca",
+        "blea",
+        "bleat",
+        "bleadi",
+        "eblan",
+        "ebanat",
+        "huilo",
+        "huiesos",
+        "mudak",
+        "dolbaeb",
+        "gandon",
+        "pizdet",
+        "ueban"
       ],
       "stems": [
         "pizd",
@@ -1690,7 +1847,7 @@
         "\\bdami (?:un )?link\\w*",
         "\\blink(?:ul)? (?:catre|spre|la|de la)\\b",
         "\\btrimite(?: mi)? (?:un )?link\\w*",
-        "\\bsite(?:ul)?\\b"
+        "\\bsite(?:ul)?\\b(?!\\s*$)"
       ]
     },
     "restricted": {
@@ -1918,7 +2075,29 @@
       "pentru trei": 3,
       "in doi": 2,
       "pentru amandoi": 2
-    }
+    },
+    "unitPrice": [
+      "la kg",
+      "pe kg",
+      "per kg",
+      "la kilogram",
+      "pe kilogram",
+      "la un kilogram",
+      "la litru",
+      "pe litru",
+      "per litru",
+      "la un litru",
+      "cel mai avantajos",
+      "cea mai avantajoasa",
+      "cele mai avantajoase",
+      "cel mai rentabil",
+      "pret pe kg",
+      "pret pe litru",
+      "pret per kg",
+      "raport pret cantitate",
+      "la gramaj",
+      "pe bucata"
+    ]
   },
   "categoryHints": {
     "lapte": "lactate",
@@ -2614,7 +2793,16 @@
       "file",
       "ceafa",
       "pulpe",
-      "piept"
+      "piept",
+      "somon",
+      "peste",
+      "ton",
+      "pastrama",
+      "parizer",
+      "crenvursti",
+      "bacon",
+      "slanina",
+      "fleica"
     ],
     "lactate": [
       "lapte",
@@ -2623,7 +2811,11 @@
       "iaurt",
       "unt",
       "smantana",
-      "chefir"
+      "chefir",
+      "lactate",
+      "urda",
+      "telemea",
+      "lactat"
     ],
     "alcool": [
       "vin",
@@ -2750,7 +2942,15 @@
       "pe harta",
       "magazinele",
       "unde se gaseste",
-      "magazinele din"
+      "magazinele din",
+      "locatii",
+      "locatiile",
+      "adrese",
+      "filiale",
+      "filialele",
+      "unde sunt",
+      "magazinele lor",
+      "toate magazinele"
     ],
     "schedule": [
       "program",
@@ -2893,7 +3093,33 @@
     "lenor",
     "perle parfumate",
     "balsam de rufe",
-    "odorizant"
+    "odorizant",
+    "ciocolata",
+    "ciocolată",
+    "choco",
+    "maioneza",
+    "maioneză",
+    "spaghetti",
+    "taitei",
+    "tăiței",
+    "napolitane",
+    "bomboane",
+    "biscuiti",
+    "biscuiți",
+    "inghetata",
+    "înghețată",
+    "vopsea",
+    "pasta de dinti",
+    "pastă de dinți",
+    "milestii",
+    "mileștii",
+    "chec ",
+    "condensat",
+    "inabusita",
+    "înăbușită",
+    "uscat",
+    "uscate",
+    "chips"
   ],
   "followUps": {
     "connectors": [
