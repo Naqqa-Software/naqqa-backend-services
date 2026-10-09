@@ -178,7 +178,8 @@ public class FollowUpResolver {
         if (current != null && current.hasPrice() && residual.isBlank()) {
             return new Resolution(Kind.PRICE, null, current, residual, excluded, people);
         }
-        if (current != null && current.company() != null && residual.isBlank() && (connector || tokens.size() <= 4)) {
+        if (current != null && current.company() != null && residual.isBlank() && (connector || tokens.size() <= 4)
+                && router.storeAspect(phrase) == null) {
             return new Resolution(Kind.STORE, null, current, residual, excluded, people);
         }
         if (current != null && current.place() != null && current.company() == null && residual.isBlank()

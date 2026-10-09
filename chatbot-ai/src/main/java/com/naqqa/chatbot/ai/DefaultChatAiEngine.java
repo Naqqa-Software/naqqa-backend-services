@@ -2394,11 +2394,18 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             }
         }
         for (String type : typeStems()) {
-            if (sameWord(stem, type)) {
+            if (sameType(stem, type)) {
                 return true;
             }
         }
         return false;
+    }
+
+    static boolean sameType(String stem, String type) {
+        if (stem.length() < 4 || type.length() < 4) {
+            return stem.equals(type);
+        }
+        return sameWord(stem, type);
     }
 
     private int headRank(String title, List<String> q) {
@@ -2753,11 +2760,18 @@ public class DefaultChatAiEngine implements ChatAiEngine {
     }
 
     private String priceHeader(IntentResult intent, String lang, List<RankedItem> chosen, IntentRouter.Signals signals) {
+        List<String> stems = headStems(intent.query() == null ? "" : intent.query());
         RankedItem first = null;
+        boolean firstHead = false;
         for (RankedItem r : chosen) {
-            if (r.candidate().price() != null && r.candidate().price() > 0) {
+            Double price = r.candidate().price();
+            if (price == null || price <= 0) {
+                continue;
+            }
+            boolean head = !stems.isEmpty() && headRank(r.candidate().title(lang), stems) >= 0;
+            if (first == null || head && !firstHead || head == firstHead && price < first.candidate().price()) {
                 first = r;
-                break;
+                firstHead = head;
             }
         }
         if (first == null) {
