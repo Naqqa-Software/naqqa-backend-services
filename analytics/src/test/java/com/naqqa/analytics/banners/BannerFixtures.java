@@ -134,6 +134,41 @@ public final class BannerFixtures {
         }
 
         @Override
+        public void incServed(String campaignId, String creativeId, String slot, long n) {
+            served += (int) n;
+            BannerCampaign c = campaigns.get(campaignId);
+            if (c != null) {
+                c.setServedImpressions(c.getServedImpressions() + n);
+                c.getSlotServed().merge(slot, n, Long::sum);
+            }
+            BannerCreative cr = creativeId == null ? null : creatives.get(creativeId);
+            if (cr != null) {
+                cr.setServed(cr.getServed() + n);
+                cr.getSlotServed().merge(slot, n, Long::sum);
+            }
+        }
+
+        @Override
+        public void incClicks(String campaignId, String creativeId, String slot) {
+            clicks++;
+            BannerCampaign c = campaigns.get(campaignId);
+            if (c != null) {
+                c.setClicks(c.getClicks() + 1);
+                c.getSlotClicks().merge(slot, 1L, Long::sum);
+            }
+            BannerCreative cr = creativeId == null ? null : creatives.get(creativeId);
+            if (cr != null) {
+                cr.setClicks(cr.getClicks() + 1);
+                cr.getSlotClicks().merge(slot, 1L, Long::sum);
+            }
+        }
+
+        @Override
+        public List<BannerCampaign> all() {
+            return new ArrayList<>(campaigns.values());
+        }
+
+        @Override
         public void deleteCampaign(String id) {
             campaigns.remove(id);
             creatives.values().removeIf(cr -> id.equals(cr.getCampaignId()));

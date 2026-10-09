@@ -1,5 +1,6 @@
 package com.naqqa.analytics.banners.service;
 
+import com.naqqa.analytics.banners.engine.BannerSlots;
 import com.naqqa.analytics.banners.model.BannerCampaign;
 import com.naqqa.analytics.banners.model.BannerCreative;
 import com.naqqa.analytics.banners.security.BannerTokenService;
@@ -74,7 +75,8 @@ public class BannerClickService {
         }
         BannerCampaign campaign = repository.campaign(claims.campaignId());
         try {
-            repository.incClicks(claims.campaignId());
+            BannerSlots.Slot slot = BannerSlots.get(claims.slot());
+            repository.incClicks(claims.campaignId(), claims.creativeId(), slot == null ? null : slot.id());
             cache.countClick(claims.campaignId());
         } catch (Exception e) {
             log.warn("Banner click counter could not be updated: {}", e.getMessage());

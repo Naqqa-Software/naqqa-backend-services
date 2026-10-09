@@ -14,6 +14,7 @@ import com.naqqa.analytics.banners.service.BannerImageInspector;
 import com.naqqa.analytics.banners.service.BannerSlotRegistry;
 import com.naqqa.analytics.banners.service.BannerStatsCalculator;
 import com.naqqa.analytics.banners.service.BannerStatsService;
+import com.naqqa.analytics.banners.service.BannerZoneService;
 import com.naqqa.analytics.banners.service.DefaultBannerEventRecorder;
 import com.naqqa.analytics.banners.service.GeoBannerRequestEnricher;
 import com.naqqa.analytics.banners.spi.BannerAssetStorage;
@@ -22,6 +23,7 @@ import com.naqqa.analytics.banners.spi.BannerPartnerScope;
 import com.naqqa.analytics.banners.spi.BannerRequestEnricher;
 import com.naqqa.analytics.banners.store.BannerCampaignCache;
 import com.naqqa.analytics.banners.store.BannerCounters;
+import com.naqqa.analytics.banners.store.BannerImpressionBuffer;
 import com.naqqa.analytics.banners.store.BannerRepository;
 import com.naqqa.analytics.banners.store.BannerSlotRepository;
 import com.naqqa.analytics.banners.store.MemoryBannerCounters;
@@ -143,7 +145,8 @@ public class BannerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public BannerSelector naqqaBannerSelector(BannerProperties banners, NaqqaAnalyticsProperties analytics, BannerPacingCalculator pacing) {
-        return new BannerSelector(new BannerTargetingEngine(zone(banners, analytics)), pacing, banners.isExcludeCompetitorsOnCompanyPage());
+        return new BannerSelector(new BannerTargetingEngine(zone(banners, analytics)), pacing, banners.isExcludeCompetitorsOnCompanyPage(),
+                new BannerSelector.Fairness(banners.getFairRotationSlack(), banners.getFairRotationCatchUp()));
     }
 
     @Bean
@@ -154,12 +157,25 @@ public class BannerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public BannerImpressionBuffer naqqaBannerImpressionBuffer(BannerRepository repository, BannerProperties properties) {
+        return new BannerImpressionBuffer(repository, properties.getImpressionFlushMs());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public BannerDeliveryService naqqaBannerDeliveryService(BannerCampaignCache cache, BannerSelector selector, BannerCounters counters,
                                                             BannerRepository repository, BannerTokenService tokens,
                                                             BannerProperties banners, NaqqaAnalyticsProperties analytics,
-                                                            BannerSlotRegistry slots) {
+                                                            BannerSlotRegistry slots, BannerImpressionBuffer impressions) {
         return new BannerDeliveryService(cache, selector, counters, repository, tokens, zone(banners, analytics), banners.getRedirectPath(),
-                ThreadLocalRandom.current(), slots);
+                ThreadLocalRandom.current(), slots, impressions, banners.isFairRotation());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public BannerZoneService naqqaBannerZoneService(BannerRepository repository, BannerCampaignCache cache, BannerSelector selector,
+                                                    BannerSlotRegistry slots) {
+        return new BannerZoneService(repository, cache, selector, slots, CLOCK);
     }
 
     @Bean
@@ -252,8 +268,10 @@ public class BannerAutoConfiguration {
     public BannerAdminController naqqaBannerAdminController(BannerCampaignService campaigns, BannerRepository repository,
                                                             BannerAssetService assets, BannerStatsService stats,
                                                             NaqqaAnalyticsProperties analytics, BannerSlotRegistry slots,
-                                                            ObjectProvider<BannerAssetImportService> importer) {
-        return new BannerAdminController(campaigns, repository, assets, stats, analytics.getPermissions(), slots, importer::getIfAvailable);
+                                                            ObjectProvider<BannerAssetImportService> importer,
+                                                            ObjectProvider<BannerZoneService> zones) {
+        return new BannerAdminController(campaigns, repository, assets, stats, analytics.getPermissions(), slots, importer::getIfAvailable,
+                zones::getIfAvailable);
     }
 
     @Bean

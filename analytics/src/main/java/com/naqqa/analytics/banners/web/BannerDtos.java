@@ -9,6 +9,7 @@ import com.naqqa.analytics.banners.model.BannerCreative;
 import com.naqqa.analytics.banners.model.BannerImage;
 import com.naqqa.analytics.banners.model.BannerSlotSettings;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -68,5 +69,16 @@ public final class BannerDtos {
     }
 
     public record AdminSlotDto(BannerSlotSettings settings, SlotOptionsDto options) {
+    }
+
+    public record ZoneRowDto(String campaignId, String campaignName, String companyId, String status, String priority, boolean paid,
+                             int weight, Instant start, Instant end, List<String> langs, List<String> devices, String creativeId,
+                             String creativeName, boolean creativeActive, Map<String, String> title, Map<String, String> alt,
+                             ImageDto desktop, ImageDto mobile, long impressions, long clicks, boolean live) {
+    }
+
+    public record ZoneDto(String id, String page, Map<String, String> name, boolean enabled, boolean mounted, boolean reservedForCompany,
+                          BannerSlotSettings.Size desktop, BannerSlotSettings.Size mobile, Map<String, Boolean> coverage,
+                          List<ZoneRowDto> rows) {
     }
 }

@@ -216,6 +216,15 @@ public class BannerCampaignService {
                 throw BannerException.notFound();
             }
             cr.setCreatedAt(existing.getCreatedAt());
+            cr.setServed(existing.getServed());
+            cr.setClicks(existing.getClicks());
+            cr.setSlotServed(existing.getSlotServed());
+            cr.setSlotClicks(existing.getSlotClicks());
+        } else {
+            cr.setServed(0);
+            cr.setClicks(0);
+            cr.setSlotServed(new LinkedHashMap<>());
+            cr.setSlotClicks(new LinkedHashMap<>());
         }
         cr.setId(creativeId);
         cr.setCampaignId(campaign.getId());

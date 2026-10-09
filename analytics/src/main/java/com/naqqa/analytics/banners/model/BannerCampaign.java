@@ -5,6 +5,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Data
 @Document("an_banner_campaign")
@@ -34,6 +36,8 @@ public class BannerCampaign {
     private Instant reviewedAt;
     private long servedImpressions;
     private long clicks;
+    private Map<String, Long> slotServed = new LinkedHashMap<>();
+    private Map<String, Long> slotClicks = new LinkedHashMap<>();
     private Instant createdAt;
     private Instant updatedAt;
 }

@@ -1,10 +1,15 @@
 package com.naqqa.analytics.banners.store;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 public class RedisBannerCounters implements BannerCounters {
@@ -86,6 +91,58 @@ public class RedisBannerCounters implements BannerCounters {
         } catch (Exception e) {
             fail(e);
             return fallback.firstClick(key, window);
+        }
+    }
+
+    @Override
+    public Map<String, Long> rotation(String slot, LocalDate day) {
+        if (down()) {
+            return fallback.rotation(slot, day);
+        }
+        try {
+            Map<Object, Object> raw = redis.opsForHash().entries(prefix + MemoryBannerCounters.rotationKey(slot, day));
+            Map<String, Long> out = new HashMap<>(raw.size() * 2);
+            raw.forEach((k, v) -> {
+                try {
+                    out.put(String.valueOf(k), Long.parseLong(String.valueOf(v)));
+                } catch (NumberFormatException ignored) {
+                    out.put(String.valueOf(k), 0L);
+                }
+            });
+            return out;
+        } catch (Exception e) {
+            fail(e);
+            return fallback.rotation(slot, day);
+        }
+    }
+
+    @Override
+    public void recordRotation(String slot, LocalDate day, Map<String, Long> steps) {
+        if (slot == null || day == null || steps == null || steps.isEmpty()) {
+            return;
+        }
+        if (down()) {
+            fallback.recordRotation(slot, day, steps);
+            return;
+        }
+        String key = prefix + MemoryBannerCounters.rotationKey(slot, day);
+        try {
+            redis.executePipelined(new SessionCallback<Object>() {
+                @Override
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                public Object execute(RedisOperations operations) throws DataAccessException {
+                    for (Map.Entry<String, Long> e : steps.entrySet()) {
+                        if (e.getKey() != null && e.getValue() != null && e.getValue() > 0) {
+                            operations.opsForHash().increment(key, e.getKey(), e.getValue());
+                        }
+                    }
+                    operations.expire(key, Duration.ofHours(48));
+                    return null;
+                }
+            });
+        } catch (Exception e) {
+            fail(e);
+            fallback.recordRotation(slot, day, steps);
         }
     }
 

@@ -14,6 +14,7 @@ import com.naqqa.analytics.banners.service.BannerCampaignService;
 import com.naqqa.analytics.banners.service.BannerException;
 import com.naqqa.analytics.banners.service.BannerSlotRegistry;
 import com.naqqa.analytics.banners.service.BannerStatsService;
+import com.naqqa.analytics.banners.service.BannerZoneService;
 import com.naqqa.analytics.banners.store.BannerRepository;
 import com.naqqa.analytics.banners.web.BannerDtos.AdminSlotDto;
 import com.naqqa.analytics.banners.web.BannerDtos.AssetDto;
@@ -22,6 +23,7 @@ import com.naqqa.analytics.banners.web.BannerDtos.DecisionRequest;
 import com.naqqa.analytics.banners.web.BannerDtos.PageDto;
 import com.naqqa.analytics.banners.web.BannerDtos.SlotOptionsDto;
 import com.naqqa.analytics.banners.web.BannerDtos.SummaryDto;
+import com.naqqa.analytics.banners.web.BannerDtos.ZoneDto;
 import com.naqqa.analytics.config.NaqqaAnalyticsProperties;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -56,6 +58,7 @@ public class BannerAdminController {
     private final NaqqaAnalyticsProperties.Permissions permissions;
     private final BannerSlotRegistry slots;
     private final Supplier<BannerAssetImportService> importer;
+    private final Supplier<BannerZoneService> zones;
 
     public BannerAdminController(BannerCampaignService campaigns, BannerRepository repository, BannerAssetService assets,
                                  BannerStatsService stats, NaqqaAnalyticsProperties.Permissions permissions) {
@@ -65,6 +68,12 @@ public class BannerAdminController {
     public BannerAdminController(BannerCampaignService campaigns, BannerRepository repository, BannerAssetService assets,
                                  BannerStatsService stats, NaqqaAnalyticsProperties.Permissions permissions, BannerSlotRegistry slots,
                                  Supplier<BannerAssetImportService> importer) {
+        this(campaigns, repository, assets, stats, permissions, slots, importer, () -> null);
+    }
+
+    public BannerAdminController(BannerCampaignService campaigns, BannerRepository repository, BannerAssetService assets,
+                                 BannerStatsService stats, NaqqaAnalyticsProperties.Permissions permissions, BannerSlotRegistry slots,
+                                 Supplier<BannerAssetImportService> importer, Supplier<BannerZoneService> zones) {
         this.campaigns = campaigns;
         this.repository = repository;
         this.assets = assets;
@@ -72,6 +81,7 @@ public class BannerAdminController {
         this.permissions = permissions;
         this.slots = slots;
         this.importer = importer;
+        this.zones = zones == null ? () -> null : zones;
     }
 
     @GetMapping
@@ -98,6 +108,16 @@ public class BannerAdminController {
     public List<BannerSlotSettings> slots(Authentication authentication) {
         read(authentication);
         return BannerSlots.ALL.stream().map(s -> slots == null ? BannerSlotRegistry.defaults(s) : slots.settings(s.id())).toList();
+    }
+
+    @GetMapping("/zones")
+    public List<ZoneDto> zones(Authentication authentication) {
+        read(authentication);
+        BannerZoneService service = zones.get();
+        if (service == null) {
+            throw new BannerException(HttpStatus.SERVICE_UNAVAILABLE, "banners.zones_unavailable", "Zone report is not configured");
+        }
+        return service.zones();
     }
 
     @GetMapping("/slots/config")

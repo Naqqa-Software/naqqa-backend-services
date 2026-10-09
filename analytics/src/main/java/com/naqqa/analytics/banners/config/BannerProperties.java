@@ -22,6 +22,10 @@ public class BannerProperties {
     private String fallbackRedirect = "/";
     private int clickDedupSeconds = 30;
     private int cacheSeconds = 30;
+    private boolean fairRotation = true;
+    private double fairRotationSlack = 1.0;
+    private double fairRotationCatchUp = 100.0;
+    private long impressionFlushMs = 2000;
     private boolean seedSlots = true;
     private long assetImportMaxBytes = 5L * 1024 * 1024;
     private boolean excludeCompetitorsOnCompanyPage = true;

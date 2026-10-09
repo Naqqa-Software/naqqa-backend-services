@@ -5,6 +5,8 @@ import com.naqqa.analytics.banners.model.BannerCreative;
 import com.naqqa.analytics.banners.model.BannerPriority;
 import com.naqqa.analytics.banners.model.BannerStatus;
 import com.naqqa.analytics.config.MongoIndexSupport;
+import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
@@ -15,6 +17,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -93,6 +96,8 @@ public class BannerRepository {
         campaign.setUpdatedAt(now);
         campaign.setServedImpressions(0);
         campaign.setClicks(0);
+        campaign.setSlotServed(new LinkedHashMap<>());
+        campaign.setSlotClicks(new LinkedHashMap<>());
         campaign.setReviewedAt(null);
         campaign.setReviewedBy(null);
         return mongo.insert(campaign);
@@ -145,6 +150,43 @@ public class BannerRepository {
 
     public void incClicks(String id) {
         mongo.updateFirst(Query.query(Criteria.where("_id").is(id)), new Update().inc("clicks", 1), BannerCampaign.class);
+    }
+
+    public void incServed(String campaignId, String creativeId, String slot, long n) {
+        if (campaignId == null || n <= 0) {
+            return;
+        }
+        inc(BannerCampaign.class, campaignId, "servedImpressions", "slotServed", slot, n);
+        if (creativeId != null) {
+            inc(BannerCreative.class, creativeId, "served", "slotServed", slot, n);
+        }
+    }
+
+    public void incClicks(String campaignId, String creativeId, String slot) {
+        inc(BannerCampaign.class, campaignId, "clicks", "slotClicks", slot, 1);
+        if (creativeId != null) {
+            inc(BannerCreative.class, creativeId, "clicks", "slotClicks", slot, 1);
+        }
+    }
+
+    private void inc(Class<?> type, String id, String total, String perSlot, String slot, long n) {
+        Document inc = new Document(field(type, total), n);
+        if (slot != null && slot.matches("[a-z0-9_]{1,64}")) {
+            inc.append(field(type, perSlot) + "." + slot, n);
+        }
+        mongo.getCollection(mongo.getCollectionName(type)).updateOne(new Document("_id", rawId(id)), new Document("$inc", inc));
+    }
+
+    private String field(Class<?> type, String property) {
+        return mongo.getConverter().getMappingContext().getRequiredPersistentEntity(type).getRequiredPersistentProperty(property).getFieldName();
+    }
+
+    private static Object rawId(String id) {
+        return ObjectId.isValid(id) ? new ObjectId(id) : id;
+    }
+
+    public List<BannerCampaign> all() {
+        return mongo.find(new Query().with(Sort.by(Sort.Direction.DESC, "updatedAt")).limit(2000), BannerCampaign.class);
     }
 
     public void deleteCampaign(String id) {

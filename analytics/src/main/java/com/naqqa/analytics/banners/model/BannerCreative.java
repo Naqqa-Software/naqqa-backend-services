@@ -27,6 +27,10 @@ public class BannerCreative {
     private List<String> slots = new ArrayList<>();
     private int weight = 1;
     private boolean active = true;
+    private long served;
+    private long clicks;
+    private Map<String, Long> slotServed = new LinkedHashMap<>();
+    private Map<String, Long> slotClicks = new LinkedHashMap<>();
     private Instant createdAt;
     private Instant updatedAt;
 }

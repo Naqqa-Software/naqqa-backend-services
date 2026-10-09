@@ -11,6 +11,7 @@ import com.naqqa.analytics.banners.security.BannerTokenService;
 import com.naqqa.analytics.banners.security.BannerUrlPolicy;
 import com.naqqa.analytics.banners.store.BannerCampaignCache;
 import com.naqqa.analytics.banners.store.BannerCounters;
+import com.naqqa.analytics.banners.store.BannerImpressionBuffer;
 import com.naqqa.analytics.banners.store.BannerRepository;
 import com.naqqa.analytics.banners.web.BannerDtos.ImageDto;
 import com.naqqa.analytics.banners.web.BannerDtos.ImagesDto;
@@ -22,6 +23,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.ToLongFunction;
 import java.util.random.RandomGenerator;
 
 @Slf4j
@@ -36,6 +39,8 @@ public class BannerDeliveryService {
     private final String redirectPath;
     private final RandomGenerator random;
     private final BannerSlotRegistry slots;
+    private final BannerImpressionBuffer impressions;
+    private final boolean fairRotation;
 
     public BannerDeliveryService(BannerCampaignCache cache, BannerSelector selector, BannerCounters counters,
                                  BannerRepository repository, BannerTokenService tokens, ZoneId zone, String redirectPath,
@@ -46,6 +51,13 @@ public class BannerDeliveryService {
     public BannerDeliveryService(BannerCampaignCache cache, BannerSelector selector, BannerCounters counters,
                                  BannerRepository repository, BannerTokenService tokens, ZoneId zone, String redirectPath,
                                  RandomGenerator random, BannerSlotRegistry slots) {
+        this(cache, selector, counters, repository, tokens, zone, redirectPath, random, slots, BannerImpressionBuffer.direct(repository), true);
+    }
+
+    public BannerDeliveryService(BannerCampaignCache cache, BannerSelector selector, BannerCounters counters,
+                                 BannerRepository repository, BannerTokenService tokens, ZoneId zone, String redirectPath,
+                                 RandomGenerator random, BannerSlotRegistry slots, BannerImpressionBuffer impressions,
+                                 boolean fairRotation) {
         this.cache = cache;
         this.selector = selector;
         this.counters = counters;
@@ -55,6 +67,8 @@ public class BannerDeliveryService {
         this.redirectPath = redirectPath == null ? "/t/b" : redirectPath.replaceAll("/+$", "");
         this.random = random;
         this.slots = slots;
+        this.impressions = impressions == null ? BannerImpressionBuffer.direct(repository) : impressions;
+        this.fairRotation = fairRotation;
     }
 
     public ServeDto serve(BannerRequest request) {
@@ -67,7 +81,7 @@ public class BannerDeliveryService {
         LocalDate day = request.now().atZone(zone).toLocalDate();
         List<BannerSelector.Candidate> candidates = cache.candidates();
         Selection selection = selector.select(candidates, request,
-                campaignId -> counters.servedToday(request.vid(), campaignId, day), random);
+                campaignId -> counters.servedToday(request.vid(), campaignId, day), fairRotation ? rotation(request.slot(), day) : null, random);
         if (selection == null) {
             return null;
         }
@@ -77,21 +91,36 @@ public class BannerDeliveryService {
             log.warn("Banner creative {} has an invalid destination; skipped", creative.getId());
             return null;
         }
+        String slot = BannerSlots.get(request.slot()).id();
         counters.recordServe(request.vid(), campaign.getId(), day);
-        cache.countServe(campaign.getId());
-        try {
-            repository.incServed(campaign.getId());
-        } catch (Exception e) {
-            log.warn("Banner served counter could not be updated: {}", e.getMessage());
+        if (fairRotation) {
+            counters.recordRotation(slot, day, Map.of(campaign.getId(), selection.campaignStep(),
+                    BannerSelector.creativeKey(creative.getId()), selection.creativeStep()));
         }
+        cache.countServe(campaign.getId());
+        impressions.record(campaign.getId(), creative.getId(), slot);
         String bannerId = UUID.randomUUID().toString().replace("-", "").substring(0, 20);
         String token = tokens.sign(new BannerTokenService.Claims(campaign.getId(), creative.getId(), request.slot(), request.lang(),
                 request.vid(), request.sid(), bannerId, request.pageType(), request.now()));
         boolean paid = campaign.isPaid() || campaign.getPriority() == BannerPriority.PAID;
-        return new ServeDto(bannerId, campaign.getId(), creative.getId(), BannerSlots.get(request.slot()).id(),
+        return new ServeDto(bannerId, campaign.getId(), creative.getId(), slot,
                 new ImagesDto(ImageDto.of(creative.getDesktop()), ImageDto.of(creative.getMobile())),
                 text(creative.getAlt(), request.lang()), text(creative.getTitle(), request.lang()), text(creative.getCta(), request.lang()),
                 redirectPath + "/" + token, paid, creative.getDestination().external());
+    }
+
+    private ToLongFunction<String> rotation(String slot, LocalDate day) {
+        String id = BannerSlots.get(slot).id();
+        AtomicReference<Map<String, Long>> loaded = new AtomicReference<>();
+        return key -> {
+            Map<String, Long> counts = loaded.get();
+            if (counts == null) {
+                counts = counters.rotation(id, day);
+                loaded.set(counts);
+            }
+            Long v = counts.get(key);
+            return v == null ? 0L : v;
+        };
     }
 
     public static String text(Map<String, String> values, String lang) {
