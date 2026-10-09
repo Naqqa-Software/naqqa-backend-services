@@ -246,6 +246,33 @@ public final class Insights {
         return k > 0 ? kAnonymize(limited, k) : limited;
     }
 
+    public static List<Seg> newVsReturning(List<AnalyticsEvent> events, int k) {
+        Map<String, String> byVisitor = new LinkedHashMap<>();
+        for (AnalyticsEvent e : events) {
+            if (e.getVid() == null) {
+                continue;
+            }
+            String v = e.getNewVisitor() == null ? "unknown" : e.getNewVisitor() ? "new" : "returning";
+            byVisitor.merge(e.getVid(), v, Insights::strongerVisitorKind);
+        }
+        Map<String, Set<String>> m = new LinkedHashMap<>();
+        byVisitor.forEach((vid, kind) -> m.computeIfAbsent(kind, x -> new HashSet<>()).add(vid));
+        List<Seg> out = new ArrayList<>();
+        m.forEach((s, v) -> out.add(new Seg(s, (long) v.size(), Reports.ratio(v.size(), byVisitor.size()), false)));
+        out.sort(Comparator.comparing(Seg::visitors).reversed().thenComparing(Seg::key));
+        return k > 0 ? kAnonymize(out, k) : out;
+    }
+
+    static String strongerVisitorKind(String a, String b) {
+        if ("new".equals(a) || "new".equals(b)) {
+            return "new";
+        }
+        if ("returning".equals(a) || "returning".equals(b)) {
+            return "returning";
+        }
+        return "unknown";
+    }
+
     public static List<Seg> kAnonymize(List<Seg> segments, int k) {
         List<Seg> out = new ArrayList<>();
         boolean suppressed = false;

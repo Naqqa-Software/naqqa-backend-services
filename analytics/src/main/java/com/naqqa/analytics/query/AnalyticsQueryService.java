@@ -159,7 +159,7 @@ public class AnalyticsQueryService {
                     Insights.segments(events, AnalyticsEvent::getLang, k, 0),
                     Reports.pages(events, sessions, top),
                     Reports.rows(sessions, SessionSummary::landing, top),
-                    Insights.segments(events, e -> e.getNewVisitor() == null ? "unknown" : e.getNewVisitor() ? "new" : "returning", k, 0),
+                    Insights.newVsReturning(events, k),
                     topEntities);
         });
     }
@@ -391,7 +391,7 @@ public class AnalyticsQueryService {
                     Insights.segments(events, AnalyticsEvent::getCity, k, topLimit),
                     Insights.segments(events, AnalyticsEvent::getRegion, k, topLimit),
                     Insights.segments(events, AnalyticsEvent::getCountry, k, topLimit),
-                    Insights.segments(events, e -> e.getNewVisitor() == null ? "unknown" : e.getNewVisitor() ? "new" : "returning", k, 0),
+                    Insights.newVsReturning(events, k),
                     Insights.heatmap(events, q.zone(), k));
         });
     }

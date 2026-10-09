@@ -498,8 +498,9 @@ public class IntentRouter {
                     false, null);
         }
         if (location != null && (place != null || locationScore >= 3) && (place != null || knowledgeScore < 3)) {
-            return new IntentResult(location, place != null ? 0.85 : 0.75, null, categoryRef, query, false,
-                    query.isBlank(), null);
+            String locationQuery = place == null ? queryTerms(tokens, withLocationCues(tokens, consumed)) : query;
+            return new IntentResult(location, place != null ? 0.85 : 0.75, null, categoryRef, locationQuery, false,
+                    locationQuery.isBlank(), null);
         }
         IntentDef best = bestOf(scores, catalog.resolutionOrder());
         double bestScore = best == null ? 0 : scores.get(best.id());
@@ -1686,6 +1687,42 @@ public class IntentRouter {
         }
         consumed.addAll(bestIdx);
         return best;
+    }
+
+    private Set<Integer> withLocationCues(List<String> tokens, Set<Integer> consumed) {
+        Set<Integer> out = new HashSet<>(consumed);
+        for (ChatLanguages.Rule rule : rules) {
+            if (location == null || !location.id().equals(rule.intent())) {
+                continue;
+            }
+            if (rule.exact()) {
+                for (int i = 0; i < tokens.size(); i++) {
+                    if (tokens.get(i).equals(rule.value())) {
+                        out.add(i);
+                    }
+                }
+                continue;
+            }
+            if (!rule.phrase()) {
+                continue;
+            }
+            String[] words = rule.value().trim().split(" ");
+            if (words.length == 0 || words[0].isEmpty()) {
+                continue;
+            }
+            for (int i = 0; i + words.length <= tokens.size(); i++) {
+                boolean match = true;
+                for (int k = 0; k < words.length && match; k++) {
+                    match = tokens.get(i + k).equals(words[k]);
+                }
+                if (match) {
+                    for (int k = 0; k < words.length; k++) {
+                        out.add(i + k);
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     private String queryTerms(List<String> tokens, Set<Integer> consumed) {

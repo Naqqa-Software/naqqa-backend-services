@@ -582,7 +582,19 @@ public final class ChatLanguages {
         if (letters == 0) {
             return fb;
         }
-        if (cyr * 10 >= letters * 3) {
+        int cyrTokens = 0;
+        int latinTokens = 0;
+        for (String token : TextNormalizer.tokens(text)) {
+            if (token.isEmpty() || !Character.isLetter(token.charAt(0))) {
+                continue;
+            }
+            if (TextNormalizer.isCyrillic(token.charAt(0))) {
+                cyrTokens++;
+            } else {
+                latinTokens++;
+            }
+        }
+        if (cyr * 10 >= letters * 3 || cyrTokens > 0 && cyrTokens >= latinTokens) {
             for (Detection d : detections) {
                 if (SCRIPT_CYRILLIC.equals(d.script())) {
                     return d.lang();

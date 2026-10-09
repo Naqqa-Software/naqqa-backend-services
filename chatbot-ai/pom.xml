@@ -13,7 +13,7 @@
 
     <groupId>com.naqqa</groupId>
     <artifactId>naqqa-chatbot</artifactId>
-    <version>0.0.12</version>
+    <version>0.0.13</version>
     <name>Naqqa Chatbot</name>
     <description>Reusable multi-language AI chatbot (visitor widget API, operator inbox, local LLM, language packs) for Naqqa backend apps</description>
     <packaging>jar</packaging>

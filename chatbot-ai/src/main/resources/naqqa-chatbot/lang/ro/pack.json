@@ -1311,7 +1311,9 @@
     "\\bparola\\s+administrator\\w*",
     "\\blisteaza\\s+(?:\\S+\\s+){0,2}utilizatori",
     "\\bmodul\\s+developer",
-    "\\bdezactiveaza\\s+(?:\\S+\\s+){0,2}filtr"
+    "\\bdezactiveaza\\s+(?:\\S+\\s+){0,2}filtr",
+    "\\bsystem\\s*:\\s*(?:you|tu|ты)\\b",
+    "\\brepeat\\s+(?:\\S+\\s+){0,3}above\\b"
   ],
   "detection": {
     "script": "latin",
@@ -1592,7 +1594,9 @@
         "dolbaeb",
         "gandon",
         "pizdet",
-        "ueban"
+        "ueban",
+        "dracu",
+        "dracului"
       ],
       "stems": [
         "pizd",

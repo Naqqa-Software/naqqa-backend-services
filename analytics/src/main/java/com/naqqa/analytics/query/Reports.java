@@ -475,12 +475,22 @@ public final class Reports {
                     a.clicks++;
                     a.sources.merge(e.getSourceBlock() == null ? "(none)" : e.getSourceBlock(), 1L, Long::sum);
                 }
-                case "item_view", "company_view", "booklet_open" -> {
+                case "item_view", "company_view" -> {
                     a.views++;
                     Long ms = e.longProp("activeMs");
                     if (ms != null) {
                         a.activeSum += ms;
                         a.activeCount++;
+                    }
+                }
+                case "booklet_open" -> {
+                    a.views++;
+                    a.activeCount++;
+                }
+                case "booklet_page_view" -> {
+                    Long ms = e.longProp("activeMs");
+                    if (ms != null) {
+                        a.activeSum += ms;
                     }
                 }
                 case "article_read" -> {
