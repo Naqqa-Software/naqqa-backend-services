@@ -47,7 +47,8 @@ class ChatAiPriceHeaderTest {
                 List<Candidate> all = super.retrieve(plan);
                 List<Candidate> out = new ArrayList<>();
                 for (Candidate c : all) {
-                    if ((plan.companyId() == null || plan.companyId().equals(c.companyId())) && plan.types().contains(c.type())) {
+                    if ((plan.companyId() == null || plan.companyId().equals(c.companyId())) && plan.types().contains(c.type())
+                            && (plan.priceMax() == null || c.price() != null && c.price() <= plan.priceMax())) {
                         out.add(c);
                     }
                 }
@@ -144,5 +145,19 @@ class ChatAiPriceHeaderTest {
         assertTrue(near.text().contains("(/map)"), near.text());
         AiReply ru = converse("какие магазины есть", "ближайший магазин Linella");
         assertTrue(ru.text().contains("(/map)"), ru.text());
+    }
+
+    @Test
+    void switchingStoreAfterCheaperDropsTheDerivedPriceCap() {
+        provider.results = new ArrayList<>(List.of(
+                product(1, "Lapte Căsuța Mea 930ml", "Молоко Căsuța Mea 930мл", 15.99, 5),
+                product(2, "Lapte Integral 1l", "Цельное молоко 1л", 16.90, 3),
+                product(3, "Lapte ALBA 3.2% 900ml", "Молоко ALBA 3.2% 900мл", 13.99, 2)));
+        AiReply reply = converse("cat costa laptele", "si mai ieftin?", "dar la Linella?");
+        RetrievalPlan plan = provider.last();
+        assertEquals(5L, plan.companyId());
+        assertEquals(null, plan.priceMax());
+        assertTrue(reply.text().contains("15,99") || reply.cards().stream().anyMatch(c -> Long.valueOf(1L).equals(c.getId())), reply.text());
+        assertFalse(reply.text().contains("nu are acum oferte"), reply.text());
     }
 }

@@ -630,6 +630,9 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             case STORE -> {
                 company = res.current().company();
                 place = null;
+                if (cheapest && prev.priceMax() != null) {
+                    priceMax = null;
+                }
                 prefix = query.isBlank() ? null : languages.format("followup_store", lang, plain(company.name()), query);
             }
             case PLACE -> {
