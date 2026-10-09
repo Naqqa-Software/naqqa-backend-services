@@ -147,6 +147,8 @@ public final class ChatLanguages {
     private final Set<String> pronouns = new LinkedHashSet<>();
     private final Set<String> conditionalStopwords = new LinkedHashSet<>();
     private final Map<String, Integer> peopleAlone = new LinkedHashMap<>();
+    private final Map<String, List<String>> memoryPhrases = new LinkedHashMap<>();
+    private final Map<String, List<String>> memoryHints = new LinkedHashMap<>();
     private Pattern priceMaxCurrency;
     private final List<Pattern> injectionPatterns = new ArrayList<>();
     private final List<Detection> detections = new ArrayList<>();
@@ -292,6 +294,14 @@ public final class ChatLanguages {
             addAll(conditionalStopwords, pack.path("conditionalStopwords"), true);
             pack.path("signals").path("peopleAlone").fields().forEachRemaining(e -> peopleAlone.put(
                     TextNormalizer.normalizedPhrase(e.getKey()), e.getValue().asInt()));
+            pack.path("memory").fields().forEachRemaining(e -> {
+                if ("hints".equals(e.getKey())) {
+                    e.getValue().fields().forEachRemaining(h -> phrases(memoryHints.computeIfAbsent(h.getKey(),
+                            k -> new ArrayList<>()), h.getValue()));
+                } else {
+                    phrases(memoryPhrases.computeIfAbsent(e.getKey(), k -> new ArrayList<>()), e.getValue());
+                }
+            });
             basket.path("periods").fields().forEachRemaining(e -> phrases(basketPeriods.computeIfAbsent(e.getKey(),
                     k -> new ArrayList<>()), e.getValue()));
             List<BasketItem> items = new ArrayList<>();
@@ -886,6 +896,18 @@ public final class ChatLanguages {
 
     public Set<String> conditionalStopwords() {
         return conditionalStopwords;
+    }
+
+    public Map<String, List<String>> memoryPhrases() {
+        return memoryPhrases;
+    }
+
+    public List<String> memoryPhrases(String kind) {
+        return memoryPhrases.getOrDefault(kind, List.of());
+    }
+
+    public Map<String, List<String>> memoryHints() {
+        return memoryHints;
     }
 
     public Map<String, Integer> peopleAlone() {

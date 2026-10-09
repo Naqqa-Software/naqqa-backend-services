@@ -5,7 +5,10 @@ import com.naqqa.chatbot.dto.ChatDtos.ConversationViewDto;
 import com.naqqa.chatbot.dto.ChatDtos.CreateConversationRequest;
 import com.naqqa.chatbot.dto.ChatDtos.CreateConversationResponse;
 import com.naqqa.chatbot.dto.ChatDtos.FeedbackRequest;
+import com.naqqa.chatbot.dto.ChatDtos.MemoryPauseRequest;
+import com.naqqa.chatbot.dto.ChatDtos.MemoryViewDto;
 import com.naqqa.chatbot.dto.ChatDtos.MessageDto;
+import com.naqqa.chatbot.memory.ChatMemoryService;
 import com.naqqa.chatbot.dto.ChatDtos.RatingRequest;
 import com.naqqa.chatbot.dto.ChatDtos.SendMessageRequest;
 import com.naqqa.chatbot.dto.ChatDtos.SendResultDto;
@@ -29,9 +32,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,6 +64,7 @@ public class ChatPublicController {
     private final NaqqaChatbotProperties properties;
     private final ChatAnalyticsEmitter analytics;
     private ChatSttService speech;
+    private ChatMemoryService memory;
 
     public ChatPublicController(ChatService chatService, ChatSseHub hub, ChatUserResolver users,
                                 ObjectProvider<ChatHumanVerifier> verifier, NaqqaChatbotProperties properties,
@@ -73,6 +79,10 @@ public class ChatPublicController {
 
     public void setSpeech(ChatSttService speech) {
         this.speech = speech;
+    }
+
+    public void setMemory(ChatMemoryService memory) {
+        this.memory = memory;
     }
 
     private void human(HttpServletRequest request, String action, String conversationId, String vid, String sid) {
@@ -118,9 +128,62 @@ public class ChatPublicController {
                               @RequestHeader(value = ChatVisitorTokenService.HEADER, required = false) String token,
                               HttpServletRequest http,
                               @RequestHeader(value = VID_HEADER, required = false) String vid,
-                              @RequestHeader(value = SID_HEADER, required = false) String sid) {
+                              @RequestHeader(value = SID_HEADER, required = false) String sid,
+                              Authentication authentication) {
         human(http, properties.getRecaptchaActions().getMessage(), id, vid, sid);
-        return chatService.send(id, token, request, vid, sid);
+        return chatService.send(id, token, request, vid, sid, viewer(authentication));
+    }
+
+    private Long viewer(Authentication authentication) {
+        try {
+            return users.currentUserId(authentication);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private ChatMemoryService memory() {
+        ChatMemoryService m = memory != null ? memory : chatService.memory();
+        if (m == null || !m.enabled()) {
+            throw new ChatException(HttpStatus.NOT_FOUND, ChatException.NOT_FOUND, "Memory is not enabled.");
+        }
+        return m;
+    }
+
+    private Long requireViewer(Authentication authentication) {
+        Long userId = viewer(authentication);
+        if (userId == null) {
+            throw new ChatException(HttpStatus.UNAUTHORIZED, ChatException.FORBIDDEN, "Sign in to manage what the assistant remembers.");
+        }
+        return userId;
+    }
+
+    @GetMapping("/memory")
+    public ResponseEntity<MemoryViewDto> memoryView(@RequestParam(required = false) String lang, Authentication authentication) {
+        Long userId = requireViewer(authentication);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(memory().view(userId, chatService.lang(lang)));
+    }
+
+    @DeleteMapping("/memory")
+    public ResponseEntity<Void> memoryForgetAll(Authentication authentication) {
+        Long userId = requireViewer(authentication);
+        memory().forgetAll(userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/memory/items/{itemId}")
+    public ResponseEntity<MemoryViewDto> memoryForget(@PathVariable String itemId, @RequestParam(required = false) String lang,
+                                                      Authentication authentication) {
+        Long userId = requireViewer(authentication);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(memory().forget(userId, itemId, chatService.lang(lang)));
+    }
+
+    @PutMapping("/memory/pause")
+    public ResponseEntity<MemoryViewDto> memoryPause(@RequestBody(required = false) MemoryPauseRequest request,
+                                                     @RequestParam(required = false) String lang, Authentication authentication) {
+        Long userId = requireViewer(authentication);
+        boolean paused = request == null || request.paused() == null || request.paused();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(memory().pause(userId, paused, chatService.lang(lang)));
     }
 
     @GetMapping("/conversations/{id}/search")

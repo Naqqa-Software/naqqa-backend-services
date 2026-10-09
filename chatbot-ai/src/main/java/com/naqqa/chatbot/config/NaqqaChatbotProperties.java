@@ -44,6 +44,7 @@ public class NaqqaChatbotProperties {
     private RecaptchaActions recaptchaActions = new RecaptchaActions();
     private Crisis crisis = new Crisis();
     private Safety safety = new Safety();
+    private Memory memory = new Memory();
     private Map<String, String> placeholders = new LinkedHashMap<>();
 
     public boolean isServerStt() {
@@ -82,6 +83,7 @@ public class NaqqaChatbotProperties {
         private String knowledgeChunk = "chat_knowledge_chunk";
         private String secret = "chat_secret";
         private String reviewSuggestion = "chat_review_suggestion";
+        private String memory = "chat_memory";
         private boolean createIndexes = true;
     }
 
@@ -210,6 +212,26 @@ public class NaqqaChatbotProperties {
         private int muteAfterOffences = 3;
         private int muteMinutes = 15;
         private boolean filterAdultResults = true;
+    }
+
+    @Data
+    public static class Memory {
+        private boolean enabled = true;
+        private int retentionDays = 365;
+        private double halfLifeDays = 45;
+        private double explicitHalfLifeDays = 180;
+        private double boostCap = 0.2;
+        private int defaultStoreMinCount = 3;
+        private double defaultStoreShare = 0.6;
+        private int maxStores = 8;
+        private int maxCategories = 8;
+        private int maxBrands = 8;
+        private int maxProducts = 12;
+        private int maxPlaces = 3;
+        private int maxFacts = 10;
+        private int maxHints = 8;
+        private int maxUnresolved = 5;
+        private int maxIntents = 10;
     }
 
     @Data

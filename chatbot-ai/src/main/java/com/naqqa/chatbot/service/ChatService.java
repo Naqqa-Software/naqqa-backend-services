@@ -4,7 +4,9 @@ import com.naqqa.chatbot.ai.AiReply;
 import com.naqqa.chatbot.ai.AiRequest;
 import com.naqqa.chatbot.ai.AiTurn;
 import com.naqqa.chatbot.ai.ChatAiEngine;
+import com.naqqa.chatbot.ai.MemoryContext;
 import com.naqqa.chatbot.ai.PiiMasker;
+import com.naqqa.chatbot.memory.ChatMemoryService;
 import com.naqqa.chatbot.ai.safety.ChatSafety;
 import com.naqqa.chatbot.entities.ChatAuditAction;
 import com.naqqa.chatbot.config.NaqqaChatbotProperties;
@@ -80,6 +82,7 @@ public class ChatService {
     private ChatSafety safety;
     private ChatAuditService auditService;
     private ChatAnalyticsEmitter analytics = ChatAnalyticsEmitter.NONE;
+    private ChatMemoryService memory;
 
     public ChatService(ChatConversationStore store, ChatMessageRepository messageRepository,
                        ChatRecommendationEventRepository eventRepository,
@@ -111,6 +114,21 @@ public class ChatService {
 
     public void setAnalytics(ChatAnalyticsEmitter analytics) {
         this.analytics = analytics == null ? ChatAnalyticsEmitter.NONE : analytics;
+    }
+
+    public void setMemory(ChatMemoryService memory) {
+        this.memory = memory;
+    }
+
+    public ChatMemoryService memory() {
+        return memory;
+    }
+
+    public static Long memoryOwner(ChatConversationEntity c, Long viewer) {
+        if (c == null || viewer == null) {
+            return null;
+        }
+        return c.getUserId() == null || c.getUserId().equals(viewer) ? viewer : null;
     }
 
     public ChatLanguages languages() {
@@ -168,7 +186,8 @@ public class ChatService {
         c.setUpdatedAt(now);
         c.setLastMessageAt(now);
         ChatSettingsEntity s = settingsService.get();
-        String welcome = welcome(s, lang);
+        AiReply personal = personalWelcome(c, userId, lang, s);
+        String welcome = personal != null ? personal.text() : welcome(s, lang);
         c.setLastMessagePreview(preview(welcome));
         c.setMessageCount(1);
         c.setUnreadForVisitor(1);
@@ -177,11 +196,73 @@ public class ChatService {
         ChatMessageEntity m = newMessage(saved.getId(), ChatSenderType.BOT, null, s.getBotName(), welcome);
         m.setQuickReplies(s.getQuickReplies() == null ? new ArrayList<>() : new ArrayList<>(s.getQuickReplies().stream().map(ChatSettingsEntity.QuickReply::getKey).toList()));
         m.setCreatedAt(now);
+        List<ChatRecommendationEventEntity> welcomeEvents = personal == null ? List.of() : attachCards(m, personal.cards(), saved.getId(), now);
+        if (personal != null) {
+            m.setRoute(personal.route());
+            m.setIntent(personal.intent());
+            m.setLang(lang);
+        }
         messageRepository.save(m);
+        if (!welcomeEvents.isEmpty()) {
+            eventRepository.saveAll(welcomeEvents);
+        }
 
         hub.toAdmins(saved, "conversation_created", mapper.summary(saved));
         analytics.emit("chat_conversation_start", saved, Map.of("source", "widget", "conversationId", saved.getId()));
         return new CreateConversationResponse(mapper.conversation(saved), tokenService.issue(saved.getId()), mapper.messages(List.of(m), lang));
+    }
+
+    private AiReply personalWelcome(ChatConversationEntity c, Long userId, String lang, ChatSettingsEntity settings) {
+        if (memory == null || userId == null) {
+            return null;
+        }
+        try {
+            MemoryContext context = memory.snapshot(userId, c.getId());
+            ChatAiEngine engine = aiEngine.getIfAvailable();
+            if (context == null || engine == null) {
+                return null;
+            }
+            AiReply reply = engine.welcome(new AiRequest(c.getId(), lang, "", null, c.getPagePath(), List.of(), settings, context));
+            return reply == null || reply.text() == null || reply.text().isBlank() ? null : reply;
+        } catch (RuntimeException e) {
+            log.warn("Chat personal welcome failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private List<ChatRecommendationEventEntity> attachCards(ChatMessageEntity bot, List<ChatCard> source, String conversationId,
+                                                            Instant now) {
+        List<ChatCard> cards = new ArrayList<>();
+        List<ChatRecommendationEventEntity> events = new ArrayList<>();
+        if (source != null) {
+            int position = 0;
+            int related = 0;
+            for (ChatCard card : source) {
+                boolean isRelated = card != null && ChatCard.GROUP_RELATED.equals(card.getGroup());
+                if (card == null || (isRelated ? related >= MAX_RELATED_CARDS : position - related >= MAX_CARDS)) {
+                    continue;
+                }
+                if (isRelated) {
+                    related++;
+                }
+                ChatCard copy = card.toBuilder().eventId(UUID.randomUUID().toString()).build();
+                cards.add(copy);
+                ChatRecommendationEventEntity event = new ChatRecommendationEventEntity();
+                event.setId(copy.getEventId());
+                event.setConversationId(conversationId);
+                event.setMessageId(bot.getId());
+                event.setItemType(copy.getType());
+                event.setItemId(copy.getId());
+                event.setTitle(copy.getTitle());
+                event.setCompanyId(copy.getCompanyId());
+                event.setSponsored(copy.isSponsored());
+                event.setPosition(position++);
+                event.setShownAt(now);
+                events.add(event);
+            }
+        }
+        bot.setCards(cards);
+        return events;
     }
 
     private static String blankToNull(String value) {
@@ -222,6 +303,11 @@ public class ChatService {
     }
 
     public SendResultDto send(String id, String token, SendMessageRequest request, String analyticsVid, String analyticsSid) {
+        return send(id, token, request, analyticsVid, analyticsSid, null);
+    }
+
+    public SendResultDto send(String id, String token, SendMessageRequest request, String analyticsVid, String analyticsSid,
+                              Long viewerId) {
         ensureEnabled();
         tokenService.verify(token, id);
         ChatConversationEntity c = store.get(id);
@@ -267,7 +353,7 @@ public class ChatService {
         } else {
             analytics.emit("chat_quick_reply_click", c, Map.of("code", quickReply));
         }
-        return processVisitorMessage(c, visitor, masked, quickReply, lang, request.pagePath(), verdict);
+        return processVisitorMessage(c, visitor, masked, quickReply, lang, request.pagePath(), verdict, memoryOwner(c, viewerId));
     }
 
     public TranscriptionDto transcribe(String id, String token, byte[] audio, String declaredType, Long durationMs, String lang) {
@@ -330,7 +416,8 @@ public class ChatService {
     }
 
     private SendResultDto processVisitorMessage(ChatConversationEntity c, ChatMessageEntity visitor, String maskedText,
-                                                String quickReply, String lang, String pagePath, ChatSafety.Verdict verdict) {
+                                                String quickReply, String lang, String pagePath, ChatSafety.Verdict verdict,
+                                                Long owner) {
         String id = c.getId();
         ChatMessageEntity savedVisitor = saveVisitor(c, visitor, lang, pagePath);
         ChatConversationEntity current = store.get(id);
@@ -354,14 +441,23 @@ public class ChatService {
         }
 
         ChatSettingsEntity s = settingsService.get();
+        AiReply command = memoryCommand(owner, current, maskedText, lang);
+        if (command != null) {
+            ChatMessageEntity bot = saveBotReply(store.get(id), command, s, lang, null, maskedText);
+            return new SendResultDto(visitorDto, mapper.message(bot, lang), mapper.conversation(store.get(id)));
+        }
         hub.toVisitor(id, "typing", new TypingEvent("BOT", s.getBotName()));
-        AiReply reply = callAi(current, savedVisitor, maskedText, quickReply, lang, pagePath, s, false);
+        MemoryContext context = memorySnapshot(owner, id);
+        AiReply reply = callAi(current, savedVisitor, maskedText, quickReply, lang, pagePath, s, false, context);
 
         ChatConversationEntity latest = store.get(id);
         if (!ChatStateMachine.aiResponds(latest.getStatus())) {
             return new SendResultDto(visitorDto, null, mapper.conversation(latest));
         }
         ChatMessageEntity bot = saveBotReply(latest, reply, s, lang, null, maskedText);
+        if (memory != null && owner != null) {
+            memory.observe(owner, id, lang, maskedText, reply);
+        }
         ChatConversationEntity afterBot = store.get(id);
         boolean shouldEscalate = !afterBot.isEscalated()
                 && ChatEscalation.shouldEscalate(false, reply.escalate(), afterBot.getLowConfidenceStreak());
@@ -393,10 +489,40 @@ public class ChatService {
         return saved;
     }
 
+    private AiReply memoryCommand(Long owner, ChatConversationEntity c, String text, String lang) {
+        if (memory == null) {
+            return null;
+        }
+        try {
+            return memory.command(owner, c.getId(), text, lang);
+        } catch (RuntimeException e) {
+            log.warn("Chat memory command failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private MemoryContext memorySnapshot(Long owner, String conversationId) {
+        if (memory == null || owner == null) {
+            return null;
+        }
+        try {
+            return memory.snapshot(owner, conversationId);
+        } catch (RuntimeException e) {
+            log.warn("Chat memory snapshot failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
     public AiReply callAi(ChatConversationEntity c, ChatMessageEntity current, String text, String quickReply, String lang,
                           String pagePath, ChatSettingsEntity settings, boolean suggest) {
+        return callAi(c, current, text, quickReply, lang, pagePath, settings, suggest, null);
+    }
+
+    public AiReply callAi(ChatConversationEntity c, ChatMessageEntity current, String text, String quickReply, String lang,
+                          String pagePath, ChatSettingsEntity settings, boolean suggest, MemoryContext memoryContext) {
         List<AiTurn> history = aiHistory(c.getId(), current == null ? null : current.getId());
-        AiRequest request = new AiRequest(c.getId(), lang, text, quickReply, pagePath(pagePath) == null ? c.getPagePath() : pagePath(pagePath), history, settings);
+        AiRequest request = new AiRequest(c.getId(), lang, text, quickReply, pagePath(pagePath) == null ? c.getPagePath() : pagePath(pagePath),
+                history, settings, memoryContext);
         ChatAiEngine engine = aiEngine.getIfAvailable();
         long started = System.currentTimeMillis();
         try {
@@ -457,36 +583,7 @@ public class ChatService {
         bot.setTokensOut(reply.tokensOut());
         bot.setLatencyMs(reply.latencyMs());
         bot.setFlagged(reply.flagged());
-        List<ChatCard> cards = new ArrayList<>();
-        List<ChatRecommendationEventEntity> events = new ArrayList<>();
-        if (reply.cards() != null) {
-            int position = 0;
-            int related = 0;
-            for (ChatCard card : reply.cards()) {
-                boolean isRelated = card != null && ChatCard.GROUP_RELATED.equals(card.getGroup());
-                if (card == null || (isRelated ? related >= MAX_RELATED_CARDS : position - related >= MAX_CARDS)) {
-                    continue;
-                }
-                if (isRelated) {
-                    related++;
-                }
-                ChatCard copy = card.toBuilder().eventId(UUID.randomUUID().toString()).build();
-                cards.add(copy);
-                ChatRecommendationEventEntity event = new ChatRecommendationEventEntity();
-                event.setId(copy.getEventId());
-                event.setConversationId(c.getId());
-                event.setMessageId(bot.getId());
-                event.setItemType(copy.getType());
-                event.setItemId(copy.getId());
-                event.setTitle(copy.getTitle());
-                event.setCompanyId(copy.getCompanyId());
-                event.setSponsored(copy.isSponsored());
-                event.setPosition(position++);
-                event.setShownAt(now);
-                events.add(event);
-            }
-        }
-        bot.setCards(cards);
+        List<ChatRecommendationEventEntity> events = attachCards(bot, reply.cards(), c.getId(), now);
         ChatMessageEntity saved = messageRepository.save(bot);
         if (!events.isEmpty()) {
             eventRepository.saveAll(events);

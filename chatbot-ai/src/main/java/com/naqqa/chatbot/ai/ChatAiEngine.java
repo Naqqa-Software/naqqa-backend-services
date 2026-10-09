@@ -7,4 +7,8 @@ public interface ChatAiEngine {
     AiReply suggest(AiRequest request);
 
     int reindexKnowledge();
+
+    default AiReply welcome(AiRequest request) {
+        return null;
+    }
 }

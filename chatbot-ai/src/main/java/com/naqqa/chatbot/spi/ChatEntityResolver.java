@@ -34,4 +34,8 @@ public interface ChatEntityResolver {
     default List<PlaceRef> places() {
         return List.of();
     }
+
+    default List<String> brands() {
+        return List.of();
+    }
 }

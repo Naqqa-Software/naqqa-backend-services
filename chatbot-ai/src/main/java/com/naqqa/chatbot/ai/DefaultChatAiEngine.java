@@ -22,10 +22,12 @@ import com.naqqa.chatbot.ai.safety.TopicGuard;
 import com.naqqa.chatbot.entities.ChatCard;
 import com.naqqa.chatbot.entities.ChatSettingsEntity;
 import com.naqqa.chatbot.i18n.ChatLanguages;
+import com.naqqa.chatbot.memory.ChatMemoryCommands;
 import com.naqqa.chatbot.spi.ChatEntityResolver;
 import com.naqqa.chatbot.spi.ChatSearchLinkBuilder;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -56,6 +58,8 @@ public class DefaultChatAiEngine implements ChatAiEngine {
     private TopicGuard topicGuard;
     private String operatorQuickReply;
     private final FollowUpResolver followUps;
+    private final ChatMemoryCommands memoryPhrases;
+    private java.util.function.Supplier<Instant> clock = Instant::now;
 
     public DefaultChatAiEngine(InputGuard inputGuard, IntentRouter router, ChatRetrievalService retriever, Ranker ranker,
                                CardFactory cardFactory, KnowledgeService knowledge, LlmProvider llm, LlmGate gate,
@@ -77,10 +81,15 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         this.links = links == null ? ChatSearchLinkBuilder.NONE : links;
         this.responseRouter = new ResponseRouter(languages, null);
         this.followUps = new FollowUpResolver(languages, router);
+        this.memoryPhrases = new ChatMemoryCommands(languages);
     }
 
     public void setTopicGuard(TopicGuard topicGuard) {
         this.topicGuard = topicGuard;
+    }
+
+    public void setClock(java.util.function.Supplier<Instant> clock) {
+        this.clock = clock == null ? Instant::now : clock;
     }
 
     public void setResponseRouter(ResponseRouter responseRouter) {
@@ -230,7 +239,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         if (request.quickReply() != null && catalog.quickReply(request.quickReply()) == null && request.text() != null
                 && !request.text().isBlank()) {
             request = new AiRequest(request.conversationId(), request.lang(), request.text(), null, request.pagePath(),
-                    request.history(), request.settings());
+                    request.history(), request.settings(), request.memory());
         }
         ConversationContext previous = operatorDraft ? null : ConversationContext.latest(request.history());
         String carry = previous == null ? null : previous.toJson();
@@ -301,6 +310,30 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 return reply(o, null, "external_link", start, true, lang, catalog.quickRepliesFor(offTopic, false), settings);
             }
         }
+        MemoryContext memory = operatorDraft ? null : request.memory();
+        boolean memoryOff = previous != null && previous.memoryDisabled();
+        if (quickReply == null && !operatorDraft) {
+            ChatMemoryCommands.Found reference = memoryPhrases.reference(guard.text());
+            MemoryTurn turn = null;
+            if (reference != null) {
+                try {
+                    turn = memoryReference(reference, previous, memory, request, lang, settings);
+                } catch (RuntimeException e) {
+                    log.warn("[chatbot] memory reference failed: {}", e.getMessage());
+                }
+            }
+            if (turn != null) {
+                ConversationContext next = turn.intent() == null || turn.intent().intent() == null ? previous
+                        : context(turn.intent(), IntentRouter.Signals.NONE, turn.outcome(), lang, previous, null);
+                if (next != null && (turn.off() || memoryOff)) {
+                    next = next.withMemory(false, true);
+                }
+                IntentDef def = turn.intent() == null ? null : turn.intent().intent();
+                List<String> replies = def == null ? List.of() : quickReplies(turn.outcome(), def);
+                return reply(turn.outcome(), def, MEMORY_INTENT, start, false, lang, replies, settings)
+                        .withContext(next == null ? null : next.toJson());
+            }
+        }
         if (quickReply == null && previous != null && !operatorDraft) {
             FollowUpResolver.Resolution resolution;
             try {
@@ -366,16 +399,44 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 }
             }
         }
+        CompanyRef memoryStore = null;
+        IntentResult withoutMemoryStore = intent;
+        if (memory != null && quickReply == null && !memoryOff && !preferredPlace && memory.defaultStoreId() != null
+                && intent.company() == null && intent.place() == null && defaultStoreApplies(intent, signals, guard.text())) {
+            CompanyRef store = directory.company(memory.defaultStoreId());
+            if (MemoryPersonalizer.known(store)) {
+                intent = withCompany(intent, store);
+                memoryStore = store;
+            }
+        }
         Ctx ctx = new Ctx(quickReply == null && responseRouter.comparative(guard.text()), followUp, carried,
                 ResponseRouter.threshold(settings.getLlmConfidenceThreshold()), operatorDraft,
                 quickReply == null && responseRouter.recommendation(guard.text()), signals,
                 quickReply == null && responseRouter.multiPart(guard.text()));
         Outcome outcome;
+        boolean defaulted = false;
         try {
             outcome = handle(intent, guard.text(), lang, request, settings, operatorDraft, ctx);
             if (preferredPlace && (outcome.cards().isEmpty() || outcome.flags.contains(AiReply.FLAG_NO_RESULTS))) {
                 intent = withoutPreference;
                 outcome = handle(intent, guard.text(), lang, request, settings, operatorDraft, ctx);
+            }
+            if (memoryStore != null) {
+                if (!hasStoreResults(outcome, memoryStore.id())) {
+                    intent = withoutMemoryStore;
+                    Outcome wide = handle(intent, guard.text(), lang, request, settings, operatorDraft, ctx);
+                    outcome = hasResults(wide) ? wide.prefixed(languages.format("memory_default_store_empty", lang,
+                            plain(memoryStore.name()), intent.query().trim())) : wide;
+                } else {
+                    Outcome wide = null;
+                    try {
+                        wide = handle(withoutMemoryStore, guard.text(), lang, request, settings, operatorDraft, ctx);
+                    } catch (RuntimeException ignored) {
+                    }
+                    outcome = cheaperElsewhere(outcome, wide, memoryStore, lang)
+                            .prefixed(languages.format("memory_default_store", lang, plain(memoryStore.name())));
+                    defaulted = true;
+                }
             }
         } catch (RuntimeException e) {
             log.warn("[chatbot] reply pipeline failed: {}", e.getMessage());
@@ -383,8 +444,264 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         }
         IntentDef replied = outcome.intentOverride != null ? outcome.intentOverride : intent.intent();
         ConversationContext next = operatorDraft ? null : context(intent, ctx.signals(), outcome, lang, previous, null);
-        return reply(outcome, replied, null, start, false, lang, quickReplies(outcome, replied), settings)
+        if (next != null && (defaulted || memoryOff)) {
+            next = next.withMemory(defaulted, memoryOff);
+        }
+        List<String> replies = quickReplies(outcome, replied);
+        if (defaulted) {
+            List<String> withAll = new ArrayList<>();
+            withAll.add("mem_all_stores");
+            for (String r : replies) {
+                if (withAll.size() < 4 && !withAll.contains(r)) {
+                    withAll.add(r);
+                }
+            }
+            replies = withAll;
+        }
+        return reply(outcome, replied, null, start, false, lang, replies, settings)
                 .withContext(next == null ? null : next.toJson());
+    }
+
+    static final String MEMORY_INTENT = "memory";
+
+    private record MemoryTurn(Outcome outcome, IntentResult intent, boolean off) {
+    }
+
+    private static IntentResult withCompany(IntentResult r, CompanyRef company) {
+        return new IntentResult(r.intent(), r.confidence(), company, r.category(), r.query(), r.escalate(), r.browse(), r.quickReply())
+                .with(r.place(), r.priceMin(), r.priceMax(), r.sortDiscount(), r.page());
+    }
+
+    private static boolean hasResults(Outcome outcome) {
+        if (outcome == null || outcome.flags.contains(AiReply.FLAG_NO_RESULTS)) {
+            return false;
+        }
+        for (ChatCard c : outcome.cards()) {
+            if (!"COMPANY".equals(c.getType()) && !ChatCard.GROUP_RELATED.equals(c.getGroup())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasStoreResults(Outcome outcome, Long storeId) {
+        if (outcome == null || outcome.flags.contains(AiReply.FLAG_NO_RESULTS)) {
+            return false;
+        }
+        for (ChatCard c : outcome.cards()) {
+            if (!"COMPANY".equals(c.getType()) && !ChatCard.GROUP_RELATED.equals(c.getGroup()) && storeId.equals(c.getCompanyId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean defaultStoreApplies(IntentResult intent, IntentRouter.Signals signals, String text) {
+        IntentDef d = intent.intent();
+        if (d == null || d.role() != Role.SEARCH || intent.query() == null || intent.query().isBlank()) {
+            return false;
+        }
+        if (signals.storeCompare() || signals.basket() != null || signals.hasScenario() || signals.nutrition() != null
+                || signals.hasComparePair()) {
+            return false;
+        }
+        try {
+            IntentRouter.StoreMatch stores = router.stores(text);
+            if (stores != null && !stores.companies().isEmpty()) {
+                return false;
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return true;
+    }
+
+    private Outcome cheaperElsewhere(Outcome outcome, Outcome wide, CompanyRef store, String lang) {
+        if (wide == null) {
+            return outcome;
+        }
+        Double storeMin = null;
+        int results = 0;
+        for (ChatCard c : outcome.cards()) {
+            if ("COMPANY".equals(c.getType()) || ChatCard.GROUP_RELATED.equals(c.getGroup())) {
+                continue;
+            }
+            results++;
+            if (c.getPrice() != null && c.getPrice() > 0 && (storeMin == null || c.getPrice() < storeMin)) {
+                storeMin = c.getPrice();
+            }
+        }
+        ChatCard best = null;
+        for (ChatCard c : wide.cards()) {
+            if ("COMPANY".equals(c.getType()) || ChatCard.GROUP_RELATED.equals(c.getGroup()) || c.getPrice() == null || c.getPrice() <= 0
+                    || c.getCompanyId() == null || store.id().equals(c.getCompanyId())) {
+                continue;
+            }
+            if (best == null || c.getPrice() < best.getPrice()) {
+                best = c;
+            }
+        }
+        if (best == null || storeMin == null || best.getPrice() >= storeMin - 0.009 || best.getPath() == null
+                || !outputGuard.isInternalPath(best.getPath())) {
+            return outcome;
+        }
+        CompanyRef other = directory.company(best.getCompanyId());
+        String company = other != null ? plain(other.name()) : best.getCompany() == null ? null : plain(best.getCompany());
+        if (company == null || company.isBlank()) {
+            return outcome;
+        }
+        String line = languages.format("memory_cheaper_elsewhere", lang, plain(best.getTitle()), best.getPath(),
+                priceText(best.getPrice(), lang), company);
+        List<ChatCard> cards = new ArrayList<>(outcome.cards());
+        cards.add(Math.min(results, cards.size()), best.toBuilder().group(ChatCard.GROUP_RESULTS).build());
+        Outcome out = new Outcome(outcome.text() + "\n\n" + line, cards, outcome.confidence(), outcome.escalate(), outcome.llm())
+                .route(outcome.route).flags(outcome.flags);
+        out.kind = outcome.kind;
+        out.intentOverride = outcome.intentOverride;
+        return out;
+    }
+
+    private IntentResult baseIntent(ConversationContext ctx, boolean withCompany) {
+        if (ctx == null) {
+            return null;
+        }
+        IntentDef def = previousDef(ctx);
+        if (def == null) {
+            return null;
+        }
+        CompanyRef company = withCompany && ctx.companyId() != null ? directory.company(ctx.companyId()) : null;
+        PlaceRef place = place(ctx.placeKind(), ctx.placeId());
+        CategoryRef category = category(ctx.categoryTaxonomy(), ctx.categoryId());
+        String query = ctx.query() == null ? "" : ctx.query();
+        if (query.isBlank() && category == null && company == null) {
+            return null;
+        }
+        return new IntentResult(def, 0.9, company, category, query, false, query.isBlank(), null)
+                .with(place, ctx.priceMin(), ctx.priceMax(), ctx.minDiscount() != null, null);
+    }
+
+    private Ctx plainCtx() {
+        return new Ctx(false, false, false, ResponseRouter.DEFAULT_THRESHOLD, false, false, IntentRouter.Signals.NONE, false);
+    }
+
+    private String whenLabel(Instant at, String lang) {
+        long days = MemoryPersonalizer.daysAgo(at, clock.get());
+        if (days <= 0) {
+            return languages.template("memory_when_today", lang);
+        }
+        if (days == 1) {
+            return languages.template("memory_when_yesterday", lang);
+        }
+        return languages.format("memory_when_days", lang, days);
+    }
+
+    private MemoryTurn memoryReference(ChatMemoryCommands.Found reference, ConversationContext previous, MemoryContext memory,
+                                       AiRequest request, String lang, ChatSettingsEntity settings) {
+        MemoryContext.Summary last = memory == null ? null : memory.last();
+        ConversationContext lastCtx = last == null ? null : last.parsed();
+        switch (reference.reference()) {
+            case ALL_STORES -> {
+                if (previous == null || !previous.memoryDefaulted()) {
+                    return null;
+                }
+                IntentResult base = baseIntent(previous, false);
+                if (base == null) {
+                    return null;
+                }
+                Outcome o = handle(base, base.query(), lang, request, settings, false, plainCtx());
+                String label = base.query() == null ? "" : base.query().trim();
+                return new MemoryTurn(o.prefixed(label.isEmpty() ? null : languages.format("memory_all_stores", lang, label)), base, true);
+            }
+            case LAST_ASKED -> {
+                List<String> questions = new ArrayList<>(last == null ? List.of() : last.questions());
+                Instant at = last == null ? null : last.at();
+                if (questions.isEmpty()) {
+                    for (AiTurn t : request.history() == null ? List.<AiTurn>of() : request.history()) {
+                        if (t != null && "user".equals(t.role()) && t.text() != null && !t.text().isBlank()) {
+                            questions.add(t.text().trim());
+                        }
+                    }
+                    while (questions.size() > 3) {
+                        questions.remove(0);
+                    }
+                    at = clock.get();
+                }
+                if (questions.isEmpty()) {
+                    return new MemoryTurn(new Outcome(languages.template("memory_nothing_last", lang), List.of(), 0.9, false, null),
+                            null, false);
+                }
+                StringBuilder sb = new StringBuilder(languages.format("memory_last_asked", lang, whenLabel(at, lang)));
+                for (String q : questions) {
+                    sb.append("\n- ").append(languages.format("memory_quoted", lang, plain(OutputGuard.cap(q, 120))));
+                }
+                return new MemoryTurn(new Outcome(sb.toString(), List.of(), 0.9, false, null), null, false);
+            }
+            case LAST_SHOWN -> {
+                boolean fromMemory = last != null && !last.items().isEmpty();
+                List<ConversationContext.Item> items = fromMemory ? last.items() : previous == null ? List.of() : previous.items();
+                ConversationContext source = fromMemory ? lastCtx : previous;
+                Instant at = fromMemory ? last.at() : clock.get();
+                List<ChatCard> cards = items.isEmpty() ? List.of() : verified(items);
+                IntentResult base = baseIntent(source, true);
+                if (!cards.isEmpty()) {
+                    Outcome o = new Outcome(languages.format("memory_last_shown", lang, whenLabel(at, lang)), cards, 0.9, false, null)
+                            .route(AiReply.ROUTE_SEARCH).kind(ConversationContext.KIND_SEARCH);
+                    return new MemoryTurn(o, base, false);
+                }
+                if (base != null && base.query() != null && !base.query().isBlank()) {
+                    Outcome o = handle(base, base.query(), lang, request, settings, false, plainCtx());
+                    return new MemoryTurn(o.prefixed(languages.format("memory_last_shown_expired", lang, whenLabel(at, lang),
+                            base.query().trim())), base, false);
+                }
+                return new MemoryTurn(new Outcome(languages.template("memory_nothing_last", lang), List.of(), 0.9, false, null),
+                        null, false);
+            }
+            case LIKE_LAST_TIME, SAME_STORE -> {
+                Long storeId = MemoryPersonalizer.storeFor(memory, previous);
+                CompanyRef store = storeId == null ? null : directory.company(storeId);
+                String residual = reference.residual();
+                boolean words = false;
+                for (String t : TextNormalizer.tokens(residual)) {
+                    words |= !languages.isStopword(t) && t.length() >= 2;
+                }
+                IntentResult r;
+                String text;
+                if (words) {
+                    r = router.route(residual, null);
+                    if (r == null || r.intent() == null || !r.intent().isCatalog()
+                            || (r.query() == null || r.query().isBlank()) && r.category() == null) {
+                        return null;
+                    }
+                    if (store != null && r.company() == null) {
+                        r = withCompany(r, store);
+                    }
+                    text = residual;
+                } else {
+                    ConversationContext base = reference.reference() == ChatMemoryCommands.Reference.LIKE_LAST_TIME
+                            ? lastCtx != null ? lastCtx : previous : previous != null ? previous : lastCtx;
+                    r = baseIntent(base, true);
+                    if (r == null) {
+                        if (memory == null && previous == null) {
+                            return null;
+                        }
+                        return new MemoryTurn(new Outcome(languages.template("memory_nothing_last", lang), List.of(), 0.9, false, null),
+                                null, false);
+                    }
+                    if (store != null && (reference.reference() == ChatMemoryCommands.Reference.SAME_STORE || r.company() == null)) {
+                        r = withCompany(r, store);
+                    }
+                    text = r.query();
+                }
+                Outcome o = handle(r, text, lang, request, settings, false, plainCtx());
+                boolean same = reference.reference() == ChatMemoryCommands.Reference.SAME_STORE;
+                String prefix = r.company() != null
+                        ? languages.format(same ? "memory_same_store" : "memory_like_last_time", lang, plain(r.company().name()))
+                        : languages.template("memory_like_last_time_plain", lang);
+                return new MemoryTurn(o.prefixed(prefix), r, false);
+            }
+            default -> {
+                return null;
+            }
+        }
     }
 
     private List<String> quickReplies(Outcome outcome, IntentDef def) {
@@ -860,7 +1177,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         if (!operatorDraft && ctx.recommendation() && !responseRouter.allows(ResponseRouter.LlmReason.RECOMMENDATION)
                 && (def.role() == Role.SEARCH || def.role() == Role.OFF_TOPIC)
                 && (intent.query() == null || intent.query().isBlank())) {
-            Outcome deals = bestDealsOutcome(intent, lang, settings);
+            Outcome deals = bestDealsOutcome(intent, lang, settings, operatorDraft ? null : request.memory());
             if (deals != null) {
                 return deals;
             }
@@ -1002,6 +1319,10 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             ranked = new ArrayList<>(ranked);
             ranked.removeIf(r -> ctx.skip().contains(r.candidate().key()));
         }
+        MemoryContext memory = request == null ? null : request.memory();
+        if (memory != null && !operatorDraft && intent.company() == null && intent.quickReply() == null && !ctx.signals().storeCompare()) {
+            ranked = MemoryPersonalizer.boost(ranked, memory, maxCards);
+        }
         CompanyRef company = intent.company();
         RankedItem companyItem = company == null ? null : companyItem(company);
         LadderResult ladder = LadderResult.EMPTY;
@@ -1090,7 +1411,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         if (ranked.isEmpty()) {
             boolean hasQuery = intent.query() != null && !intent.query().isBlank();
             if (ctx.recommendation() && !operatorDraft && !responseRouter.allows(ResponseRouter.LlmReason.RECOMMENDATION)) {
-                Outcome deals = bestDealsOutcome(intent, lang, settings);
+                Outcome deals = bestDealsOutcome(intent, lang, settings, operatorDraft ? null : request.memory());
                 if (deals != null) {
                     return deals;
                 }
@@ -1161,6 +1482,17 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         if (!priceFocus && hasQueryText) {
             chosen = headFirst(chosen, intent.query(), lang);
         }
+        PersonalPick pick = null;
+        if (memory != null && !operatorDraft && !hasQueryText && company == null && intent.category() == null && intent.place() == null
+                && intent.quickReply() == null && (RetrievalPlan.SORT_NEWEST.equals(ctx.signals().sort()) || ctx.recommendation())) {
+            pick = personalPick(memory, lang, settings, today, RetrievalPlan.SORT_NEWEST.equals(ctx.signals().sort()));
+        }
+        if (pick != null) {
+            chosen = merged(pick.items(), chosen, maxCards);
+            for (RankedItem r : pick.items()) {
+                allowed.add(r.candidate().key());
+            }
+        }
         List<ChatCard> cards = cardFactory.cards(chosen, lang);
         if (companyItem != null && cards.size() < maxCards) {
             ChatCard companyCard = cardFactory.card(companyItem, lang);
@@ -1181,6 +1513,9 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             if (message == null) {
                 message = templateHeader(intent, lang, chosen, ctx.signals());
             }
+        }
+        if (pick != null) {
+            message = pick.header() + "\n\n" + message;
         }
         String seeAll = seeAllPath(intent);
         if (seeAll != null && outputGuard.isInternalPath(seeAll)) {
@@ -3409,7 +3744,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
                 : item.candidate().discount();
     }
 
-    private Outcome bestDealsOutcome(IntentResult intent, String lang, ChatSettingsEntity settings) {
+    private Outcome bestDealsOutcome(IntentResult intent, String lang, ChatSettingsEntity settings, MemoryContext memory) {
         LocalDate today = LocalDate.now();
         List<RankedItem> items = recommendationItems(lang, settings, today);
         if (items.isEmpty()) {
@@ -3417,6 +3752,10 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         }
         int maxCards = settings.getMaxCards() > 0 ? Math.min(settings.getMaxCards(), 10) : 5;
         List<RankedItem> chosen = Ranker.displayOrder(items.size() > maxCards ? items.subList(0, maxCards) : items);
+        PersonalPick pick = memory == null ? null : personalPick(memory, lang, settings, today, false);
+        if (pick != null) {
+            chosen = merged(pick.items(), chosen, maxCards);
+        }
         Set<String> allowed = new HashSet<>();
         for (RankedItem r : chosen) {
             allowed.add(r.candidate().key());
@@ -3425,8 +3764,169 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         if (cards.isEmpty()) {
             return null;
         }
-        return new Outcome(languages.template("recommend_header", lang), cards, Math.max(0.6, intent.confidence()), false, null)
+        String header = languages.template("recommend_header", lang);
+        return new Outcome(pick == null ? header : pick.header() + "\n\n" + header, cards, Math.max(0.6, intent.confidence()), false, null)
                 .route(AiReply.ROUTE_SEARCH);
+    }
+
+    private record PersonalPick(List<RankedItem> items, String header) {
+    }
+
+    private static List<RankedItem> merged(List<RankedItem> first, List<RankedItem> rest, int max) {
+        List<RankedItem> out = new ArrayList<>(first);
+        Set<String> keys = new HashSet<>();
+        for (RankedItem r : first) {
+            keys.add(r.candidate().key());
+        }
+        for (RankedItem r : rest) {
+            if (keys.add(r.candidate().key())) {
+                out.add(r);
+            }
+        }
+        return out.size() > max ? new ArrayList<>(out.subList(0, max)) : out;
+    }
+
+    private PersonalPick personalPick(MemoryContext memory, String lang, ChatSettingsEntity settings, LocalDate today, boolean newest) {
+        if (memory == null || memory.products().isEmpty()) {
+            return null;
+        }
+        MemoryContext.Pref product = memory.products().get(0);
+        Long storeId = memory.defaultStoreId() != null ? memory.defaultStoreId() : memory.topStore() == null ? null : memory.topStore().id();
+        CompanyRef store = storeId == null ? null : directory.company(storeId);
+        List<RankedItem> items = store == null ? List.of() : memoryOffers(product.label(), store, lang, settings, today, newest);
+        boolean atStore = !items.isEmpty();
+        if (items.isEmpty()) {
+            items = memoryOffers(product.label(), null, lang, settings, today, newest);
+        }
+        if (items.isEmpty()) {
+            return null;
+        }
+        List<RankedItem> top = new ArrayList<>(items.subList(0, Math.min(2, items.size())));
+        String header = atStore ? languages.format("memory_for_you_store", lang, plain(product.label()), plain(store.name()))
+                : languages.format("memory_for_you", lang, plain(product.label()));
+        return new PersonalPick(top, header);
+    }
+
+    private List<RankedItem> memoryOffers(String query, CompanyRef store, String lang, ChatSettingsEntity settings, LocalDate today,
+                                          boolean newest) {
+        IntentDef def = catalog.first(Role.SEARCH);
+        if (def == null || query == null || query.isBlank()) {
+            return List.of();
+        }
+        IntentResult r = new IntentResult(def, 0.9, store, null, query, false, false, null);
+        RetrievalPlan plan = plan(r, lang, IntentRouter.Signals.NONE);
+        if (newest) {
+            plan = plan.withSignals(null, RetrievalPlan.SORT_NEWEST);
+        }
+        List<RankedItem> ranked = relevantTo(rankSafely(plan, Ranker.Options.from(settings, 20), today), query);
+        List<RankedItem> kept = new ArrayList<>();
+        for (RankedItem item : ranked) {
+            if ("COMPANY".equals(item.candidate().type())) {
+                continue;
+            }
+            if (store != null && !store.id().equals(item.candidate().companyId())) {
+                continue;
+            }
+            kept.add(item);
+        }
+        List<String> q = headStems(query);
+        if (q.isEmpty()) {
+            return kept;
+        }
+        List<RankedItem> head = new ArrayList<>();
+        List<RankedItem> mentioned = new ArrayList<>();
+        for (RankedItem item : kept) {
+            String title = item.candidate().title(lang);
+            if (headRank(title, q) >= 0) {
+                head.add(item);
+            } else if (mentionsAny(title, q)) {
+                mentioned.add(item);
+            }
+        }
+        return head.isEmpty() ? mentioned : head;
+    }
+
+    @Override
+    public AiReply welcome(AiRequest request) {
+        MemoryContext memory = request == null ? null : request.memory();
+        if (memory == null) {
+            return null;
+        }
+        long start = System.nanoTime();
+        String lang = languages.normalize(request.lang());
+        ChatSettingsEntity settings = request.settings() != null ? request.settings() : new ChatSettingsEntity();
+        LocalDate today = LocalDate.now();
+        MemoryContext.Summary last = memory.last();
+        ConversationContext ctx = last == null ? null : last.parsed();
+        String topic = last != null && !last.topics().isEmpty() ? last.topics().get(last.topics().size() - 1)
+                : ctx != null && ctx.query() != null && !ctx.query().isBlank() ? ctx.query().trim() : null;
+        if (topic == null && memory.products().isEmpty()) {
+            return null;
+        }
+        CompanyRef store = ctx != null && ctx.companyId() != null ? directory.company(ctx.companyId()) : null;
+        StringBuilder sb = new StringBuilder(languages.template("memory_welcome_back", lang));
+        List<RankedItem> shown = new ArrayList<>();
+        if (topic != null) {
+            sb.append(' ').append(store != null ? languages.format("memory_welcome_last_store", lang, plain(topic), plain(store.name()))
+                    : languages.format("memory_welcome_last", lang, plain(topic)));
+            List<RankedItem> offers = memoryOffers(topic, store, lang, settings, today, true);
+            List<RankedItem> fresh = fresh(offers, last == null ? null : last.at());
+            if (!fresh.isEmpty()) {
+                sb.append(' ').append(fresh.size() == 1 ? languages.format("memory_welcome_new_one", lang, plain(topic))
+                        : languages.format("memory_welcome_new", lang, fresh.size(), plain(topic)));
+                shown.addAll(fresh.subList(0, Math.min(3, fresh.size())));
+            } else if (!offers.isEmpty()) {
+                sb.append(' ').append(offers.size() == 1 ? languages.format("memory_welcome_active_one", lang, plain(topic))
+                        : languages.format("memory_welcome_active", lang, offers.size(), plain(topic)));
+                shown.addAll(offers.subList(0, Math.min(3, offers.size())));
+            }
+        }
+        int checked = 0;
+        for (MemoryContext.Pref p : memory.products()) {
+            if (checked >= 3) {
+                break;
+            }
+            if (p.label() == null || topic != null && TextNormalizer.compact(p.label()).equals(TextNormalizer.compact(topic))) {
+                continue;
+            }
+            checked++;
+            List<RankedItem> fresh = fresh(memoryOffers(p.label(), null, lang, settings, today, true), p.lastSeen());
+            if (!fresh.isEmpty()) {
+                sb.append("\n\n").append(fresh.size() == 1 ? languages.format("memory_tip_new_one", lang, plain(p.label()))
+                        : languages.format("memory_tip_new", lang, fresh.size(), plain(p.label())));
+                for (RankedItem r : fresh) {
+                    if (shown.stream().noneMatch(x -> x.candidate().key().equals(r.candidate().key()))) {
+                        shown.add(r);
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        sb.append("\n\n").append(languages.template("memory_welcome_hint", lang));
+        Set<String> allowed = new HashSet<>();
+        for (RankedItem r : shown) {
+            allowed.add(r.candidate().key());
+        }
+        List<ChatCard> cards = shown.isEmpty() ? List.of() : outputGuard.verifyCards(cardFactory.cards(shown, lang), allowed, today);
+        Outcome o = new Outcome(sb.toString(), cards, 1.0, false, null)
+                .route(cards.isEmpty() ? AiReply.ROUTE_TEMPLATE : AiReply.ROUTE_SEARCH);
+        return reply(o, null, "memory_welcome", start, false, lang, List.of(), settings);
+    }
+
+    private static List<RankedItem> fresh(List<RankedItem> items, Instant since) {
+        if (since == null) {
+            return List.of();
+        }
+        long after = since.toEpochMilli();
+        List<RankedItem> out = new ArrayList<>();
+        for (RankedItem r : items) {
+            Long f = r.candidate().freshnessMillis();
+            if (f != null && f > after) {
+                out.add(r);
+            }
+        }
+        return out;
     }
 
     private List<String> types(IntentResult intent, boolean hasQuery, boolean priced, boolean hasCompany) {

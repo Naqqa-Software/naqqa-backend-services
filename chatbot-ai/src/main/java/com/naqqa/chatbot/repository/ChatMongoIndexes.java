@@ -45,6 +45,9 @@ public class ChatMongoIndexes {
         ensure(audit, single("conversation_id", Sort.Direction.ASC, true));
         ensure(audit, single("created_at", Sort.Direction.ASC, false));
         ensure(collections.getKnowledgeChunk(), single("source_key", Sort.Direction.ASC, false));
+        String memory = collections.getMemory();
+        ensure(memory, single("user_id", Sort.Direction.ASC, false));
+        ensure(memory, new Index().on("expires_at", Sort.Direction.ASC).named("expires_at_ttl").expire(java.time.Duration.ZERO));
     }
 
     private static IndexDefinition single(String field, Sort.Direction direction, boolean sparse) {

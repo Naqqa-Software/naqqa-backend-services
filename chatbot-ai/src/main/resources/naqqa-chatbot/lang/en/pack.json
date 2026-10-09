@@ -1940,5 +1940,143 @@
     "that",
     "this one",
     "that one"
-  ]
+  ],
+  "memory": {
+    "lead": [
+      "please",
+      "ok",
+      "okay",
+      "hey",
+      "hi",
+      "omy"
+    ],
+    "view": [
+      "what do you know about me",
+      "what do you remember about me",
+      "what have you remembered",
+      "what did you save about me",
+      "show my memory",
+      "show me what you remember"
+    ],
+    "forgetAll": [
+      "forget everything",
+      "forget all",
+      "forget everything about me",
+      "delete my memory",
+      "clear memory",
+      "clear my memory",
+      "erase everything you know",
+      "delete everything you know"
+    ],
+    "forget": [
+      "remove from memory",
+      "delete from memory"
+    ],
+    "forgetWeak": [
+      "forget about",
+      "forget that",
+      "forget"
+    ],
+    "pause": [
+      "stop remembering",
+      "pause memory",
+      "don t remember anything",
+      "turn off memory",
+      "disable memory"
+    ],
+    "resume": [
+      "resume memory",
+      "turn on memory",
+      "enable memory",
+      "you can remember again",
+      "start remembering"
+    ],
+    "remember": [
+      "remember that",
+      "remember",
+      "keep in mind that",
+      "note that"
+    ],
+    "lastAsked": [
+      "what did i ask last time",
+      "what did i search last time",
+      "what did i look for last time",
+      "what was i looking for last time",
+      "what did we talk about last time",
+      "what did i ask yesterday",
+      "what did i search yesterday"
+    ],
+    "lastShown": [
+      "what did you recommend",
+      "what did you show me",
+      "what did you suggest",
+      "what did you find me",
+      "what did you recommend me"
+    ],
+    "likeLastTime": [
+      "like last time",
+      "as usual",
+      "same as last time",
+      "as last time"
+    ],
+    "sameStore": [
+      "same store",
+      "the same store",
+      "same shop",
+      "my usual store",
+      "my usual shop"
+    ],
+    "allStores": [
+      "all stores",
+      "every store",
+      "any store",
+      "other stores",
+      "all shops"
+    ],
+    "hints": {
+      "gluten_free": [
+        "gluten free",
+        "i am celiac",
+        "i m celiac"
+      ],
+      "lactose_free": [
+        "lactose free",
+        "lactose intolerant"
+      ],
+      "sugar_free": [
+        "sugar free",
+        "no sugar"
+      ],
+      "vegetarian": [
+        "i am vegetarian",
+        "i m vegetarian",
+        "i don t eat meat"
+      ],
+      "vegan": [
+        "i am vegan",
+        "i m vegan"
+      ],
+      "child": [
+        "for my child",
+        "for my kid",
+        "for my kids",
+        "for the kids",
+        "for children",
+        "for a baby",
+        "i have a child",
+        "i have kids"
+      ],
+      "pet": [
+        "for my cat",
+        "for my dog",
+        "i have a cat",
+        "i have a dog"
+      ],
+      "family": [
+        "for the family",
+        "for my family",
+        "for the whole family"
+      ]
+    }
+  }
 }

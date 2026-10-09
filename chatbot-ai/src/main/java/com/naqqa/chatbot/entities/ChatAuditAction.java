@@ -15,5 +15,7 @@ public enum ChatAuditAction {
     REINDEX,
     SAFETY_FLAG,
     REVIEW_RESOLVE,
-    REVIEW_DISMISS
+    REVIEW_DISMISS,
+    MEMORY_VIEW,
+    MEMORY_DELETE
 }

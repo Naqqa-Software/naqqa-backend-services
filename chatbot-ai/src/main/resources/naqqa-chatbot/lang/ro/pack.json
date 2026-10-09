@@ -3296,5 +3296,183 @@
   "conditionalStopwords": [
     "peste",
     "sub"
-  ]
+  ],
+  "memory": {
+    "lead": [
+      "te rog",
+      "te rog frumos",
+      "omy",
+      "ok",
+      "bine",
+      "salut",
+      "buna",
+      "auzi",
+      "hei"
+    ],
+    "view": [
+      "ce stii despre mine",
+      "ce stii tu despre mine",
+      "ce ai retinut despre mine",
+      "ce tii minte despre mine",
+      "ce ai memorat despre mine",
+      "ce informatii ai despre mine",
+      "ce date ai despre mine",
+      "ce ai salvat despre mine",
+      "arata memoria",
+      "arata mi memoria",
+      "ce ai in memorie despre mine"
+    ],
+    "forgetAll": [
+      "uita tot",
+      "uita totul",
+      "uita tot despre mine",
+      "uita tot ce stii",
+      "uita tot ce stii despre mine",
+      "sterge tot ce stii",
+      "sterge tot ce stii despre mine",
+      "sterge memoria",
+      "sterge toata memoria",
+      "goleste memoria",
+      "sterge datele despre mine"
+    ],
+    "forget": [
+      "nu mai tine minte",
+      "sterge din memorie",
+      "sterge din memoria ta",
+      "scoate din memorie"
+    ],
+    "forgetWeak": [
+      "uita de",
+      "uita ca",
+      "uita"
+    ],
+    "pause": [
+      "nu mai memora",
+      "nu mai memora nimic",
+      "nu mai retine nimic",
+      "nu mai tine minte nimic",
+      "opreste memoria",
+      "pune memoria pe pauza",
+      "pauza memorie",
+      "pauza la memorie",
+      "dezactiveaza memoria",
+      "opreste memorarea"
+    ],
+    "resume": [
+      "porneste memoria",
+      "reia memoria",
+      "activeaza memoria",
+      "reactiveaza memoria",
+      "poti memora din nou",
+      "poti retine din nou",
+      "reporneste memoria",
+      "memoreaza din nou"
+    ],
+    "remember": [
+      "tine minte ca",
+      "tine minte",
+      "tine cont ca",
+      "retine ca",
+      "retine",
+      "memoreaza ca",
+      "memoreaza",
+      "sa stii ca",
+      "nu uita ca"
+    ],
+    "lastAsked": [
+      "ce am intrebat ultima data",
+      "ce te am intrebat ultima data",
+      "ce am cautat ultima data",
+      "ce am cautat data trecuta",
+      "ce am intrebat data trecuta",
+      "ce te am intrebat data trecuta",
+      "despre ce am vorbit ultima data",
+      "despre ce am vorbit data trecuta",
+      "ce am cautat ieri",
+      "ce am intrebat ieri",
+      "ce te am intrebat ieri"
+    ],
+    "lastShown": [
+      "ce mi ai recomandat",
+      "ce m ai recomandat",
+      "ce mi ai aratat",
+      "ce mi ai propus",
+      "ce mi ai gasit",
+      "ce oferte mi ai aratat",
+      "ce mi ai sugerat"
+    ],
+    "likeLastTime": [
+      "ca data trecuta",
+      "ca ultima data",
+      "ca de obicei",
+      "la fel ca data trecuta",
+      "la fel ca ultima data",
+      "ca si data trecuta"
+    ],
+    "sameStore": [
+      "acelasi magazin",
+      "la acelasi magazin",
+      "din acelasi magazin",
+      "in acelasi magazin",
+      "magazinul de data trecuta",
+      "magazinul meu obisnuit",
+      "magazinul obisnuit"
+    ],
+    "allStores": [
+      "toate magazinele",
+      "in toate magazinele",
+      "din toate magazinele",
+      "la toate magazinele",
+      "orice magazin",
+      "si alte magazine",
+      "alte magazine"
+    ],
+    "hints": {
+      "gluten_free": [
+        "fara gluten",
+        "intoleranta la gluten",
+        "sunt celiac",
+        "sunt celiaca"
+      ],
+      "lactose_free": [
+        "fara lactoza",
+        "intoleranta la lactoza"
+      ],
+      "sugar_free": [
+        "fara zahar"
+      ],
+      "vegetarian": [
+        "sunt vegetarian",
+        "sunt vegetariana",
+        "nu mananc carne"
+      ],
+      "vegan": [
+        "sunt vegan",
+        "sunt vegana",
+        "mananc vegan"
+      ],
+      "child": [
+        "pentru copil",
+        "pentru copii",
+        "pentru copilul meu",
+        "pentru copiii mei",
+        "pentru bebelus",
+        "pentru bebe",
+        "am un copil",
+        "am copii",
+        "am un bebelus"
+      ],
+      "pet": [
+        "pentru pisica mea",
+        "pentru cainele meu",
+        "am o pisica",
+        "am un caine"
+      ],
+      "family": [
+        "pentru familie",
+        "pentru toata familia",
+        "pentru familia mea"
+      ]
+    }
+  }
 }

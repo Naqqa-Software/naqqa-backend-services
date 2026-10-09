@@ -227,6 +227,39 @@ public class NaqqaChatbotAutoConfiguration {
     }
 
     @Bean
+    public com.naqqa.chatbot.repository.ChatMemoryRepository naqqaChatMemoryRepository(MongoTemplate mongo, NaqqaChatbotProperties p) {
+        return new com.naqqa.chatbot.repository.ChatMemoryRepository(mongo, p.getCollections().getMemory());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public com.naqqa.chatbot.memory.ChatMemoryService naqqaChatMemoryService(com.naqqa.chatbot.repository.ChatMemoryRepository repository,
+                                                                          ChatLanguages languages, IntentRouter router,
+                                                                          ChatEntityResolver directory, NaqqaChatbotProperties p,
+                                                                          ObjectProvider<com.naqqa.chatbot.spi.ChatMemoryCipher> cipher,
+                                                                          ObjectProvider<com.naqqa.chatbot.spi.ChatUserContextProvider> context,
+                                                                          ChatRetrievalService retrieval) {
+        com.naqqa.chatbot.memory.ChatMemoryService service = new com.naqqa.chatbot.memory.ChatMemoryService(repository, languages, router,
+                directory, p.getMemory());
+        service.setCatalogProbe((query, lang) -> {
+            List<String> titles = new ArrayList<>();
+            for (Candidate c : retrieval.retrieve(new RetrievalPlan(retrieval.typeKeys(), query, lang, null, null, false, 5))) {
+                if (c != null && !"COMPANY".equals(c.type()) && c.title(lang) != null) {
+                    titles.add(c.title(lang));
+                }
+            }
+            return titles;
+        });
+        com.naqqa.chatbot.spi.ChatMemoryCipher c = cipher.getIfAvailable();
+        if (c == null && p.getMemory().isEnabled()) {
+            log.warn("[chatbot] no ChatMemoryCipher bean: assistant memory free-text fields are stored without encryption");
+        }
+        service.setCipher(c);
+        service.setUserContext(context.getIfAvailable());
+        return service;
+    }
+
+    @Bean
     public ChatMongoIndexes naqqaChatMongoIndexes(MongoTemplate mongo, NaqqaChatbotProperties p) {
         return new ChatMongoIndexes(mongo, p.getCollections());
     }
@@ -317,11 +350,13 @@ public class NaqqaChatbotAutoConfiguration {
                                         ChatMapper mapper, ChatSseHub hub, ChatRateLimiter rateLimiter, ChatHasher hasher,
                                         ChatSttService stt, ChatVisitorTokenService tokens, ObjectProvider<ChatAiEngine> engine,
                                         ChatTexts texts, ChatEscalation escalation, NaqqaChatbotProperties p,
-                                        ChatSafety safety, ChatAuditService audit, ChatAnalyticsEmitter analytics) {
+                                        ChatSafety safety, ChatAuditService audit, ChatAnalyticsEmitter analytics,
+                                        com.naqqa.chatbot.memory.ChatMemoryService memory) {
         ChatService service = new ChatService(store, messages, events, settings, mapper, hub, rateLimiter, hasher, stt, tokens,
                 engine, texts, escalation, p);
         service.setSafety(safety, audit);
         service.setAnalytics(analytics);
+        service.setMemory(memory);
         return service;
     }
 
@@ -515,9 +550,11 @@ public class NaqqaChatbotAutoConfiguration {
     @Bean
     public ChatPublicController naqqaChatPublicController(ChatService chat, ChatSseHub hub, ChatUserResolver users,
                                                           ObjectProvider<ChatHumanVerifier> verifier, NaqqaChatbotProperties p,
-                                                          ChatAnalyticsEmitter analytics, ChatSttService stt) {
+                                                          ChatAnalyticsEmitter analytics, ChatSttService stt,
+                                                          com.naqqa.chatbot.memory.ChatMemoryService memory) {
         ChatPublicController controller = new ChatPublicController(chat, hub, users, verifier, p, analytics);
         controller.setSpeech(stt);
+        controller.setMemory(memory);
         return controller;
     }
 
@@ -526,9 +563,10 @@ public class NaqqaChatbotAutoConfiguration {
                                                         ChatSettingsService settings, ChatAuditService audit, ChatSseHub hub,
                                                         ChatOperatorResolver operators, ChatPermissions permissions,
                                                         ObjectProvider<ChatFileStorage> files, ObjectProvider<ChatAiEngine> engine,
-                                                        ChatReviewService review) {
+                                                        ChatReviewService review, com.naqqa.chatbot.memory.ChatMemoryService memory) {
         ChatAdminController controller = new ChatAdminController(admin, stats, sponsors, settings, audit, hub, operators, permissions, files, engine);
         controller.setReviewService(review);
+        controller.setMemory(memory);
         return controller;
     }
 

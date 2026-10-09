@@ -52,6 +52,16 @@ public final class ChatDtos {
     public record CreateConversationRequest(String lang, String pagePath, String visitorId) {
     }
 
+    public record MemoryItemDto(String id, String kind, String label, String detail, boolean explicit, Instant lastSeen) {
+    }
+
+    public record MemoryViewDto(boolean enabled, boolean paused, List<MemoryItemDto> items, List<String> lists,
+                                Instant updatedAt, Instant expiresAt, int retentionDays, Long userId) {
+    }
+
+    public record MemoryPauseRequest(Boolean paused) {
+    }
+
     public record CreateConversationResponse(ConversationDto conversation, String token, List<MessageDto> messages) {
     }
 

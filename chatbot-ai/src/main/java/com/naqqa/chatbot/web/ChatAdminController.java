@@ -76,6 +76,7 @@ public class ChatAdminController {
     private final ObjectProvider<ChatFileStorage> fileStorage;
     private final ObjectProvider<ChatAiEngine> aiEngine;
     private ChatReviewService reviewService;
+    private com.naqqa.chatbot.memory.ChatMemoryService memory;
 
     public ChatAdminController(ChatAdminService adminService, ChatStatsService statsService, ChatSponsorService sponsorService,
                                ChatSettingsService settingsService, ChatAuditService auditService, ChatSseHub hub,
@@ -95,6 +96,36 @@ public class ChatAdminController {
 
     public void setReviewService(ChatReviewService reviewService) {
         this.reviewService = reviewService;
+    }
+
+    public void setMemory(com.naqqa.chatbot.memory.ChatMemoryService memory) {
+        this.memory = memory;
+    }
+
+    private com.naqqa.chatbot.memory.ChatMemoryService memory() {
+        if (memory == null || !memory.enabled()) {
+            throw new ChatException(HttpStatus.NOT_FOUND, ChatException.NOT_FOUND, "Memory is not enabled.");
+        }
+        return memory;
+    }
+
+    @GetMapping("/memory/{userId}")
+    public ResponseEntity<com.naqqa.chatbot.dto.ChatDtos.MemoryViewDto> memoryView(@PathVariable Long userId,
+                                                                                  @RequestParam(required = false) String lang,
+                                                                                  Authentication authentication) {
+        requireAny(authentication, permissions.readAll());
+        com.naqqa.chatbot.dto.ChatDtos.MemoryViewDto view = memory().view(userId, lang == null ? "ro" : lang);
+        auditService.log(operator(authentication), ChatAuditAction.MEMORY_VIEW, null, "user=" + userId);
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(view);
+    }
+
+    @DeleteMapping("/memory/{userId}")
+    public ResponseEntity<Void> memoryDelete(@PathVariable Long userId, Authentication authentication) {
+        requireAny(authentication, permissions.delete());
+        requireAny(authentication, permissions.readAll());
+        memory().deleteUser(userId);
+        auditService.log(operator(authentication), ChatAuditAction.MEMORY_DELETE, null, "user=" + userId);
+        return ResponseEntity.noContent().build();
     }
 
     private ChatReviewService review() {

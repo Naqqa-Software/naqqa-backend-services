@@ -14,7 +14,8 @@ public record ConversationContext(String lang, String intent, String kind, Strin
                                   Long placeId, String categoryTaxonomy, Long categoryId, Double priceMin, Double priceMax,
                                   Double minDiscount, String sort, Boolean cheapest, Integer people, List<String> excluded,
                                   String scenario, String period, Integer kcal, List<Item> items, Integer focus,
-                                  String prefPlaceKind, Long prefPlaceId, List<String> prefExcluded) {
+                                  String prefPlaceKind, Long prefPlaceId, List<String> prefExcluded, Boolean memoryStore,
+                                  Boolean memoryOff) {
 
     public static final String KIND_SEARCH = "search";
     public static final String KIND_BASKET = "basket";
@@ -47,6 +48,30 @@ public record ConversationContext(String lang, String intent, String kind, Strin
         excluded = excluded == null ? List.of() : List.copyOf(excluded);
         items = items == null ? List.of() : List.copyOf(items);
         prefExcluded = prefExcluded == null ? List.of() : List.copyOf(prefExcluded);
+    }
+
+    public ConversationContext(String lang, String intent, String kind, String query, Long companyId, String placeKind,
+                               Long placeId, String categoryTaxonomy, Long categoryId, Double priceMin, Double priceMax,
+                               Double minDiscount, String sort, Boolean cheapest, Integer people, List<String> excluded,
+                               String scenario, String period, Integer kcal, List<Item> items, Integer focus,
+                               String prefPlaceKind, Long prefPlaceId, List<String> prefExcluded) {
+        this(lang, intent, kind, query, companyId, placeKind, placeId, categoryTaxonomy, categoryId, priceMin, priceMax, minDiscount,
+                sort, cheapest, people, excluded, scenario, period, kcal, items, focus, prefPlaceKind, prefPlaceId, prefExcluded,
+                null, null);
+    }
+
+    public ConversationContext withMemory(boolean store, boolean off) {
+        return new ConversationContext(lang, intent, kind, query, companyId, placeKind, placeId, categoryTaxonomy, categoryId,
+                priceMin, priceMax, minDiscount, sort, cheapest, people, excluded, scenario, period, kcal, items, focus,
+                prefPlaceKind, prefPlaceId, prefExcluded, store ? Boolean.TRUE : null, off ? Boolean.TRUE : null);
+    }
+
+    public boolean memoryDefaulted() {
+        return Boolean.TRUE.equals(memoryStore);
+    }
+
+    public boolean memoryDisabled() {
+        return Boolean.TRUE.equals(memoryOff);
     }
 
     public static List<Item> items(List<ChatCard> cards) {
