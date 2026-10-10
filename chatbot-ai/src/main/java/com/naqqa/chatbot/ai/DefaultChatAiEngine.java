@@ -2795,11 +2795,30 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         }
         if (head.size() >= 3) {
             rest.removeIf(r -> r.candidate().price() != null);
-        } else if (!head.isEmpty() || rest.stream().anyMatch(r -> mentionsAny(r.candidate().title(lang), q))) {
-            rest.removeIf(r -> r.candidate().price() != null && !mentionsAny(r.candidate().title(lang), q));
+        } else if (!head.isEmpty() || rest.stream().anyMatch(r -> mentionsAsMain(r.candidate().title(lang), q))) {
+            // A title that only mentions the term as a flavour/filling ("Iaurt cu banane") is not a match for "banane".
+            rest.removeIf(r -> r.candidate().price() != null && !mentionsAsMain(r.candidate().title(lang), q));
         }
         head.addAll(rest);
         return head;
+    }
+
+    /** Like {@link #mentionsAny} but ignores mentions that follow a head-break word (cu, aroma, gust, din...). */
+    private boolean mentionsAsMain(String title, List<String> q) {
+        String previous = null;
+        for (String t : TextNormalizer.tokens(title == null ? "" : title)) {
+            String stem = languages.stem(t);
+            boolean flavour = previous != null && languages.isHeadBreak(previous);
+            if (!flavour) {
+                for (String s : q) {
+                    if (sameWord(stem, s)) {
+                        return true;
+                    }
+                }
+            }
+            previous = t;
+        }
+        return false;
     }
 
     private boolean mentionsAny(String title, List<String> q) {
@@ -3453,7 +3472,7 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         List<RankedItem> near = new ArrayList<>();
         for (RankedItem r : items) {
             String title = r.candidate().title(lang);
-            if (title == null || !hasAll(title, q) || food && languages.foreignTo(title, term)) {
+            if (title == null || !hasAll(title, q) || food && (languages.foreignTo(title, term) || languages.nonFood(title, term))) {
                 continue;
             }
             int rank = headRank(title, q);
@@ -3544,6 +3563,10 @@ public class DefaultChatAiEngine implements ChatAiEngine {
             if (items.isEmpty()) {
                 items = headOnly(signalFilter(looseRelevant(rankSafely(p.withRelax(RetrievalPlan.RELAX_VARIANTS), options, today),
                         line.term()), ctx.signals(), today), line.term(), lang, true);
+            }
+            if (!line.avoid().isEmpty()) {
+                items = new ArrayList<>(items);
+                items.removeIf(r -> languages.containsWord(r.candidate().title(lang), line.avoid()));
             }
             return items;
         });

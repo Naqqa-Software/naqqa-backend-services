@@ -33,7 +33,15 @@ public final class ChatLanguages {
     private record Stemming(int minLength, List<String> suffixes) {
     }
 
-    public record BasketItem(String term, double qty, String unit, boolean essential) {
+    public record BasketItem(String term, double qty, String unit, boolean essential, List<String> avoid) {
+
+        public BasketItem {
+            avoid = avoid == null ? List.of() : List.copyOf(avoid);
+        }
+
+        public BasketItem(String term, double qty, String unit, boolean essential) {
+            this(term, qty, unit, essential, List.of());
+        }
     }
 
     public record Basket(List<String> triggers, Map<String, List<String>> periods, Map<String, List<BasketItem>> items) {
@@ -142,6 +150,7 @@ public final class ChatLanguages {
     private final Set<String> scenarioCategoryLike = new LinkedHashSet<>();
     private final Set<String> headBreaks = new LinkedHashSet<>();
     private final List<String> foreignMarkers = new ArrayList<>();
+    private final List<String> nonFoodMarkers = new ArrayList<>();
     private final Map<String, List<String>> followUps = new LinkedHashMap<>();
     private final Map<String, Integer> ordinals = new LinkedHashMap<>();
     private final Set<String> pronouns = new LinkedHashSet<>();
@@ -286,6 +295,7 @@ public final class ChatLanguages {
             }
             addAll(headBreaks, pack.path("headBreaks"), true);
             phrases(foreignMarkers, pack.path("foreignMarkers"));
+            phrases(nonFoodMarkers, pack.path("nonFoodMarkers"));
             pack.path("followUps").fields().forEachRemaining(e -> phrases(followUps.computeIfAbsent(e.getKey(),
                     k -> new ArrayList<>()), e.getValue()));
             pack.path("ordinals").fields().forEachRemaining(e -> ordinals.put(TextNormalizer.normalizedPhrase(e.getKey()),
@@ -306,8 +316,15 @@ public final class ChatLanguages {
                     k -> new ArrayList<>()), e.getValue()));
             List<BasketItem> items = new ArrayList<>();
             for (JsonNode n : basket.path("items")) {
+                List<String> avoid = new ArrayList<>();
+                for (JsonNode a : n.path("avoid")) {
+                    String v = TextNormalizer.normalizedPhrase(a.asText("")).trim();
+                    if (!v.isEmpty()) {
+                        avoid.add(v);
+                    }
+                }
                 items.add(new BasketItem(n.path("term").asText(""), n.path("qty").asDouble(1), n.path("unit").asText("pcs"),
-                        n.path("essential").asBoolean(true)));
+                        n.path("essential").asBoolean(true), avoid));
             }
             if (!items.isEmpty()) {
                 basketItems.put(lang, List.copyOf(items));
@@ -869,6 +886,32 @@ public final class ChatLanguages {
 
     public boolean isHeadBreak(String token) {
         return headBreaks.contains(token);
+    }
+
+    /** True when the title contains one of the (normalized) phrases as whole words. */
+    public boolean containsWord(String title, List<String> phrases) {
+        String phrase = " " + TextNormalizer.normalizedPhrase(title == null ? "" : title).trim() + " ";
+        for (String p : phrases) {
+            if (!p.isBlank() && phrase.contains(" " + p.trim() + " ")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Household/hygiene products ("pastă de dinți", "Cif") must never satisfy a food term, unless the term itself says so. */
+    public boolean nonFood(String title, String term) {
+        if (nonFoodMarkers.isEmpty()) {
+            return false;
+        }
+        String own = " " + TextNormalizer.normalizedPhrase(term == null ? "" : term).trim() + " ";
+        List<String> hit = new ArrayList<>();
+        for (String m : nonFoodMarkers) {
+            if (!own.contains(" " + m + " ")) {
+                hit.add(m);
+            }
+        }
+        return containsWord(title, hit);
     }
 
     public boolean foreignTo(String title, String term) {

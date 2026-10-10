@@ -138,8 +138,8 @@ public final class BannerValidation {
             errors.put(field, "banners.validation.image_required");
             return;
         }
-        String https = url.regionMatches(true, 0, "http://", 0, 7) ? "https://" + url.substring(7) : url;
-        if (!(BannerUrlPolicy.validExternal(https) || BannerUrlPolicy.validInternal(url) || url.startsWith("http://localhost"))) {
+        // SEC-12: creative images must be https (or internal path / localhost for dev); plain http is no longer rewritten-and-accepted.
+        if (!(BannerUrlPolicy.validExternal(url) || BannerUrlPolicy.validInternal(url) || url.startsWith("http://localhost:") || url.startsWith("http://localhost/"))) {
             errors.put(field, "banners.validation.invalid_url");
         }
     }

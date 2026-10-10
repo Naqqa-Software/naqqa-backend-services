@@ -42,7 +42,7 @@ public final class EngineConfig {
     public static EngineConfig defaultConfig(Path shardPath, Directory directory, MapperService mapperService,
                                               TranslogConfig translogConfig) {
         return new EngineConfig(shardPath, directory, mapperService, translogConfig,
-            TimeValue.timeValueSeconds(1), ByteSizeValue.ofMb(512), 1L, 10, 10, 0.3, IndexingMemoryController.instance());
+            TimeValue.timeValueSeconds(1), ByteSizeValue.ofMb(64), 1L, 10, 10, 0.3, IndexingMemoryController.instance());
     }
 
     public Path shardPath() {

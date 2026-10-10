@@ -166,6 +166,21 @@ public final class Translog implements Closeable {
         return current.sizeInBytes();
     }
 
+    /**
+     * Size of every translog generation still on disk (frozen readers plus the current writer). This is the amount
+     * of data that would have to be replayed after a crash, so flush decisions must be based on it rather than on
+     * the size of the current generation alone (which is rolled long before a large flush threshold is reached).
+     */
+    public long totalSizeInBytes() {
+        synchronized (generationLock) {
+            long total = current.sizeInBytes();
+            for (TranslogReader r : readers.values()) {
+                total += r.length();
+            }
+            return total;
+        }
+    }
+
     public int getMinFileGeneration() {
         synchronized (generationLock) {
             if (readers.isEmpty()) {

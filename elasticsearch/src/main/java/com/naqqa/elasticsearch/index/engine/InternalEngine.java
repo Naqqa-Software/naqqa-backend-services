@@ -68,7 +68,9 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
     private volatile List<SegmentReader> pendingReaders = List.of();
     private volatile SegmentInfos lastCommit;
     private volatile long lastFlushCheckpoint;
+    private volatile long lastFlushTimeMillis = System.currentTimeMillis();
     private volatile boolean closed;
+    private static final long PERIODIC_FLUSH_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(5);
 
     private final ExecutorService mergeExecutor;
     private final AtomicBoolean mergeScheduled = new AtomicBoolean(false);
@@ -127,7 +129,14 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         Translog translog = Translog.open(config.translogConfig().translogPath(), config.translogConfig());
         InternalEngine engine = new InternalEngine(config, directory, writeLock, lastCommit, readers, tracker, translog, fileDeleter);
         engine.memoryController.register(engine);
-        engine.recoverFromTranslog();
+        long replayed = engine.recoverFromTranslog();
+        if (replayed > 0) {
+            // Commit what was replayed so that the next restart does not have to replay the same operations again.
+            try {
+                engine.flush(true);
+            } catch (IOException | RuntimeException ignored) {
+            }
+        }
         engine.startBackgroundRefresh();
         return engine;
     }
@@ -183,14 +192,22 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         refreshScheduler.scheduleWithFixedDelay(() -> {
             try {
                 refresh("scheduled");
+            } catch (Exception ignored) {
+            }
+            try {
                 maybeFlushBySize();
+                maybeFlushPeriodically(System.currentTimeMillis(), PERIODIC_FLUSH_INTERVAL_MILLIS);
+            } catch (Exception ignored) {
+            }
+            try {
                 versionMap.pruneTombstones(TimeValue.timeValueMinutes(60).millis(), 100_000);
             } catch (Exception ignored) {
             }
         }, millis, millis, TimeUnit.MILLISECONDS);
     }
 
-    private void recoverFromTranslog() throws IOException {
+    private long recoverFromTranslog() throws IOException {
+        long replayed = 0;
         long fromSeqNo = localCheckpointTracker.getCheckpoint() + 1;
         try (Translog.Snapshot snapshot = translog.newSnapshot(fromSeqNo)) {
             Operation op;
@@ -214,8 +231,10 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
                     }
                 }
                 localCheckpointTracker.markSeqNoAsProcessed(op.seqNo());
+                replayed++;
             }
         }
+        return replayed;
     }
 
     private void ensureOpen() {
@@ -672,9 +691,26 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
     }
 
     private void maybeFlushBySize() throws IOException {
-        if (translog.sizeInBytes() >= engineConfig.flushThresholdSize().getBytes()) {
+        if (translog.totalSizeInBytes() >= engineConfig.flushThresholdSize().getBytes()) {
             flush(false);
         }
+    }
+
+    /**
+     * Commits (and so trims the translog) when there are uncommitted operations and the last flush is at least
+     * {@code intervalMillis} old, so an idle or slowly written index never accumulates a long translog.
+     *
+     * @return true if a flush was performed
+     */
+    boolean maybeFlushPeriodically(long nowMillis, long intervalMillis) throws IOException {
+        if (closed || nowMillis - lastFlushTimeMillis < intervalMillis) {
+            return false;
+        }
+        if (localCheckpointTracker.getCheckpoint() == lastFlushCheckpoint) {
+            lastFlushTimeMillis = nowMillis;
+            return false;
+        }
+        return flush(false).flushed();
     }
 
     @Override
@@ -719,6 +755,7 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
                 }
                 fileDeleter.onNewCommit(SegmentInfos.fileNameForGeneration(lastCommit.generation()), commitFiles);
                 lastFlushCheckpoint = checkpoint;
+                lastFlushTimeMillis = System.currentTimeMillis();
                 translog.rollGeneration();
                 translog.trimUnreferencedReaders(lastFlushCheckpoint + 1);
                 return new FlushResult(true, lastCommit.generation());

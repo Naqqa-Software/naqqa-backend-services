@@ -125,7 +125,13 @@ public final class ShoppingPlanner {
             return 0;
         }
         if (size != null && size.unit().equals(unit) && size.amount() > 0) {
-            return Math.max(1, (int) Math.ceil(need / size.amount() - 1e-9));
+            // Rounding up always over-buys small packs (6 L -> 7 x 0.9 L); accept up to 10% short of the target instead.
+            int up = Math.max(1, (int) Math.ceil(need / size.amount() - 1e-9));
+            int down = up - 1;
+            if (down >= 1 && down * size.amount() >= need * 0.9 - 1e-9) {
+                return down;
+            }
+            return up;
         }
         if (PCS.equals(unit)) {
             return Math.max(1, (int) Math.ceil(need - 1e-9));
@@ -133,20 +139,63 @@ public final class ShoppingPlanner {
         return Math.max(1, (int) Math.ceil(need - 1e-9));
     }
 
+    private static final List<String> COSMETIC = List.of("toaleta", "parfum", "cosmetic", "dus ", "sampon", "crema", "deodorant",
+            "lotiune", "balsam", "demachiant", "masca", "ruj", "sapun");
+    private static final int MAX_PACKS = 24;
+    private static final int MAX_PACKS_UNKNOWN_SIZE = 3;
+    private static final double MAX_LINE_TOTAL = 1000.0;
+
+    /** Words a product title must not contain for a shopping-list term (folded, substring match). */
+    static List<String> avoid(String term) {
+        String t = TextNormalizer.fold(term == null ? "" : term).trim();
+        List<String> out = new ArrayList<>();
+        if (t.equals("apa") || t.startsWith("apa ") || t.equals("вода") || t.equals("water")) {
+            out.addAll(COSMETIC);
+            out.addAll(List.of("de gura", "oxigenata", "distilata", "baterie", "de rufe", "bors", "vitamin"));
+        } else if (t.equals("paste") || t.equals("pasta") || t.startsWith("paste ") || t.equals("макароны") || t.equals("pasta alimentara")) {
+            out.addAll(List.of("tomat", "rosii", "bulion", "ketchup", "dinti", "dentar", "ardei", "usturoi", "peste", "ficat", "pate", "ciocolat", "nuca", "alune",
+                    "migdal", "susan", "sapun", "curat", "rufe", "lipit", "pentru par", "lemn", "perete"));
+        } else if (t.equals("ulei") || t.startsWith("ulei ")) {
+            out.addAll(COSMETIC);
+            out.addAll(List.of("esential", "motor", "masaj", "corp", "pentru par", "de par", "ricin", "hidratant", "bronzat",
+                    "auto", "cannabis", "cbd", "aromat", "lampa", "mobil", "hidraulic"));
+        }
+        return out;
+    }
+
     public static Offer cheapest(List<RankedItem> items, double need, String unit, int skip) {
+        return cheapest(items, need, unit, skip, null);
+    }
+
+    public static Offer cheapest(List<RankedItem> items, double need, String unit, int skip, String term) {
+        List<String> avoid = avoid(term);
         List<Offer> offers = new ArrayList<>();
         for (RankedItem item : items) {
             Double price = item.candidate().price();
             if (price == null || price <= 0) {
                 continue;
             }
+            if (!avoid.isEmpty()) {
+                String title = TextNormalizer.fold(item.candidate().title("ro") + " " + item.candidate().title("ru"));
+                if (avoid.stream().anyMatch(title::contains)) {
+                    continue;
+                }
+            }
             PackSize size = packSize(item.candidate().title("ro"));
             if (size == null) {
                 size = packSize(item.candidate().title("ru"));
             }
+            boolean sized = size != null && size.unit().equals(unit) && size.amount() > 0;
             int packs = packsNeeded(need, unit, size);
-            double unitPrice = size != null && size.unit().equals(unit) ? price / size.amount() : price;
-            offers.add(new Offer(item, packs, round2(packs * price), unitPrice));
+            if (packs > MAX_PACKS || (!sized && !PCS.equals(unit) && packs > MAX_PACKS_UNKNOWN_SIZE)) {
+                continue;
+            }
+            double subtotal = round2(packs * price);
+            if (subtotal > MAX_LINE_TOTAL) {
+                continue;
+            }
+            double unitPrice = sized ? price / size.amount() : price;
+            offers.add(new Offer(item, packs, subtotal, unitPrice));
         }
         offers.sort(java.util.Comparator.comparingDouble(Offer::subtotal));
         if (offers.isEmpty()) {
@@ -182,7 +231,7 @@ public final class ShoppingPlanner {
             if (PCS.equals(line.unit())) {
                 need = Math.max(1, Math.round(need));
             }
-            Offer offer = cheapest(candidates.getOrDefault(line.term(), List.of()), need, line.unit(), skip);
+            Offer offer = cheapest(candidates.getOrDefault(line.term(), List.of()), need, line.unit(), skip, line.term());
             if (offer == null) {
                 missing.add(line.term());
                 continue;

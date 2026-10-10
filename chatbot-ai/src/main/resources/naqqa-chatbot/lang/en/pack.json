@@ -1575,8 +1575,7 @@
         "cosmetics",
         "gift set",
         "jewelry",
-        "wine",
-        "cream"
+        "wine"
       ]
     },
     "gift_men": {
@@ -1645,6 +1644,18 @@
     "flavor",
     "flavored",
     "flavoured"
+  ],
+  "nonFoodMarkers": [
+    "toothpaste",
+    "mouthwash",
+    "detergent",
+    "shampoo",
+    "soap",
+    "shower gel",
+    "cif",
+    "disinfectant",
+    "deodorant",
+    "diapers"
   ],
   "foreignMarkers": [
     "dog",
@@ -1740,7 +1751,8 @@
         "term": "fruit",
         "qty": 3,
         "unit": "kg",
-        "essential": true
+        "essential": true,
+        "avoid": ["seafood", "oil", "yogurt", "juice", "nectar", "jam", "puree"]
       },
       {
         "term": "pasta",

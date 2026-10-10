@@ -461,6 +461,11 @@ public class ChatService {
         ChatConversationEntity afterBot = store.get(id);
         boolean shouldEscalate = !afterBot.isEscalated()
                 && ChatEscalation.shouldEscalate(false, reply.escalate(), afterBot.getLowConfidenceStreak());
+        // Never hand a low-confidence / gibberish message over to "nobody": when no operator is online the bot keeps
+        // answering (no-offers message + example questions) instead of "Momentan nu sunt operatori disponibili".
+        if (shouldEscalate && !reply.escalate() && !operatorsOnline()) {
+            shouldEscalate = false;
+        }
         if (shouldEscalate) {
             escalate(afterBot, lang, REASON_AI);
         }

@@ -41,6 +41,7 @@ class ChatAiShoppingPlannerTest {
         assertEquals(4, ShoppingPlanner.packsNeeded(1.5, "kg", new ShoppingPlanner.PackSize(0.4, "kg")));
         assertEquals(1, ShoppingPlanner.packsNeeded(10, "pcs", new ShoppingPlanner.PackSize(10, "pcs")));
         assertEquals(2, ShoppingPlanner.packsNeeded(1.5, "kg", null));
+        assertEquals(6, ShoppingPlanner.packsNeeded(6, "l", new ShoppingPlanner.PackSize(0.9, "l")));
         ShoppingPlanner.Offer offer = ShoppingPlanner.cheapest(List.of(item(1, "Lapte 0.5L", 10), item(2, "Lapte 1L", 18)),
                 3, "l", 0);
         assertEquals(2L, offer.item().candidate().id());
@@ -48,6 +49,25 @@ class ChatAiShoppingPlannerTest {
         assertEquals(54.0, offer.subtotal(), 1e-9);
         assertEquals(1L, ShoppingPlanner.cheapest(List.of(item(1, "Lapte 0.5L", 10), item(2, "Lapte 1L", 18)), 3, "l", 1)
                 .item().candidate().id());
+    }
+
+    @Test
+    void absurdOffersAreRejectedPerIngredient() {
+        List<RankedItem> water = List.of(item(1, "LES ESSENTIELS Apa de toaleta 50ml", 149), item(2, "Apa plata 1.5L", 12));
+        assertEquals(2L, ShoppingPlanner.cheapest(water, 12, "l", 0, "apă").item().candidate().id());
+        assertNull(ShoppingPlanner.cheapest(List.of(item(1, "Apa de toaleta 100ml", 149)), 12, "l", 0, "apă"));
+        List<RankedItem> pasta = List.of(item(1, "Pasta de tomate 70g", 10), item(2, "Pasta de dinti 75ml", 20),
+                item(3, "Paste făinoase penne 500g", 25), item(4, "MUTTI Pasta de rosii 130g", 5));
+        assertEquals(3L, ShoppingPlanner.cheapest(pasta, 2, "kg", 0, "paste").item().candidate().id());
+        assertNull(ShoppingPlanner.cheapest(List.of(item(1, "Ulei esential lavanda 10ml", 90)), 2, "l", 0, "ulei"));
+        // unknown pack size for a weight/volume need: refuse instead of multiplying the pack price
+        assertNull(ShoppingPlanner.cheapest(List.of(item(1, "Apa minerala", 149)), 12, "l", 0, "apă"));
+        // absurd line total
+        assertNull(ShoppingPlanner.cheapest(List.of(item(1, "Cafea 250g", 700)), 2, "kg", 0, "cafea"));
+        ShoppingPlanner.Plan plan = ShoppingPlanner.greedy(List.of(new ChatLanguages.BasketItem("apă", 12, "l", true)),
+                Map.of("apă", List.of(item(1, "Apa de toaleta 50ml", 149))), 1.0, null, 0);
+        assertEquals(List.of("apă"), plan.missing());
+        assertTrue(plan.picked().isEmpty());
     }
 
     @Test

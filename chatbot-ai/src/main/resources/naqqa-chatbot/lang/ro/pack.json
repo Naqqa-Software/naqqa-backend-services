@@ -1170,18 +1170,12 @@
       "cum pot plati",
       "cum platesc",
       "payment methods",
-      "cash",
-      "numerar",
       "metode plata",
       "metode d eplata",
       "metoda de plata",
       "cum se plateste",
       "pot plati",
-      "pot achita",
-      "cum achit",
-      "achit cash",
-      "plata cash",
-      "plata numerar"
+      "cum achit"
     ],
     "about-us": [
       "despre noi",
@@ -2554,8 +2548,7 @@
         "cosmetice",
         "set cadou",
         "bijuterii",
-        "vin",
-        "cremă"
+        "vin"
       ]
     },
     "gift_men": {
@@ -2715,13 +2708,15 @@
         "term": "fructe",
         "qty": 3,
         "unit": "kg",
-        "essential": true
+        "essential": true,
+        "avoid": ["fructe de mare", "ulei", "iaurt", "suc", "nectar", "dulceata", "gem", "piure"]
       },
       {
         "term": "paste",
         "qty": 1,
         "unit": "kg",
-        "essential": true
+        "essential": true,
+        "avoid": ["dinti", "dentara", "gura", "sampon", "tomate"]
       },
       {
         "term": "brânză",
@@ -3069,6 +3064,27 @@
     "la",
     "aroma",
     "gust"
+  ],
+  "nonFoodMarkers": [
+    "dinti",
+    "dentar",
+    "dentara",
+    "gura",
+    "detergent",
+    "sampon",
+    "sapun",
+    "gel de dus",
+    "cif",
+    "dezinfectant",
+    "odorizant",
+    "lavete",
+    "praf de spalat",
+    "pudra de spalat",
+    "deodorant",
+    "crema universala",
+    "lichid de spalat",
+    "absorbante",
+    "scutece"
   ],
   "foreignMarkers": [
     "caini",

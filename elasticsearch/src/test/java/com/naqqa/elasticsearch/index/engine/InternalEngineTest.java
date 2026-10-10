@@ -252,4 +252,79 @@ public final class InternalEngineTest {
             engine.close();
         }
     }
+
+    private static long tlogFileCount(Path shardPath) throws IOException {
+        try (java.util.stream.Stream<Path> files = java.nio.file.Files.list(shardPath.resolve("translog"))) {
+            return files.filter(f -> f.getFileName().toString().endsWith(".tlog")).count();
+        }
+    }
+
+    @Test
+    public void flushThresholdCountsAllTranslogGenerationsNotJustTheCurrentOne() throws IOException {
+        Path shardPath = EngineTestSupport.newTempShardPath();
+        MapperService mapperService = EngineTestSupport.newMapperService();
+        com.naqqa.elasticsearch.index.translog.TranslogConfig tc = new com.naqqa.elasticsearch.index.translog.TranslogConfig(
+            shardPath.resolve("translog"), com.naqqa.elasticsearch.common.unit.ByteSizeValue.ofBytes(2_000),
+            com.naqqa.elasticsearch.common.unit.TimeValue.MINUS_ONE, com.naqqa.elasticsearch.index.translog.Durability.REQUEST,
+            com.naqqa.elasticsearch.common.unit.TimeValue.timeValueSeconds(5), null);
+        com.naqqa.elasticsearch.store.Directory dir = new com.naqqa.elasticsearch.store.FSDirectory(shardPath.resolve("index"));
+        // generation size (2 KB) is far below the flush threshold (20 KB): the old per-generation check never fired.
+        EngineConfig config = EngineConfig.defaultConfig(shardPath, dir, mapperService, tc)
+            .withRefreshInterval(com.naqqa.elasticsearch.common.unit.TimeValue.MINUS_ONE)
+            .withFlushThresholdSize(com.naqqa.elasticsearch.common.unit.ByteSizeValue.ofBytes(20_000));
+        InternalEngine engine = InternalEngine.open(config);
+        try {
+            long maxFiles = 0;
+            for (int i = 0; i < 400; i++) {
+                engine.index(IndexOperation.of("doc" + i, Map.of("title", "some reasonably long title number " + i, "tag", "t")));
+                maxFiles = Math.max(maxFiles, tlogFileCount(shardPath));
+            }
+            assertTrue(maxFiles < 30, "translog generations must be trimmed by size-based flush, max files seen: " + maxFiles);
+            assertTrue(engine.stats().translogSizeInBytes() < 400_000L, "translog must not grow unbounded");
+        } finally {
+            engine.close();
+        }
+    }
+
+    @Test
+    public void periodicFlushCommitsIdleUncommittedOperationsAndTrimsTranslog() throws IOException {
+        Path shardPath = EngineTestSupport.newTempShardPath();
+        MapperService mapperService = EngineTestSupport.newMapperService();
+        InternalEngine engine = EngineTestSupport.open(shardPath, mapperService);
+        try {
+            engine.index(IndexOperation.of("1", Map.of("title", "alpha", "tag", "x")));
+            long now = System.currentTimeMillis();
+            assertFalse(engine.maybeFlushPeriodically(now, 60_000L), "not due yet");
+            assertTrue(engine.maybeFlushPeriodically(now + 120_000L, 60_000L), "due and has uncommitted ops");
+            assertFalse(engine.maybeFlushPeriodically(now + 400_000L, 60_000L), "nothing new to commit");
+        } finally {
+            engine.close();
+        }
+        InternalEngine reopened = EngineTestSupport.open(shardPath, mapperService);
+        try {
+            assertEquals(0L, reopened.stats().translogNumOps());
+            assertTrue(reopened.get("1").exists());
+        } finally {
+            reopened.close();
+        }
+    }
+
+    @Test
+    public void replayedTranslogIsCommittedOnOpen() throws IOException {
+        Path shardPath = EngineTestSupport.newTempShardPath();
+        MapperService mapperService = EngineTestSupport.newMapperService();
+        InternalEngine engine = EngineTestSupport.open(shardPath, mapperService);
+        engine.index(IndexOperation.of("1", Map.of("title", "alpha", "tag", "x")));
+        engine.close();
+
+        InternalEngine first = EngineTestSupport.open(shardPath, mapperService);
+        first.close();
+        InternalEngine second = EngineTestSupport.open(shardPath, mapperService);
+        try {
+            assertEquals(0L, second.stats().translogNumOps());
+            assertTrue(second.get("1").exists());
+        } finally {
+            second.close();
+        }
+    }
 }

@@ -4,22 +4,33 @@ import com.naqqa.elasticsearch.analysis.CharFilter;
 import com.naqqa.elasticsearch.analysis.FilteredText;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 public final class MappingCharFilter extends CharFilter {
 
+    private record Rule(String key, String value) {
+    }
+
     private final Map<String, String> mappings = new TreeMap<>();
-    private final int maxKeyLength;
+    /** Rules grouped by first character, each group sorted longest key first (longest match wins). */
+    private final Map<Character, Rule[]> rulesByFirstChar = new HashMap<>();
 
     public MappingCharFilter(Map<String, String> mappings) {
-        int max = 1;
+        Map<Character, List<Rule>> grouped = new HashMap<>();
         for (Map.Entry<String, String> e : mappings.entrySet()) {
             this.mappings.put(e.getKey(), e.getValue());
-            max = Math.max(max, e.getKey().length());
+            if (e.getKey().isEmpty()) {
+                continue;
+            }
+            grouped.computeIfAbsent(e.getKey().charAt(0), k -> new ArrayList<>()).add(new Rule(e.getKey(), e.getValue()));
         }
-        this.maxKeyLength = max;
+        for (Map.Entry<Character, List<Rule>> g : grouped.entrySet()) {
+            g.getValue().sort((x, y) -> Integer.compare(y.key().length(), x.key().length()));
+            rulesByFirstChar.put(g.getKey(), g.getValue().toArray(new Rule[0]));
+        }
     }
 
     public static Map<String, String> parseRules(List<String> rules) {
@@ -80,18 +91,14 @@ public final class MappingCharFilter extends CharFilter {
         while (pos < len) {
             String match = null;
             String replacement = null;
-            int maxLen = Math.min(maxKeyLength, len - pos);
-            for (Map.Entry<String, String> e : mappings.entrySet()) {
-                String key = e.getKey();
-                if (key.length() > maxLen) {
-                    continue;
-                }
-                if (match != null && key.length() <= match.length()) {
-                    continue;
-                }
-                if (regionMatches(input, pos, key)) {
-                    match = key;
-                    replacement = e.getValue();
+            Rule[] candidates = rulesByFirstChar.get(input.charAt(pos));
+            if (candidates != null) {
+                for (Rule rule : candidates) {
+                    if (regionMatches(input, pos, rule.key())) {
+                        match = rule.key();
+                        replacement = rule.value();
+                        break;
+                    }
                 }
             }
             if (match == null) {

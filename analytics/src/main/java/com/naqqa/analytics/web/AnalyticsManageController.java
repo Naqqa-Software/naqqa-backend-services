@@ -81,7 +81,7 @@ public class AnalyticsManageController {
         web.log(auth, AuditService.EXPORT, report, q, imp == null || imp.isBlank() ? null : String.join(",", q.companyIds()), params);
         String file = ExportService.fileName(report, q, format);
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(ExportService.contentType(format)))
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(file, StandardCharsets.UTF_8).build().toString())
+                .header(HttpHeaders.CONTENT_DISPOSITION, (StandardCharsets.US_ASCII.newEncoder().canEncode(file) ? ContentDisposition.attachment().filename(file) : ContentDisposition.attachment().filename(file, StandardCharsets.UTF_8)).build().toString())
                 .header(HttpHeaders.CACHE_CONTROL, "no-store").body(data);
     }
 

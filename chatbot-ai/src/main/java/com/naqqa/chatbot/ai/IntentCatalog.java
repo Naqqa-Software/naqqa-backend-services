@@ -38,6 +38,7 @@ public final class IntentCatalog {
     private final List<String> welcomeQuickReplies;
     private final List<String> defaultWithResults;
     private final List<String> defaultWithoutResults;
+    private final List<String> alwaysWithoutResults;
     private final Map<String, String> pages = new LinkedHashMap<>();
     private final String priceBrowseIntent;
     private final String defaultPage;
@@ -67,6 +68,7 @@ public final class IntentCatalog {
         this.welcomeQuickReplies = orEmpty(list(root.path("welcomeQuickReplies")));
         this.defaultWithResults = orEmpty(list(root.path("defaultQuickReplies").path("withResults")));
         this.defaultWithoutResults = orEmpty(list(root.path("defaultQuickReplies").path("withoutResults")));
+        this.alwaysWithoutResults = orEmpty(list(root.path("defaultQuickReplies").path("withoutResultsAlways")));
         root.path("quickReplies").fields().forEachRemaining(e -> quickReplies.put(e.getKey(),
                 new QuickReplyDef(e.getKey(), e.getValue().path("intent").asText(""),
                         e.getValue().path("browse").asBoolean(false), e.getValue().path("escalate").asBoolean(false))));
@@ -203,14 +205,24 @@ public final class IntentCatalog {
     }
 
     public List<String> quickRepliesFor(IntentDef intent, boolean hasResults) {
-        if (intent != null) {
-            if (hasResults && intent.quickRepliesWithResults() != null) {
-                return intent.quickRepliesWithResults();
-            }
-            if (intent.quickReplies() != null) {
-                return intent.quickReplies();
+        List<String> base;
+        if (intent != null && hasResults && intent.quickRepliesWithResults() != null) {
+            return intent.quickRepliesWithResults();
+        } else if (intent != null && intent.quickReplies() != null) {
+            base = intent.quickReplies();
+        } else {
+            base = hasResults ? defaultWithResults : defaultWithoutResults;
+        }
+        if (hasResults || alwaysWithoutResults.isEmpty()) {
+            return base;
+        }
+        // Chips every "nothing found" reply must carry (e.g. report a problem), even when the intent lists its own.
+        List<String> merged = new ArrayList<>(base);
+        for (String key : alwaysWithoutResults) {
+            if (!merged.contains(key)) {
+                merged.add(key);
             }
         }
-        return hasResults ? defaultWithResults : defaultWithoutResults;
+        return merged;
     }
 }
