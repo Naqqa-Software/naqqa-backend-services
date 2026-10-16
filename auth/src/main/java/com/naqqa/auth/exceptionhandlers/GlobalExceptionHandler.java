@@ -46,8 +46,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<AuthErrorResponse> handleBadRequest(BadRequestException ex) {
+        // An unknown, expired, forged or reused refresh token means "not authenticated": 401, so
+        // clients run their logout path instead of treating it as a form error.
+        boolean tokenError = ex.getMessage() != null && ex.getMessage().startsWith("Auth.Errors.Token.");
         return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
+                .status(tokenError ? HttpStatus.UNAUTHORIZED : HttpStatus.BAD_REQUEST)
                 .body(new AuthErrorResponse(ex.getMessage(), null));
     }
 

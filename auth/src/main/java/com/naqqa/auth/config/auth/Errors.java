@@ -40,6 +40,7 @@ public class Errors {
     public static final String TOKEN_EXPIRED = "Auth.Errors.Token.Expired";
     public static final String TOKEN_SIGNATURE_INVALID = "Auth.Errors.Token.SignatureInvalid";
     public static final String TOKEN_MISSING = "Auth.Errors.Token.Missing";
+    public static final String TOKEN_REUSED = "Auth.Errors.Token.Reused";
 
     // ----------------------------
     // Permissions & Roles

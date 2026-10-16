@@ -20,11 +20,13 @@ import com.naqqa.auth.service.security.TokenService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
@@ -51,6 +53,10 @@ public class DefaultAuthService implements AuthService {
     private final CodeGenService codeGenService;
     private final AuthEmailService authEmailService;
     private final EmailMessages emailMessages;
+
+    /** Seconds during which a just-rotated refresh token may be presented again (parallel tabs/requests). */
+    @Value("${jwt.refresh-reuse-grace-seconds:20}")
+    private long refreshReuseGraceSeconds = 20;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
@@ -189,6 +195,7 @@ public class DefaultAuthService implements AuthService {
                 .deviceId(deviceId)
                 .activeRole(activeRole)
                 .expiryDate(Instant.now().plus(30, ChronoUnit.DAYS))
+                .familyId(UUID.randomUUID().toString())
                 .build();
 
         refreshTokenRepository.save(refreshTokenEntity);
@@ -214,32 +221,105 @@ public class DefaultAuthService implements AuthService {
                 .build();
     }
 
-    @Transactional
+    /**
+     * Refresh-token rotation: every successful refresh consumes the presented token and issues a new
+     * one (new jti, same family, same absolute expiry, same device and active role). The consumed
+     * token stays in the table, marked as rotated, so that presenting it again can be recognised:
+     * <ul>
+     *   <li>within {@code jwt.refresh-reuse-grace-seconds} of its rotation (parallel tabs or requests
+     *       that sent the old cookie before the new one arrived) it answers with the family's current
+     *       token and a fresh access token, instead of logging the user out;</li>
+     *   <li>after that window it is treated as a stolen copy: the whole family is revoked and the
+     *       call fails with {@link Errors#TOKEN_REUSED}.</li>
+     * </ul>
+     */
+    @Transactional(noRollbackFor = BadRequestException.class)
     public String refresh(String refreshToken, HttpServletResponse response) {
-        RefreshTokenEntity storedToken = refreshTokenRepository.findByToken(refreshToken)
+        // Row lock: concurrent refreshes with the same token are serialised, so the second one sees
+        // the first one's rotation and takes the grace path instead of minting a second successor.
+        RefreshTokenEntity presented = refreshTokenRepository.findByTokenForUpdate(refreshToken)
                 .orElseThrow(() -> new BadRequestException(Errors.TOKEN_INVALID));
+        Instant now = Instant.now();
 
-        if (storedToken.getExpiryDate().isBefore(Instant.now())) {
-            refreshTokenRepository.delete(storedToken);
+        if (presented.isRotated()) {
+            boolean inGrace = !presented.getRotatedAt().plusSeconds(refreshReuseGraceSeconds).isBefore(now);
+            RefreshTokenEntity current = inGrace ? currentOfFamily(presented, now) : null;
+            if (current != null) {
+                log.debug("Refresh token of family {} presented again within the grace window", presented.getFamilyId());
+                return issueCookies(current, response, now);
+            }
+            refreshTokenRepository.deleteByFamilyId(presented.getFamilyId());
+            CookieUtils.clearCookie(response, CookieUtils.ACCESS_TOKEN_COOKIE);
+            CookieUtils.clearCookie(response, CookieUtils.REFRESH_TOKEN_COOKIE);
+            if (inGrace) {
+                // The family was already ended (logout / revocation) - nothing was stolen.
+                throw new BadRequestException(Errors.TOKEN_INVALID);
+            }
+            log.warn("Refresh token reuse detected (family {}, user {}): family revoked",
+                    presented.getFamilyId(), presented.getUser().getId());
+            throw new BadRequestException(Errors.TOKEN_REUSED);
+        }
+
+        if (presented.getExpiryDate().isBefore(now)) {
+            refreshTokenRepository.delete(presented);
             throw new BadRequestException(Errors.TOKEN_EXPIRED);
         }
 
-        if (!jwtService.isTokenValid(refreshToken, String.valueOf(storedToken.getUser().getId()), true)) {
+        if (!jwtService.isTokenValid(refreshToken, String.valueOf(presented.getUser().getId()), true)) {
             throw new BadRequestException(Errors.TOKEN_SIGNATURE_INVALID);
         }
 
-        UserEntity user = storedToken.getUser();
-        RoleEntity activeRole = storedToken.getActiveRole();
-        String newAccessToken = tokenService.generateAccessToken(user, activeRole);
+        String familyId = presented.getFamilyId() != null ? presented.getFamilyId() : UUID.randomUUID().toString();
+        RefreshTokenEntity successor = refreshTokenRepository.save(RefreshTokenEntity.builder()
+                .token(tokenService.generateRefreshToken(presented.getUser()))
+                .user(presented.getUser())
+                .deviceId(presented.getDeviceId())
+                .activeRole(presented.getActiveRole())
+                .expiryDate(presented.getExpiryDate()) // absolute lifetime of the login, not extended
+                .familyId(familyId)
+                .build());
+
+        presented.setFamilyId(familyId);
+        presented.setRotatedAt(now);
+        presented.setReplacedById(successor.getId());
+        refreshTokenRepository.save(presented);
+
+        return issueCookies(successor, response, now);
+    }
+
+    /** Follows the rotation chain to the family's live token; null if the family has ended. */
+    private RefreshTokenEntity currentOfFamily(RefreshTokenEntity rotated, Instant now) {
+        RefreshTokenEntity t = rotated;
+        for (int hop = 0; hop < 16 && t != null && t.isRotated(); hop++) {
+            t = t.getReplacedById() == null ? null : refreshTokenRepository.findById(t.getReplacedById()).orElse(null);
+        }
+        if (t == null || t.isRotated() || t.getExpiryDate().isBefore(now)) {
+            return null;
+        }
+        return t;
+    }
+
+    private String issueCookies(RefreshTokenEntity refresh, HttpServletResponse response, Instant now) {
+        String newAccessToken = tokenService.generateAccessToken(refresh.getUser(), refresh.getActiveRole());
+        long remaining = Math.max(60L, Duration.between(now, refresh.getExpiryDate()).getSeconds());
 
         CookieUtils.setCookie(response, CookieUtils.ACCESS_TOKEN_COOKIE, newAccessToken, 15 * 60);
+        CookieUtils.setCookie(response, CookieUtils.REFRESH_TOKEN_COOKIE, refresh.getToken(),
+                (int) Math.min(Integer.MAX_VALUE, remaining));
         return newAccessToken;
     }
 
     @Transactional
     public void logout(String refreshToken, HttpServletResponse response) {
         if (refreshToken != null) {
-            refreshTokenRepository.deleteByToken(refreshToken);
+            // The whole rotation family ends with the session, including already-rotated ancestors.
+            refreshTokenRepository.findByToken(refreshToken).ifPresent(t -> {
+                if (t.getFamilyId() != null) {
+                    refreshTokenRepository.deleteByFamilyId(t.getFamilyId());
+                } else {
+                    refreshTokenRepository.delete(t);
+                }
+            });
         }
         CookieUtils.clearCookie(response, CookieUtils.ACCESS_TOKEN_COOKIE);
         CookieUtils.clearCookie(response, CookieUtils.REFRESH_TOKEN_COOKIE);
