@@ -33,3 +33,4 @@ build/
 
 auth/src/main/resources/application.properties
 
+target-*/

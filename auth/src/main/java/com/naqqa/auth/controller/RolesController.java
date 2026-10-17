@@ -4,10 +4,13 @@ import com.naqqa.auth.config.authorities.AuthorityRegistry;
 import com.naqqa.auth.dto.authorities.RoleRequestDto;
 import com.naqqa.auth.dto.authorities.RoleResponseDto;
 import com.naqqa.auth.dto.authorities.SwitchRoleRequest;
+import com.naqqa.auth.security.AuthPrincipal;
 import com.naqqa.auth.service.authorities.RoleService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import com.naqqa.auth.security.RequiresStepUp;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -40,12 +43,14 @@ public class RolesController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('roles:create')")
+    @RequiresStepUp
     public ResponseEntity<RoleResponseDto> createRole(@RequestBody RoleRequestDto roleDto) {
         return ResponseEntity.ok(roleService.createRole(roleDto));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('roles:update')")
+    @RequiresStepUp
     public ResponseEntity<RoleResponseDto> updateRole(
             @PathVariable Long id,
             @RequestBody RoleRequestDto roleDto
@@ -55,6 +60,7 @@ public class RolesController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('roles:delete')")
+    @RequiresStepUp
     public ResponseEntity<Void> deleteRole(@PathVariable Long id) {
         roleService.deleteRole(id);
         return ResponseEntity.noContent().build();
@@ -66,8 +72,8 @@ public class RolesController {
     public ResponseEntity<String> switchRole(
             @RequestBody SwitchRoleRequest request
     ) {
-        String email = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
-        String newToken = roleService.switchRole(email, request);
+        Long userId = SecurityContextHolder.getContext().getAuthentication().getPrincipal() instanceof AuthPrincipal p ? p.getUserId() : null;
+        String newToken = roleService.switchRole(userId, request);
         return ResponseEntity.ok(newToken);
     }
 }

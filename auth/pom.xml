@@ -12,7 +12,7 @@
 
 	<groupId>com.naqqa</groupId>
 	<artifactId>naqqa-auth</artifactId>
-	<version>2.0.0</version>
+	<version>3.0.0</version>
 	<name>Naqqa Auth</name>
 	<description>Reusable authentication library for Naqqa apps</description>
 	<packaging>jar</packaging>
@@ -27,9 +27,22 @@
 
     <properties>
         <java.version>17</java.version>
+        <auth.buildDir>target</auth.buildDir>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.naqqa</groupId>
+            <artifactId>naqqa-sso</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.naqqa</groupId>
+            <artifactId>naqqa-sso</artifactId>
+            <version>1.0.0</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -55,38 +68,9 @@
         </dependency>
 
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
-            <version>3.4.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-client</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>com.sendgrid</groupId>
             <artifactId>sendgrid-java</artifactId>
             <version>4.10.3</version>
-        </dependency>
-
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>0.11.5</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>0.11.5</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>0.11.5</version>
-            <scope>runtime</scope>
         </dependency>
 
         <dependency>
@@ -103,6 +87,7 @@
     </dependencies>
 
 	<build>
+		<directory>${auth.buildDir}</directory>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -131,6 +116,14 @@
 				<artifactId>maven-jar-plugin</artifactId>
 				<version>3.3.0</version>
 				<configuration>
+					<excludes>
+						<exclude>application.properties</exclude>
+						<exclude>application.yml</exclude>
+						<exclude>application.yaml</exclude>
+						<exclude>application-*.properties</exclude>
+						<exclude>application-*.yml</exclude>
+						<exclude>application-*.yaml</exclude>
+					</excludes>
 					<archive>
 						<manifest>
 							<addDefaultImplementationEntries>true</addDefaultImplementationEntries>

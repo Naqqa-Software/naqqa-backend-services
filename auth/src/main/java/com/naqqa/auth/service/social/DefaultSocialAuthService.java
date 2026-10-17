@@ -6,10 +6,9 @@ import com.naqqa.auth.repository.RoleRepository;
 import com.naqqa.auth.repository.UserRepository;
 import com.naqqa.auth.roles.RoleProvider;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
+import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
@@ -20,10 +19,7 @@ public class DefaultSocialAuthService implements SocialAuthService {
     private final RoleProvider roleProvider;
 
     @Override
-    public UserEntity processUser(String registrationId, OAuth2User oauth2User) {
-        String email = oauth2User.getAttribute("email");
-        String name = oauth2User.getAttribute("name");
-        String socialId = oauth2User.getName();
+    public UserEntity processUser(String registrationId, String socialId, String email, String name) {
 
         return userRepository.findByEmail(email)
                 .map(user -> linkSocialProfile(user, registrationId, socialId))
@@ -31,25 +27,32 @@ public class DefaultSocialAuthService implements SocialAuthService {
     }
 
     private UserEntity linkSocialProfile(UserEntity user, String registrationId, String socialId) {
+        String field = null;
         switch (registrationId.toLowerCase()) {
             case "google":
                 user.setGoogleId(socialId);
+                field = "googleId";
                 break;
             case "facebook":
                 user.setFacebookId(socialId);
+                field = "facebookId";
                 break;
             case "apple":
                 user.setAppleId(socialId);
+                field = "appleId";
                 break;
         }
-        return userRepository.save(user);
+        if (field != null) {
+            userRepository.updateFields(user.getId(), Collections.singletonMap(field, socialId));
+        }
+        return user;
     }
 
     private UserEntity createUser(String email, String name, String registrationId, String socialId) {
         UserEntity user = new UserEntity();
         user.setEmail(email);
         user.setFullName(name);
-        user.setPassword(UUID.randomUUID().toString()); // Set a random password for social users
+        user.setPassword(null);
         user.setEnabled(true);
 
         RoleEntity defaultRole = roleRepository.findByName(roleProvider.getDefaultRole())

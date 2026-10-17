@@ -1,0 +1,350 @@
+{
+  "description": "JWKS publishing, RFC 7638 thumbprints and JWKS parsing rules.",
+  "version": 1,
+  "thumbprints": [
+    {
+      "name": "rs256",
+      "publicJwk": {
+        "kty": "RSA",
+        "n": "5GEcHFQ_FJkMtobI3V3hln9n6YkJdauCKH0xFgQQPcXibLFnf3OtUUhBiJ2yd2HxR_zBUA--kE5-QoOd05LOkCATW7n5sKmeICQO-5Kry5xeFqol7GLU7xBplQoSGMS-t9Ey521YJeaqrSIGm4mOhqVLuvYwKqnw3CPXsRT97fXVftc82Fz2SDrfeV0cZDekGluECYl1m5tKxArw0yGqRWp_0s-VqE_LxXA8hu1bzu1Qi-hwS1IddNmK8WesuWXsN2gnrgl2FdcFR3ezqaQAavjSJBwItIm0RXKKcQ31_fU3q3IGyJrnbS5tL-Or9lzVh7Ki-9p19QQ_PCAa_rmBzQ",
+        "e": "AQAB",
+        "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+        "alg": "RS256",
+        "use": "sig"
+      },
+      "thumbprintInput": "{\"e\":\"AQAB\",\"kty\":\"RSA\",\"n\":\"5GEcHFQ_FJkMtobI3V3hln9n6YkJdauCKH0xFgQQPcXibLFnf3OtUUhBiJ2yd2HxR_zBUA--kE5-QoOd05LOkCATW7n5sKmeICQO-5Kry5xeFqol7GLU7xBplQoSGMS-t9Ey521YJeaqrSIGm4mOhqVLuvYwKqnw3CPXsRT97fXVftc82Fz2SDrfeV0cZDekGluECYl1m5tKxArw0yGqRWp_0s-VqE_LxXA8hu1bzu1Qi-hwS1IddNmK8WesuWXsN2gnrgl2FdcFR3ezqaQAavjSJBwItIm0RXKKcQ31_fU3q3IGyJrnbS5tL-Or9lzVh7Ki-9p19QQ_PCAa_rmBzQ\"}",
+      "thumbprint": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U"
+    },
+    {
+      "name": "es256",
+      "publicJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "cc7DO-DZ1OQ0rycCdahQNJaX8WkHzU9yvs4GCf7gMU4",
+        "y": "N9T1cdDmy2Aeg65cEnNglkQRN4GP2MBCdWhVBbXIb-c",
+        "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+        "alg": "ES256",
+        "use": "sig"
+      },
+      "thumbprintInput": "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"cc7DO-DZ1OQ0rycCdahQNJaX8WkHzU9yvs4GCf7gMU4\",\"y\":\"N9T1cdDmy2Aeg65cEnNglkQRN4GP2MBCdWhVBbXIb-c\"}",
+      "thumbprint": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8"
+    },
+    {
+      "name": "eddsa",
+      "publicJwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "FJxOmbnyN4eSFbOtAj7HNyXe5JM5Je7rxvTVYIYDjnA",
+        "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+        "alg": "EdDSA",
+        "use": "sig"
+      },
+      "thumbprintInput": "{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"FJxOmbnyN4eSFbOtAj7HNyXe5JM5Je7rxvTVYIYDjnA\"}",
+      "thumbprint": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ"
+    }
+  ],
+  "publish": {
+    "description": "Output of Jwks.publish for the three test keys. Compare as a set of keys by kid, member order does not matter.",
+    "jwks": {
+      "keys": [
+        {
+          "kty": "RSA",
+          "n": "5GEcHFQ_FJkMtobI3V3hln9n6YkJdauCKH0xFgQQPcXibLFnf3OtUUhBiJ2yd2HxR_zBUA--kE5-QoOd05LOkCATW7n5sKmeICQO-5Kry5xeFqol7GLU7xBplQoSGMS-t9Ey521YJeaqrSIGm4mOhqVLuvYwKqnw3CPXsRT97fXVftc82Fz2SDrfeV0cZDekGluECYl1m5tKxArw0yGqRWp_0s-VqE_LxXA8hu1bzu1Qi-hwS1IddNmK8WesuWXsN2gnrgl2FdcFR3ezqaQAavjSJBwItIm0RXKKcQ31_fU3q3IGyJrnbS5tL-Or9lzVh7Ki-9p19QQ_PCAa_rmBzQ",
+          "e": "AQAB",
+          "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+          "alg": "RS256",
+          "use": "sig"
+        },
+        {
+          "kty": "EC",
+          "crv": "P-256",
+          "x": "cc7DO-DZ1OQ0rycCdahQNJaX8WkHzU9yvs4GCf7gMU4",
+          "y": "N9T1cdDmy2Aeg65cEnNglkQRN4GP2MBCdWhVBbXIb-c",
+          "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+          "alg": "ES256",
+          "use": "sig"
+        },
+        {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "FJxOmbnyN4eSFbOtAj7HNyXe5JM5Je7rxvTVYIYDjnA",
+          "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+          "alg": "EdDSA",
+          "use": "sig"
+        }
+      ]
+    }
+  },
+  "rfc": {
+    "description": "RFC 7638 section 3.1 and RFC 8037 appendix A.3 thumbprints.",
+    "cases": [
+      {
+        "name": "rfc7638-3.1-rsa",
+        "jwk": {
+          "kty": "RSA",
+          "n": "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
+          "e": "AQAB",
+          "alg": "RS256",
+          "kid": "2011-04-29"
+        },
+        "thumbprintInput": "{\"e\":\"AQAB\",\"kty\":\"RSA\",\"n\":\"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw\"}",
+        "thumbprint": "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"
+      },
+      {
+        "name": "rfc8037-a.3-ed25519",
+        "jwk": {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+        },
+        "thumbprintInput": "{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}",
+        "thumbprint": "kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "parse-all-three",
+      "description": "JWKS with RS256, ES256 and EdDSA keys parses to three keys, kid is the RFC 7638 thumbprint.",
+      "input": {
+        "jwks": {
+          "keys": [
+            {
+              "kty": "RSA",
+              "n": "5GEcHFQ_FJkMtobI3V3hln9n6YkJdauCKH0xFgQQPcXibLFnf3OtUUhBiJ2yd2HxR_zBUA--kE5-QoOd05LOkCATW7n5sKmeICQO-5Kry5xeFqol7GLU7xBplQoSGMS-t9Ey521YJeaqrSIGm4mOhqVLuvYwKqnw3CPXsRT97fXVftc82Fz2SDrfeV0cZDekGluECYl1m5tKxArw0yGqRWp_0s-VqE_LxXA8hu1bzu1Qi-hwS1IddNmK8WesuWXsN2gnrgl2FdcFR3ezqaQAavjSJBwItIm0RXKKcQ31_fU3q3IGyJrnbS5tL-Or9lzVh7Ki-9p19QQ_PCAa_rmBzQ",
+              "e": "AQAB",
+              "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+              "alg": "RS256",
+              "use": "sig"
+            },
+            {
+              "kty": "EC",
+              "crv": "P-256",
+              "x": "cc7DO-DZ1OQ0rycCdahQNJaX8WkHzU9yvs4GCf7gMU4",
+              "y": "N9T1cdDmy2Aeg65cEnNglkQRN4GP2MBCdWhVBbXIb-c",
+              "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+              "alg": "ES256",
+              "use": "sig"
+            },
+            {
+              "kty": "OKP",
+              "crv": "Ed25519",
+              "x": "FJxOmbnyN4eSFbOtAj7HNyXe5JM5Je7rxvTVYIYDjnA",
+              "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+              "alg": "EdDSA",
+              "use": "sig"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "keys": [
+          {
+            "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+            "alg": "RS256"
+          },
+          {
+            "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+            "alg": "ES256"
+          },
+          {
+            "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+            "alg": "EdDSA"
+          }
+        ]
+      }
+    },
+    {
+      "name": "skip-encryption-key",
+      "description": "A key with use enc is ignored, the rest is kept.",
+      "input": {
+        "jwks": {
+          "keys": [
+            {
+              "kty": "EC",
+              "crv": "P-256",
+              "x": "cc7DO-DZ1OQ0rycCdahQNJaX8WkHzU9yvs4GCf7gMU4",
+              "y": "N9T1cdDmy2Aeg65cEnNglkQRN4GP2MBCdWhVBbXIb-c",
+              "use": "enc",
+              "kid": "enc-1"
+            },
+            {
+              "kty": "RSA",
+              "n": "5GEcHFQ_FJkMtobI3V3hln9n6YkJdauCKH0xFgQQPcXibLFnf3OtUUhBiJ2yd2HxR_zBUA--kE5-QoOd05LOkCATW7n5sKmeICQO-5Kry5xeFqol7GLU7xBplQoSGMS-t9Ey521YJeaqrSIGm4mOhqVLuvYwKqnw3CPXsRT97fXVftc82Fz2SDrfeV0cZDekGluECYl1m5tKxArw0yGqRWp_0s-VqE_LxXA8hu1bzu1Qi-hwS1IddNmK8WesuWXsN2gnrgl2FdcFR3ezqaQAavjSJBwItIm0RXKKcQ31_fU3q3IGyJrnbS5tL-Or9lzVh7Ki-9p19QQ_PCAa_rmBzQ",
+              "e": "AQAB",
+              "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+              "alg": "RS256",
+              "use": "sig"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "keys": [
+          {
+            "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+            "alg": "RS256"
+          }
+        ]
+      }
+    },
+    {
+      "name": "skip-unsupported-curve",
+      "description": "A P-384 key is ignored, the rest is kept.",
+      "input": {
+        "jwks": {
+          "keys": [
+            {
+              "kty": "EC",
+              "crv": "P-384",
+              "x": "AAAA",
+              "y": "AAAA",
+              "kid": "p384"
+            },
+            {
+              "kty": "OKP",
+              "crv": "Ed25519",
+              "x": "FJxOmbnyN4eSFbOtAj7HNyXe5JM5Je7rxvTVYIYDjnA",
+              "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+              "alg": "EdDSA",
+              "use": "sig"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "keys": [
+          {
+            "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+            "alg": "EdDSA"
+          }
+        ]
+      }
+    },
+    {
+      "name": "skip-oct-without-secret",
+      "description": "kty oct is ignored.",
+      "input": {
+        "jwks": {
+          "keys": [
+            {
+              "kty": "oct",
+              "kid": "sym"
+            },
+            {
+              "kty": "OKP",
+              "crv": "Ed25519",
+              "x": "FJxOmbnyN4eSFbOtAj7HNyXe5JM5Je7rxvTVYIYDjnA",
+              "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+              "alg": "EdDSA",
+              "use": "sig"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "keys": [
+          {
+            "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+            "alg": "EdDSA"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reject-private-material",
+      "description": "A JWKS that contains a private member (d) is rejected.",
+      "input": {
+        "jwks": {
+          "keys": [
+            {
+              "kty": "EC",
+              "crv": "P-256",
+              "x": "cc7DO-DZ1OQ0rycCdahQNJaX8WkHzU9yvs4GCf7gMU4",
+              "y": "N9T1cdDmy2Aeg65cEnNglkQRN4GP2MBCdWhVBbXIb-c",
+              "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+              "alg": "ES256",
+              "use": "sig",
+              "d": "4wJOzJJRa1D01D2lgaElFRdbBjKCnSGs_go9ycIVkXk"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "jwks.private_material"
+      }
+    },
+    {
+      "name": "reject-duplicate-kid",
+      "description": "The same kid twice is rejected.",
+      "input": {
+        "jwks": {
+          "keys": [
+            {
+              "kty": "RSA",
+              "n": "5GEcHFQ_FJkMtobI3V3hln9n6YkJdauCKH0xFgQQPcXibLFnf3OtUUhBiJ2yd2HxR_zBUA--kE5-QoOd05LOkCATW7n5sKmeICQO-5Kry5xeFqol7GLU7xBplQoSGMS-t9Ey521YJeaqrSIGm4mOhqVLuvYwKqnw3CPXsRT97fXVftc82Fz2SDrfeV0cZDekGluECYl1m5tKxArw0yGqRWp_0s-VqE_LxXA8hu1bzu1Qi-hwS1IddNmK8WesuWXsN2gnrgl2FdcFR3ezqaQAavjSJBwItIm0RXKKcQ31_fU3q3IGyJrnbS5tL-Or9lzVh7Ki-9p19QQ_PCAa_rmBzQ",
+              "e": "AQAB",
+              "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+              "alg": "RS256",
+              "use": "sig"
+            },
+            {
+              "kty": "RSA",
+              "n": "5GEcHFQ_FJkMtobI3V3hln9n6YkJdauCKH0xFgQQPcXibLFnf3OtUUhBiJ2yd2HxR_zBUA--kE5-QoOd05LOkCATW7n5sKmeICQO-5Kry5xeFqol7GLU7xBplQoSGMS-t9Ey521YJeaqrSIGm4mOhqVLuvYwKqnw3CPXsRT97fXVftc82Fz2SDrfeV0cZDekGluECYl1m5tKxArw0yGqRWp_0s-VqE_LxXA8hu1bzu1Qi-hwS1IddNmK8WesuWXsN2gnrgl2FdcFR3ezqaQAavjSJBwItIm0RXKKcQ31_fU3q3IGyJrnbS5tL-Or9lzVh7Ki-9p19QQ_PCAa_rmBzQ",
+              "e": "AQAB",
+              "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+              "alg": "RS256",
+              "use": "sig"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "jwks.duplicate_kid"
+      }
+    },
+    {
+      "name": "reject-keys-not-array",
+      "description": "keys must be an array.",
+      "input": {
+        "jwks": {
+          "keys": "nope"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "jwks.invalid"
+      }
+    },
+    {
+      "name": "reject-missing-keys",
+      "description": "keys member is required.",
+      "input": {
+        "jwks": {}
+      },
+      "expected": {
+        "ok": false,
+        "error": "jwks.invalid"
+      }
+    },
+    {
+      "name": "empty-keys",
+      "description": "An empty key set parses to no keys.",
+      "input": {
+        "jwks": {
+          "keys": []
+        }
+      },
+      "expected": {
+        "ok": true,
+        "keys": []
+      }
+    }
+  ]
+}

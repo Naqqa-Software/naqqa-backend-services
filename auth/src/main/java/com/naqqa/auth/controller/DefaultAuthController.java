@@ -2,14 +2,12 @@ package com.naqqa.auth.controller;
 
 import com.naqqa.auth.dto.auth.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 
 @RestController
 @RequestMapping("${auth.api.base-path:/api/auth}")
 @RequiredArgsConstructor
-@ConditionalOnMissingBean(AuthController.class)
 public class DefaultAuthController {
 
     private final AuthController authController;
@@ -49,9 +47,20 @@ public class DefaultAuthController {
         return authController.logout(request, response);
     }
 
+    @PostMapping("/logout/device")
+    public ResponseEntity<?> logoutDevice(@RequestBody String deviceId) {
+        return authController.logoutDevice(deviceId);
+    }
+
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
         return authController.forgotPassword(request);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+        authController.resetPassword(request);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/change-password")

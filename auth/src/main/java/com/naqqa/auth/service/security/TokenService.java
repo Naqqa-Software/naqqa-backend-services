@@ -4,97 +4,149 @@ import com.naqqa.auth.entity.authorities.AuthorityEntity;
 import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.entity.authorities.SubRoleEntity;
 import com.naqqa.auth.entity.auth.UserEntity;
-import com.naqqa.auth.security.JwtService;
-import lombok.RequiredArgsConstructor;
+import com.naqqa.auth.security.AccessSessionGuard;
+import com.naqqa.auth.sso.SsoProperties;
+import com.naqqa.sso.crypto.KeyRing;
+import com.naqqa.sso.jose.Jwt;
+import com.naqqa.sso.util.Bytes;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.oauth2.jwt.JwtClaimsSet;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
-import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-@RequiredArgsConstructor
 @Service
 public class TokenService {
+
+    public static final String ISSUER = "naqqa-auth";
+    public static final String TOKEN_USE_CLAIM = "token_use";
+    public static final String TOKEN_USE_ACCESS = "access";
+    public static final String ENROLLMENT_CLAIM = "mfa_enroll";
 
     @Value("${jwt.expiration:15}")
     private Integer jwtExpiration;
 
-    @Value("${jwt.expiration-remember:1440}")
-    private Integer jwtExpirationRemember;
+    private final KeyRing authKeyRing;
+    private final Clock clock;
+    private final SsoProperties ssoProperties;
+    private final ObjectProvider<AccessSessionGuard> sessionGuard;
 
-    private final JwtEncoder jwtEncoder;
-    private final JwtService jwtService;
+    public TokenService(KeyRing authKeyRing, Clock clock, SsoProperties ssoProperties) {
+        this(authKeyRing, clock, ssoProperties, null);
+    }
 
-    /**
-     * Builds claims for the token.
-     * Flattens authorities from the single 'activeRole' and ALL 'SubRoles'.
-     */
-    private JwtClaimsSet buildClaims(UserEntity user, RoleEntity activeRole, long expirationMinutes) {
-        Instant now = Instant.now();
+    @Autowired
+    public TokenService(KeyRing authKeyRing, Clock clock, SsoProperties ssoProperties, ObjectProvider<AccessSessionGuard> sessionGuard) {
+        this.authKeyRing = authKeyRing;
+        this.clock = clock;
+        this.ssoProperties = ssoProperties;
+        this.sessionGuard = sessionGuard;
+    }
 
+    public record AccessContext(String sessionId, Collection<String> amr, String acr, Instant authTime,
+                                Map<String, Object> actor, Duration ttl) {
+
+        public AccessContext {
+            if (amr == null || amr.isEmpty() || acr == null || acr.isBlank() || authTime == null) {
+                throw new IllegalArgumentException("access token context requires amr, acr and auth_time");
+            }
+            if (actor != null && sessionId == null) {
+                throw new IllegalArgumentException("an actor requires a session");
+            }
+        }
+    }
+
+    public static Set<String> authoritiesOf(UserEntity user) {
+        Stream<String> roleAuths = user.getRoles()
+                .stream()
+                .filter(Objects::nonNull)
+                .map(RoleEntity::getAuthorities)
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .filter(Objects::nonNull)
+                .map(AuthorityEntity::getName);
+        Stream<String> subRoleAuths = user.getSubRoles()
+                .stream()
+                .filter(Objects::nonNull)
+                .map(SubRoleEntity::getAuthorities)
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .filter(Objects::nonNull)
+                .map(AuthorityEntity::getName);
+        return Stream.concat(roleAuths, subRoleAuths).collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    public Duration defaultTtl() {
+        return Duration.ofMinutes(jwtExpiration);
+    }
+
+    private Map<String, Object> buildClaims(UserEntity user, RoleEntity activeRole, AccessContext ctx) {
         if (activeRole == null) {
             throw new IllegalStateException("Cannot generate token: User has no active role selected.");
         }
+        if (ctx == null) {
+            throw new IllegalArgumentException("access token context required");
+        }
+        Instant now = clock.instant();
+        if (ctx.sessionId() == null && ssoProperties.isEnabled()
+                && ctx.authTime().isAfter(now.minus(ssoProperties.getMfa().getStepUpMaxAge()))) {
+            throw new IllegalStateException("a session-less access token cannot carry a fresh authentication");
+        }
+        Duration ttl = ctx.ttl() != null ? ctx.ttl() : defaultTtl();
 
-        // 1. Get Authorities from ALL of the user's Roles (MERGED) — not just the active one, so a user with
-        // several roles has the union of their permissions (the active role is still used only for the UI
-        // 'role' claim / context below). This is what makes multi-role access additive.
-        Stream<String> roleAuths = user.getRoles()
-                .stream()
-                .filter(java.util.Objects::nonNull)
-                .map(RoleEntity::getAuthorities)
-                .filter(java.util.Objects::nonNull)
-                .flatMap(Collection::stream)
-                .map(AuthorityEntity::getName);
+        Map<String, Object> roleClaim = new LinkedHashMap<>();
+        roleClaim.put("id", activeRole.getId());
+        roleClaim.put("name", activeRole.getName());
 
-        // 2. Get Authorities from ALL SubRoles assigned to the user
-        Stream<String> subRoleAuths = user.getSubRoles()
-                .stream()
-                .map(SubRoleEntity::getAuthorities)
-                .flatMap(Collection::stream)
-                .map(AuthorityEntity::getName);
-
-        // 3. Flatten into a single distinct Set
-        Set<String> flattenedAuthorities = Stream.concat(roleAuths, subRoleAuths)
-                .collect(Collectors.toSet());
-
-        // Construct a simple role claim for the UI
-        Map<String, Object> roleClaim = Map.of(
-                "id", activeRole.getId(),
-                "name", activeRole.getName()
-        );
-
-        Set<String> allRoleNames = user.getRoles().stream()
+        List<String> allRoleNames = user.getRoles().stream()
+                .filter(Objects::nonNull)
                 .map(RoleEntity::getName)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(TreeSet::new))
+                .stream().toList();
 
-        return JwtClaimsSet.builder()
-                .issuer("naqqa-auth")
-                .issuedAt(now)
-                .expiresAt(now.plus(expirationMinutes, ChronoUnit.MINUTES))
-                .subject(String.valueOf(user.getId()))
-                .claim("id", user.getId())
-                .claim("email", user.getEmail())
-                .claim("fullName", user.getFullName())
-                .claim("roles", allRoleNames)
-                .claim("authorities", flattenedAuthorities) // This is what @PreAuthorize uses
-                .claim("role", roleClaim)
-                .build();
+        Map<String, Object> claims = new LinkedHashMap<>();
+        claims.put("iss", ISSUER);
+        claims.put("iat", now.getEpochSecond());
+        claims.put("exp", now.plus(ttl).getEpochSecond());
+        claims.put("sub", String.valueOf(user.getId()));
+        claims.put("jti", Bytes.randomToken(16));
+        claims.put(TOKEN_USE_CLAIM, TOKEN_USE_ACCESS);
+        claims.put("id", user.getId());
+        claims.put("email", user.getEmail());
+        claims.put("fullName", user.getFullName());
+        claims.put("roles", allRoleNames);
+        claims.put("authorities", new ArrayList<>(authoritiesOf(user)));
+        claims.put("role", roleClaim);
+        if (ctx.sessionId() != null) {
+            claims.put("sid", ctx.sessionId());
+            AccessSessionGuard guard = sessionGuard == null ? null : sessionGuard.getIfAvailable();
+            if (guard != null && guard.enrollmentRequired(ctx.sessionId())) {
+                claims.put(ENROLLMENT_CLAIM, true);
+            }
+        }
+        claims.put("amr", new ArrayList<>(new TreeSet<>(ctx.amr())));
+        claims.put("acr", ctx.acr());
+        claims.put("auth_time", ctx.authTime().getEpochSecond());
+        if (ctx.actor() != null) {
+            claims.put("act", ctx.actor());
+        }
+        return claims;
     }
 
-    public String generateAccessToken(UserEntity user, RoleEntity activeRole) {
-        return jwtEncoder.encode(JwtEncoderParameters.from(buildClaims(user, activeRole, jwtExpiration))).getTokenValue();
-    }
-
-    public String generateRefreshToken(UserEntity user) {
-        return jwtService.generateRefreshToken(String.valueOf(user.getId()));
+    public String generateAccessToken(UserEntity user, RoleEntity activeRole, AccessContext ctx) {
+        return Jwt.sign(authKeyRing, Jwt.TYP_JWT, buildClaims(user, activeRole, ctx));
     }
 }

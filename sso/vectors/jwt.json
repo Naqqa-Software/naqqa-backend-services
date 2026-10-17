@@ -1,0 +1,564 @@
+{
+  "description": "Signed access tokens (RS256, ES256, EdDSA) and negative cases. Keys are test-only and committed on purpose.",
+  "version": 1,
+  "validator": {
+    "issuer": "https://sso.naqqa.com",
+    "audience": "api.naqqa.com",
+    "typ": "at+jwt",
+    "requireExp": true,
+    "leewaySeconds": 60,
+    "nowEpochSeconds": 1792058400,
+    "nowIso": "2026-10-15T10:00:00Z"
+  },
+  "keys": [
+    {
+      "name": "rs256",
+      "alg": "RS256",
+      "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+      "privateJwk": {
+        "kty": "RSA",
+        "n": "5GEcHFQ_FJkMtobI3V3hln9n6YkJdauCKH0xFgQQPcXibLFnf3OtUUhBiJ2yd2HxR_zBUA--kE5-QoOd05LOkCATW7n5sKmeICQO-5Kry5xeFqol7GLU7xBplQoSGMS-t9Ey521YJeaqrSIGm4mOhqVLuvYwKqnw3CPXsRT97fXVftc82Fz2SDrfeV0cZDekGluECYl1m5tKxArw0yGqRWp_0s-VqE_LxXA8hu1bzu1Qi-hwS1IddNmK8WesuWXsN2gnrgl2FdcFR3ezqaQAavjSJBwItIm0RXKKcQ31_fU3q3IGyJrnbS5tL-Or9lzVh7Ki-9p19QQ_PCAa_rmBzQ",
+        "e": "AQAB",
+        "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+        "alg": "RS256",
+        "use": "sig",
+        "d": "M8_dPQcW7ZEga3uOL_yXzJk4hai_kujXZWCrpXNEDQOrMB4aXTWs9TMXnQsr3T5E62BKKiP8R4hrSCNMh963SsbgJW_-mAgPNfsARC5dF9swlGNDKcstRFRco8GuY9yk6RaGvi7WL_kSMSe2SIyvX1g6Y17thAxcdtER4tyglF7C9FDaSEYMVDjd39yYawRH4WPufQyYp0e9JLJ_lDm8Z8sxExKLqUcqdmcUUpIFmZ16JZ3j38zLMNX8ANtnl7Jfo8FHpyv87im0rerJST6Mm43Rd75FCgkhWPA4EBuSshdFuLTZfBYANWqX1saa3Plt6AMNLlVj2ILfaDDBchWEwQ",
+        "p": "7FyMNRQ0Lw5K2xq52ys5Cub_Eo58pG8yvsSReDvKFV5_U2CshhS_BswqWjdx8gs2Wmy8SQVOOqdAgXMxk77ciugH2xZX3RnBIoIgv4LLMirhVxBlTL1FkWt86QGU3pcHlPFFdeCTMuh3Ff0nULdagTl6qWYpUwqc2U0myskooEE",
+        "q": "91rHm9aGbLLVftuxGyblJL-tYv8WnoMOFL910Ox6rHxYx9zqfeGx10MjFTDrLzrbXlKnQdmwsHFd-4Kwhrt-b8im3TB1BNtGQgbZnM8jMIUM-SHqG4qeSWjiVWiTLPS_koi_tyuB3YhqyRNHlij8ltYlZLztDk65ejBzY-Ipvo0",
+        "dp": "etIQjVhlUXpkzXwSzd-k8ZRdQUBHZo7d2KF-UfMHrJkBIsteewH2zcpzy5N6I2NOKCjOokcegn38mAfK4FJSed_ejSsMFzlV0d-6sql9eyErHTnI2dqUdt9a9h07RXtHlk7VYE6FTvPbRdLZhijw36uFoNcUbDFcldJwcPmcocE",
+        "dq": "Yori7N25LgLM9T4Wv6duMIbAT6kqXLn_WRqxmCst8BuVzwHe1YmdrRGNH3sepvE-xcQN6DkOoCx58aIuK270vxnkCEiuxeGJivJprYQEE-ddtL7jIlfGGZ7UVIxV3dofnAQoxJNrqFMZn8OziEoJ3xmvSgPOOR353IkC328RjF0",
+        "qi": "oBBQqzWfCr4bum0bvMscjlGRch1uPNKeG69BCUtg9vXfkfQU0nqwDMuqc3SU7c-ykGTTBeuJgQOMez6DmoBPHBGm1PWzTHVvEID6GvPA5AsLDd1C18HASzIDprY2jdGCwnKfRslM190KLqDDwMrlCG-LCeR4A1_QeSkj9iDxdDM"
+      },
+      "publicJwk": {
+        "kty": "RSA",
+        "n": "5GEcHFQ_FJkMtobI3V3hln9n6YkJdauCKH0xFgQQPcXibLFnf3OtUUhBiJ2yd2HxR_zBUA--kE5-QoOd05LOkCATW7n5sKmeICQO-5Kry5xeFqol7GLU7xBplQoSGMS-t9Ey521YJeaqrSIGm4mOhqVLuvYwKqnw3CPXsRT97fXVftc82Fz2SDrfeV0cZDekGluECYl1m5tKxArw0yGqRWp_0s-VqE_LxXA8hu1bzu1Qi-hwS1IddNmK8WesuWXsN2gnrgl2FdcFR3ezqaQAavjSJBwItIm0RXKKcQ31_fU3q3IGyJrnbS5tL-Or9lzVh7Ki-9p19QQ_PCAa_rmBzQ",
+        "e": "AQAB",
+        "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+        "alg": "RS256",
+        "use": "sig"
+      }
+    },
+    {
+      "name": "es256",
+      "alg": "ES256",
+      "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+      "privateJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "cc7DO-DZ1OQ0rycCdahQNJaX8WkHzU9yvs4GCf7gMU4",
+        "y": "N9T1cdDmy2Aeg65cEnNglkQRN4GP2MBCdWhVBbXIb-c",
+        "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+        "alg": "ES256",
+        "use": "sig",
+        "d": "4wJOzJJRa1D01D2lgaElFRdbBjKCnSGs_go9ycIVkXk"
+      },
+      "publicJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "cc7DO-DZ1OQ0rycCdahQNJaX8WkHzU9yvs4GCf7gMU4",
+        "y": "N9T1cdDmy2Aeg65cEnNglkQRN4GP2MBCdWhVBbXIb-c",
+        "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+        "alg": "ES256",
+        "use": "sig"
+      }
+    },
+    {
+      "name": "eddsa",
+      "alg": "EdDSA",
+      "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+      "privateJwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "FJxOmbnyN4eSFbOtAj7HNyXe5JM5Je7rxvTVYIYDjnA",
+        "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+        "alg": "EdDSA",
+        "use": "sig",
+        "d": "_mnKfRhdZFdrWisw8z9zHcFcLT_ZyJmvRJF9KvM7LDU"
+      },
+      "publicJwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "FJxOmbnyN4eSFbOtAj7HNyXe5JM5Je7rxvTVYIYDjnA",
+        "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+        "alg": "EdDSA",
+        "use": "sig"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "name": "valid-rs256",
+      "description": "Access token signed with RS256, typ at+jwt, all claims valid.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.mtOy9XHneppJD9hrBIPf3whYz1TM4D6XLWX3t1iIEUugv7rj6UHp8ghArZ6u3G-Z8wpVzOhrgLrVR6kvkPJVT-_PEvYpq07IQWYuzPbPp3Ib1Ace8FrUlPda2XIlTLLeiebii1cipWH7G9BjyIYPgjHm3F8A9QFBo-oyGdNPpzI9zQmiI_4f6PU-NvhIimIsH_OyWxbsBqjE0uqsw0E14ANSCFkSUkGtphiz2Hj87se4ZgmcWd4gFzbU8_yFayzd4nhs4BpLOnA9pkXCMEI2nO7dd0dkFnymI_Vze26cg-l4hoCzRKE1utLnLlzRNNQ_E-LemftxlPLO_8vwf-6Oeg"
+      },
+      "expected": {
+        "valid": true,
+        "alg": "RS256",
+        "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+        "typ": "at+jwt",
+        "claims": {
+          "iss": "https://sso.naqqa.com",
+          "sub": "user-7f3a91",
+          "aud": "api.naqqa.com",
+          "exp": 1792059000,
+          "iat": 1792058100,
+          "jti": "9b2f6c1e-4d7a-4e51-8a30-5c1d2e7f9a10",
+          "client_id": "naqqa-web",
+          "scope": "openid profile",
+          "roles": ["admin", "billing"]
+        }
+      }
+    },
+    {
+      "name": "valid-es256",
+      "description": "Access token signed with ES256, typ at+jwt, all claims valid.",
+      "input": {
+        "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6IlBpTDQyS1FtNE9tQi1zaVFkX0U4QnJZTnNrRExlbm1HOWtZSHljcEtuYjgiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.serL_RECNxBZrNmeKBBzZdhbieGLBF0KIATwFZzwMeD6LkTdO3_Qp405NSRDweTNMzdcR-P1Sj1Hx1Xquu8a8w"
+      },
+      "expected": {
+        "valid": true,
+        "alg": "ES256",
+        "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+        "typ": "at+jwt",
+        "claims": {
+          "iss": "https://sso.naqqa.com",
+          "sub": "user-7f3a91",
+          "aud": "api.naqqa.com",
+          "exp": 1792059000,
+          "iat": 1792058100,
+          "jti": "9b2f6c1e-4d7a-4e51-8a30-5c1d2e7f9a10",
+          "client_id": "naqqa-web",
+          "scope": "openid profile",
+          "roles": ["admin", "billing"]
+        }
+      }
+    },
+    {
+      "name": "valid-eddsa",
+      "description": "Access token signed with EdDSA, typ at+jwt, all claims valid.",
+      "input": {
+        "token": "eyJhbGciOiJFZERTQSIsImtpZCI6Ii1zd2dvTjZ1VmRLM0VGY3VNYmp0eGhWWlVHaW42RjVPQVhtUzhuSkFnaVEiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.s5LNLU7QxU5liSFZGoxwo2qP-D1pTylY5x9r9ytP5N_4VlFwP5nt6NK0-o9dSyNyQkXCaH3nKSkLOO14_AdTBw"
+      },
+      "expected": {
+        "valid": true,
+        "alg": "EdDSA",
+        "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+        "typ": "at+jwt",
+        "claims": {
+          "iss": "https://sso.naqqa.com",
+          "sub": "user-7f3a91",
+          "aud": "api.naqqa.com",
+          "exp": 1792059000,
+          "iat": 1792058100,
+          "jti": "9b2f6c1e-4d7a-4e51-8a30-5c1d2e7f9a10",
+          "client_id": "naqqa-web",
+          "scope": "openid profile",
+          "roles": ["admin", "billing"]
+        }
+      }
+    },
+    {
+      "name": "valid-audience-array",
+      "description": "aud is an array that contains the expected audience.",
+      "input": {
+        "token": "eyJhbGciOiJFZERTQSIsImtpZCI6Ii1zd2dvTjZ1VmRLM0VGY3VNYmp0eGhWWlVHaW42RjVPQVhtUzhuSkFnaVEiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6WyJvdGhlci5uYXFxYS5jb20iLCJhcGkubmFxcWEuY29tIl0sImV4cCI6MTc5MjA1OTAwMCwiaWF0IjoxNzkyMDU4MTAwLCJqdGkiOiI5YjJmNmMxZS00ZDdhLTRlNTEtOGEzMC01YzFkMmU3ZjlhMTAiLCJjbGllbnRfaWQiOiJuYXFxYS13ZWIiLCJzY29wZSI6Im9wZW5pZCBwcm9maWxlIiwicm9sZXMiOlsiYWRtaW4iLCJiaWxsaW5nIl19.uf93w9j1yR7v9k5PUvO9y1prT46c6SZos-kIi7aeaRWtUKIAlmxZok6uFRxutL_p8-PnY6l01OpcV_3_DtAxAw"
+      },
+      "expected": {
+        "valid": true,
+        "alg": "EdDSA",
+        "kid": "-swgoN6uVdK3EFcuMbjtxhVZUGin6F5OAXmS8nJAgiQ",
+        "typ": "at+jwt",
+        "claims": {
+          "iss": "https://sso.naqqa.com",
+          "sub": "user-7f3a91",
+          "aud": ["other.naqqa.com", "api.naqqa.com"],
+          "exp": 1792059000,
+          "iat": 1792058100,
+          "jti": "9b2f6c1e-4d7a-4e51-8a30-5c1d2e7f9a10",
+          "client_id": "naqqa-web",
+          "scope": "openid profile",
+          "roles": ["admin", "billing"]
+        }
+      }
+    },
+    {
+      "name": "valid-typ-media-type",
+      "description": "typ given as application/at+jwt is accepted (RFC 8725 section 3.11).",
+      "input": {
+        "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6IlBpTDQyS1FtNE9tQi1zaVFkX0U4QnJZTnNrRExlbm1HOWtZSHljcEtuYjgiLCJ0eXAiOiJhcHBsaWNhdGlvbi9hdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.oVzpoOJ5PYBWc_BriQuth9VCwrHpX6jWIdlBLBnWK5yOmNVZSboQnjYZ6L068VG5L_m9r7sbCEuLwZ_JBrj_6A"
+      },
+      "expected": {
+        "valid": true,
+        "alg": "ES256",
+        "kid": "PiL42KQm4OmB-siQd_E8BrYNskDLenmG9kYHycpKnb8",
+        "typ": "application/at+jwt",
+        "claims": {
+          "iss": "https://sso.naqqa.com",
+          "sub": "user-7f3a91",
+          "aud": "api.naqqa.com",
+          "exp": 1792059000,
+          "iat": 1792058100,
+          "jti": "9b2f6c1e-4d7a-4e51-8a30-5c1d2e7f9a10",
+          "client_id": "naqqa-web",
+          "scope": "openid profile",
+          "roles": ["admin", "billing"]
+        }
+      }
+    },
+    {
+      "name": "valid-within-leeway",
+      "description": "exp is 30 seconds in the past, inside the 60 second leeway.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTgzNzAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.MyRmU_aj-MHxA8enq0sQiMowIWStZaX07yN59Z2O5TuL1dWK7HHeecifWzlElQDmjVhYrOq2Fz1peX8r-dJ5mblopx_u-1ulMGNXsOp1VvtAch5dKcg5DLMMPTu7F8QDY1g5PqIMk-i-xds9PkmsLgjnzj7VEAtN-DU5wG1A8tx_kUzwpk1hw_mTFn1JOwH_bD3LSdfrH4wIZaViYiH6v1miVrUe9PYbU_hez36qqq9wMEXaVHGI_Qi4L02XH7fOifGS8vutwYouhse-vrVQS3KXduy0jkNJn7yXDG2wXQbUy5O-l8oeVjo7IxpUoSOTf2t-kJJxyi4NW3f5aPAYjA"
+      },
+      "expected": {
+        "valid": true,
+        "alg": "RS256",
+        "kid": "EEEuZ1E5v5-wjMadMrnJDHddyJOrTV7fYrZtnO87u3U",
+        "typ": "at+jwt",
+        "claims": {
+          "iss": "https://sso.naqqa.com",
+          "sub": "user-7f3a91",
+          "aud": "api.naqqa.com",
+          "exp": 1792058370,
+          "iat": 1792058100,
+          "jti": "9b2f6c1e-4d7a-4e51-8a30-5c1d2e7f9a10",
+          "client_id": "naqqa-web",
+          "scope": "openid profile",
+          "roles": ["admin", "billing"]
+        }
+      }
+    },
+    {
+      "name": "expired-at-leeway-edge",
+      "description": "exp plus leeway equals the clock, token is expired.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTgzNDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.KPvjHSYsiyiCk9zv7SE5T6uFUiR8Cs3cabFQ5nEyK-bbDEyqn27XVnZpihDHDnzAQaPpOl0zPY8CZ1V1S8CwC3BgDzrTaReK6YVudXIGFtf7UfFAZs_JCM4JZbKc8qYWxa4RtXEgZe7XLTCJvmZYNqDiDha0dLrPu0RftlfQM3EKdB71U5IE0hN-_uk-Z82JWCFWOyUVxG08bZOgI8iWk1LCNH4lzTJWy9uB7IFPOdGhTBG2wbgPN_Fpcf8-W0jBJ3pXv8ePOmQSovnP46x1TurxEkthxpsqTii84iNZ81g04RiuZ83lNTfa5-PdgCP1LScIXHDFim9yuxNNDUaYkQ"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jwt.expired"
+      }
+    },
+    {
+      "name": "expired-long-ago",
+      "description": "exp one hour in the past.",
+      "input": {
+        "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6IlBpTDQyS1FtNE9tQi1zaVFkX0U4QnJZTnNrRExlbm1HOWtZSHljcEtuYjgiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTQ4MDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.mUckMjQ9bqL1u_KRWMqZ5YEEUZ6-qGy2GcqAJLrXxc1z0VWD_a6TgXlUITRuC87ANzcrEOUe77pe3DsYygM-cQ"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jwt.expired"
+      }
+    },
+    {
+      "name": "not-yet-valid",
+      "description": "nbf 120 seconds in the future, beyond leeway.",
+      "input": {
+        "token": "eyJhbGciOiJFZERTQSIsImtpZCI6Ii1zd2dvTjZ1VmRLM0VGY3VNYmp0eGhWWlVHaW42RjVPQVhtUzhuSkFnaVEiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdLCJuYmYiOjE3OTIwNTg1MjB9.avszmUEDQ0vKx9gBEDZgL-Xus6A9h2VeHK6s4WY-SOH_eVq34yqLTLeUMjE5FAkPaRB7lvKZLuDEReR0cvrNBg"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jwt.not_yet_valid"
+      }
+    },
+    {
+      "name": "iat-in-future",
+      "description": "iat 300 seconds in the future, beyond leeway.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODcwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.EY4VDN_mSSn86voqugMHLeMoq8kiEcYZ9xCwEX861gv_N9Euq-r6hh3F-sUdEl5au3WrSzQHyHsnwM0RBF9N5YOOSyC5fjM7aVI7ESnX-WWQcasUya6w2MgowlWbNDeZhz94jjimCnTxBx6yX44WzJEUUGelIPhOZVPpl_E-BeOO2pine0SZ_w0p7WAW-xi2fcE6_PEKhb_24UTCYGn6hGVqsF0HXnVCHy1NsENFR1mtf0kLwquUPNeYOCK8RYicGifOjTQmFh0WlGvRKyGX2wPhwQj25NLv26V9SWWcnEhUS96BgfzwJ6hYBHqmiModXAfsYub07etDYRBrboS0Fg"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jwt.iat_future"
+      }
+    },
+    {
+      "name": "wrong-audience",
+      "description": "aud does not contain the expected audience.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5vdGhlci5leGFtcGxlIiwiZXhwIjoxNzkyMDU5MDAwLCJpYXQiOjE3OTIwNTgxMDAsImp0aSI6IjliMmY2YzFlLTRkN2EtNGU1MS04YTMwLTVjMWQyZTdmOWExMCIsImNsaWVudF9pZCI6Im5hcXFhLXdlYiIsInNjb3BlIjoib3BlbmlkIHByb2ZpbGUiLCJyb2xlcyI6WyJhZG1pbiIsImJpbGxpbmciXX0.qe9mZNmmnqiYM_ng_QG3_hkDnWxZdtAMzP4j-LbLwNAbp7rzvKtsvbgXx6T1KUa-oHcuIQt5S-vW1XuqAT-XEaM0IlG7MU1QSAVNotQU6TthLakxKBq0zPW4An6Uue6Gf0rVrucqpEbFkSW2c0GVVKVlEqSu8WJXTZT-o7ODpn_xuMwRpIron_RnqrzADLCipA8GFuJ5rU-vMV7T3hN21iKrmgHI5Pfkx6wm0lkmz2Mt4xeOioIfLmEZu9KkTXgtAAzlQrO4NqiSrZGWsrSYWiVsK3P0jB9ThPmlyuNpnDJ-LcHz0QrjOUZqFWQYe_e5Rx7cIdsAMvG0X_0gX1Z1_g"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jwt.audience_mismatch"
+      }
+    },
+    {
+      "name": "wrong-issuer",
+      "description": "iss differs from the expected issuer.",
+      "input": {
+        "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6IlBpTDQyS1FtNE9tQi1zaVFkX0U4QnJZTnNrRExlbm1HOWtZSHljcEtuYjgiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL2V2aWwuZXhhbXBsZS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.68j5e26AvR0bxt_FcUvnD2qLD9BrjsjsNqYbONqg7Clh_GReeTMp_-pU5nen2fBMEmRzuTW1qIx73pqoGqHeHQ"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jwt.issuer_mismatch"
+      }
+    },
+    {
+      "name": "wrong-typ",
+      "description": "typ is JWT, not at+jwt (access token type confusion).",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.Cz-nKfUILDSnFCr4PtHYbzhokPw4ReqZuWF1djxhInuHDLlXIRTSCutTWBcSdciE_KeSbC2G4dlXkvBYKOz0EAvMQIqXjXDJ6h0aPeslZqK3oxRQQoBr2yoVZ-YIWX7uXLDdVy7MXgcHcPbGcbD_OV6rKLUavipSiom0lzT5TJ8rUgFtsl_mycluMF8Jbb2ioMnVmS7gXtPWg-QcIGTwf-K69IPUDyTzJirjQEFcTTpJm6vOp9TfrGy_krsVCp7QndEZBKZXEQOZ07vjNLWiZp8btwfETs7-iic_Fx-qVf1oel57qY8ToMvdylDUfqs8eCG9HB9HthBPCuYqZpld_Q"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jwt.typ_mismatch"
+      }
+    },
+    {
+      "name": "missing-typ",
+      "description": "No typ header at all.",
+      "input": {
+        "token": "eyJhbGciOiJFZERTQSIsImtpZCI6Ii1zd2dvTjZ1VmRLM0VGY3VNYmp0eGhWWlVHaW42RjVPQVhtUzhuSkFnaVEifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.CpsTZ6GSFY5JMFxeJZO47EuIHtYhPj43WWutiDKiE0pOCxpNgqbTDYdRtq-JWGhFpJ-7K7mrdCdWcyc1pBKlCA"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jwt.typ_mismatch"
+      }
+    },
+    {
+      "name": "missing-exp",
+      "description": "exp claim absent.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJpYXQiOjE3OTIwNTgxMDAsImp0aSI6IjliMmY2YzFlLTRkN2EtNGU1MS04YTMwLTVjMWQyZTdmOWExMCIsImNsaWVudF9pZCI6Im5hcXFhLXdlYiIsInNjb3BlIjoib3BlbmlkIHByb2ZpbGUiLCJyb2xlcyI6WyJhZG1pbiIsImJpbGxpbmciXX0.v1b-VA7x2ovKzFQ_8GterZ2DvDM42C1IqeCVQvb9fG_qgmAs5LrjlJZXJXfCH-JUuT3SXAKkujYlsRXAmGtT4gYc9eIPmPjx_WeaiIbF03N1DkJ_YtXe0Y4ldb72f82xAZt56atWVViEcAe4BnnURKe0PsC2HJK56eFzYDjjyDs2MUs9AQ-YZOOI0feLOG_DhrpTvPtTf1zwYtIvVVOZ2I0JuChEik0BDb4NQVQ-4fGSzZl9pNih6IB2flK0Q-zJY38NF3ONDmA4TCLhzfTETxCHcNil9PIqRPozCDpXzPylxqg2LoWFFjLzTmC7Phz4ZbIYCvB9tk3C3Ti1C2RKcg"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jwt.exp_missing"
+      }
+    },
+    {
+      "name": "alg-none",
+      "description": "alg none with a non-empty signature segment.",
+      "input": {
+        "token": "eyJhbGciOiJub25lIiwia2lkIjoiRUVFdVoxRTV2NS13ak1hZE1ybkpESGRkeUpPclRWN2ZZclp0bk84N3UzVSIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.alg_none"
+      }
+    },
+    {
+      "name": "alg-none-empty-signature",
+      "description": "alg none with the classic empty signature segment.",
+      "input": {
+        "token": "eyJhbGciOiJub25lIiwia2lkIjoiRUVFdVoxRTV2NS13ak1hZE1ybkpESGRkeUpPclRWN2ZZclp0bk84N3UzVSIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ."
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.signature_missing"
+      }
+    },
+    {
+      "name": "alg-none-mixed-case",
+      "description": "alg NoNe, case variants must also be rejected.",
+      "input": {
+        "token": "eyJhbGciOiJOb05lIiwia2lkIjoiRUVFdVoxRTV2NS13ak1hZE1ybkpESGRkeUpPclRWN2ZZclp0bk84N3UzVSIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.alg_none"
+      }
+    },
+    {
+      "name": "alg-switch-hs256-public-key-as-secret",
+      "description": "alg switched to HS256, MAC computed with the public key as secret.",
+      "input": {
+        "token": "eyJhbGciOiJIUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.FOtl-9besc17ZpW1QELrZ4TH5XSVKm6wTmabZGSVfJA"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.alg_mismatch"
+      }
+    },
+    {
+      "name": "alg-switch-rs256-key-claims-es256",
+      "description": "Header says ES256 but kid points at the RS256 key.",
+      "input": {
+        "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.PmIHaBPD-sbpUQ1CWmxeNy5QGIfB6QaBMMVU3T1SF6ioYc2d_OAZHffufPWJQGxANbCaxJr3g6eml-dq0HTiYaeGe5bjd1ZBFlFimXq1y1Ff3i35-ldddb7wpEfLQui0hSum0qY2EEPNMuK9Q7A_MqzH1b3AfntmxF2Z2AMtB38w4gIoS3WyUGEViINIUj2c6g7idA1wslhy1F5rpDfn8hrfHww1p0y--S8Adym8B_9lIgiAQY_l4MDg2WJOW9oaEVkYyE8EtHpGczRRWM1M83syzw9VWITS7CCnMQO5RY1CnnLP_IwoZTzOfWDHCtARCNxC-wwk82QOia_b7RgbLw"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.alg_mismatch"
+      }
+    },
+    {
+      "name": "alg-switch-eddsa-key-claims-rs256",
+      "description": "Header says RS256 but kid points at the Ed25519 key.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ii1zd2dvTjZ1VmRLM0VGY3VNYmp0eGhWWlVHaW42RjVPQVhtUzhuSkFnaVEiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.vd2Ak--tqFBVkSluhBD2JfLR5KnAVWkphxHrO_lyr_6aFzWyXD_F5MApdfE-_0SCYVdNs0T-5H-LhuCmrcs1Cg"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.alg_mismatch"
+      }
+    },
+    {
+      "name": "tampered-payload",
+      "description": "Payload replaced with different claims, original signature kept.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJhZG1pbiIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.mtOy9XHneppJD9hrBIPf3whYz1TM4D6XLWX3t1iIEUugv7rj6UHp8ghArZ6u3G-Z8wpVzOhrgLrVR6kvkPJVT-_PEvYpq07IQWYuzPbPp3Ib1Ace8FrUlPda2XIlTLLeiebii1cipWH7G9BjyIYPgjHm3F8A9QFBo-oyGdNPpzI9zQmiI_4f6PU-NvhIimIsH_OyWxbsBqjE0uqsw0E14ANSCFkSUkGtphiz2Hj87se4ZgmcWd4gFzbU8_yFayzd4nhs4BpLOnA9pkXCMEI2nO7dd0dkFnymI_Vze26cg-l4hoCzRKE1utLnLlzRNNQ_E-LemftxlPLO_8vwf-6Oeg"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.signature_invalid"
+      }
+    },
+    {
+      "name": "tampered-signature",
+      "description": "One character of the signature changed.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.mtOy9XHnepAJD9hrBIPf3whYz1TM4D6XLWX3t1iIEUugv7rj6UHp8ghArZ6u3G-Z8wpVzOhrgLrVR6kvkPJVT-_PEvYpq07IQWYuzPbPp3Ib1Ace8FrUlPda2XIlTLLeiebii1cipWH7G9BjyIYPgjHm3F8A9QFBo-oyGdNPpzI9zQmiI_4f6PU-NvhIimIsH_OyWxbsBqjE0uqsw0E14ANSCFkSUkGtphiz2Hj87se4ZgmcWd4gFzbU8_yFayzd4nhs4BpLOnA9pkXCMEI2nO7dd0dkFnymI_Vze26cg-l4hoCzRKE1utLnLlzRNNQ_E-LemftxlPLO_8vwf-6Oeg"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.signature_invalid"
+      }
+    },
+    {
+      "name": "signature-from-other-key",
+      "description": "Signature produced by the ES256 key but header and kid claim the RS256 key.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.FqZzEjqwOcnJeobj-D-An6EvkevFEBwP4I7y45l5HCMTvGw3bnUf4jcJZoErr2QBLGNTWGbb4qbII-Pflm4oJw"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.signature_invalid"
+      }
+    },
+    {
+      "name": "noncanonical-signature-base64url",
+      "description": "Last signature character changed in its unused bits, same bytes decoded.",
+      "input": {
+        "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6IlBpTDQyS1FtNE9tQi1zaVFkX0U4QnJZTnNrRExlbm1HOWtZSHljcEtuYjgiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.J2eUK_HeEBCXQ_QpXd8qkQlqAXgYBsHQhmnwn-kzhuALQgcj1F4w6PFMfUVPFm9-hTsybTWX2aDwqqlFLorANB"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.bad_base64"
+      }
+    },
+    {
+      "name": "padded-payload-base64url",
+      "description": "Payload segment carries = padding.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ=.mtOy9XHneppJD9hrBIPf3whYz1TM4D6XLWX3t1iIEUugv7rj6UHp8ghArZ6u3G-Z8wpVzOhrgLrVR6kvkPJVT-_PEvYpq07IQWYuzPbPp3Ib1Ace8FrUlPda2XIlTLLeiebii1cipWH7G9BjyIYPgjHm3F8A9QFBo-oyGdNPpzI9zQmiI_4f6PU-NvhIimIsH_OyWxbsBqjE0uqsw0E14ANSCFkSUkGtphiz2Hj87se4ZgmcWd4gFzbU8_yFayzd4nhs4BpLOnA9pkXCMEI2nO7dd0dkFnymI_Vze26cg-l4hoCzRKE1utLnLlzRNNQ_E-LemftxlPLO_8vwf-6Oeg"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.bad_base64"
+      }
+    },
+    {
+      "name": "trailing-whitespace",
+      "description": "Token followed by a newline.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.mtOy9XHneppJD9hrBIPf3whYz1TM4D6XLWX3t1iIEUugv7rj6UHp8ghArZ6u3G-Z8wpVzOhrgLrVR6kvkPJVT-_PEvYpq07IQWYuzPbPp3Ib1Ace8FrUlPda2XIlTLLeiebii1cipWH7G9BjyIYPgjHm3F8A9QFBo-oyGdNPpzI9zQmiI_4f6PU-NvhIimIsH_OyWxbsBqjE0uqsw0E14ANSCFkSUkGtphiz2Hj87se4ZgmcWd4gFzbU8_yFayzd4nhs4BpLOnA9pkXCMEI2nO7dd0dkFnymI_Vze26cg-l4hoCzRKE1utLnLlzRNNQ_E-LemftxlPLO_8vwf-6Oeg\n"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.bad_base64"
+      }
+    },
+    {
+      "name": "unknown-kid",
+      "description": "kid not present in the key set.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Im5vLXN1Y2gta2V5IiwidHlwIjoiYXQrand0In0.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.r055-yqX0dX2iQ1EtZUyLRS8xOOlngMoqSITW4iJdcTKvh8K-MkKd9GNiL-4_R164riYCCwF-9Di-iNovRDKmMglb30a2onhfqliqx3RPv_b2JDd9lWsMWAWmOvoWuWpef9CIr7Zu7Y8XkweNAzLJ6rrpIzM1-DkwRUTgfIwtndhHv52GcUdfg2O_xGhPUiE4tL2Yk8fFYSo5XSUeKyUbWhW0XRE6S2OQwLMDZK-dkSBru71-ceAUA7Gfak7N_W2yTRjc01bSJmacn2ue5e2Rw1ezLOc-o04f7j12WjUUSaPvJWSid-TdM6fT9bN09rlzOS8_oyvaT3w6Y-0tFaOGg"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.kid_unknown"
+      }
+    },
+    {
+      "name": "missing-kid",
+      "description": "No kid header, key lookup is by kid only.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6ImF0K2p3dCJ9.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.RZrWV_vWZ7OKYxt-2XjhldL865-0rp2610wIbb6ByK9IvHXNAL-wtphATAH2GFa6iel_QwCQPlUhAvn-3VDSkBB-TZoND7WFF1VP3i6SL7dqh7IycnQn-mbVrkUNakMYuXozcw6zmaZ07qQBroEZVmgjo5vYq0z8eJr2rdlBxSzJRRo0eqvFoo_gYXpiaHbl2pzWe9hYnvONRdkhAU7uWzzDQxEJmNCZaGWej0VUXLjybxJUzSDomsjjmTQ0ekESecyTM1PAkqouL_qpR_chPfZZlwZltGQISmhUiTin0SF_JQhkj9IsAXUFqxcpNlVtkJLqoWa-OI5yR7wjTIZNPQ"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.kid_missing"
+      }
+    },
+    {
+      "name": "header-crit",
+      "description": "Unsupported crit header.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QiLCJjcml0IjpbImV4cCJdfQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.EeAYSGO6ERn4MW83zBndJgxr16A0hoOceU31i55aI2g8aAsSGQn9nmSIVK8ClAREYseIwYnG40y7vUDdt1BssfD0Xls2Hv1dU3sU-jVokOcq5HREdTY62kzOxnMj9nO_U9WPGwsN2Ys54h5suSqgi5wkZAIxpCNqecx1df-HO-kwaKu9sB4zT2TFVcyJ5Ph2Z0KOwhgBJCn7MTuhS5ciY-DKch6QdBVpNLL77y6BJBEqJfg7RxgpRyjn5wUIExngCSiO2kLKTt1H4YwYaE_ltEZahVr9QZdTpvBWum1ZYj-LgH5hszOmVmo5RafWtLq2xxdGuUUr3xGklRMKoSyhvw"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.crit_unsupported"
+      }
+    },
+    {
+      "name": "header-embedded-jwk",
+      "description": "Embedded jwk header must be rejected.",
+      "input": {
+        "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6IlBpTDQyS1FtNE9tQi1zaVFkX0U4QnJZTnNrRExlbm1HOWtZSHljcEtuYjgiLCJ0eXAiOiJhdCtqd3QiLCJqd2siOnsia3R5IjoiRUMiLCJjcnYiOiJQLTI1NiIsIngiOiJjYzdETy1EWjFPUTByeWNDZGFoUU5KYVg4V2tIelU5eXZzNEdDZjdnTVU0IiwieSI6Ik45VDFjZERteTJBZWc2NWNFbk5nbGtRUk40R1AyTUJDZFdoVkJiWEliLWMiLCJraWQiOiJQaUw0MktRbTRPbUItc2lRZF9FOEJyWU5za0RMZW5tRzlrWUh5Y3BLbmI4IiwiYWxnIjoiRVMyNTYiLCJ1c2UiOiJzaWcifX0.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.GsUE91oBbAUj0t0JvpWdN8fMDTCSyQDZ4Fo19EfaMzEacDtkZ1q2pGOftGHLZ_jnlPMMVgiqYJRX-Zgcax_Law"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.header_forbidden"
+      }
+    },
+    {
+      "name": "header-jku",
+      "description": "jku header must be rejected.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QiLCJqa3UiOiJodHRwczovL2V2aWwuZXhhbXBsZS5jb20vandrcy5qc29uIn0.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.dNmLmy5RFSFw2Hvy1-xHFdwFYxub261ti_xv4AllP5q6760SSzI1XsHkidI_uMrcRKAlGFc6GzX8PpHu2eD1XTmNx8RyVwy7_bXsfpLeeTG8KqZycfsKNIR-AK5fE_IgU-aeoAcIBxxGlSycIcBRd4lDJl9-CcvMUohD2nN9FeD1WX2otO5vhAbUJGS4KCN4V4CwRlCrZUgo1pVblxN0dhP9ZtRR72yQIOBQqIjSE3K_ol2GgwxxPJzodfwid8ZeYfDhNyUtCHJFFE5d5PVBHHNJFb-vzKyJL78hVIhiNVMxYo8dy8X2kcpjvepBOTHes87_ZyL-hKKkLfOnZwLtug"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.header_forbidden"
+      }
+    },
+    {
+      "name": "malformed-two-segments",
+      "description": "Only two segments.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.malformed"
+      }
+    },
+    {
+      "name": "malformed-four-segments",
+      "description": "Four segments.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ.mtOy9XHneppJD9hrBIPf3whYz1TM4D6XLWX3t1iIEUugv7rj6UHp8ghArZ6u3G-Z8wpVzOhrgLrVR6kvkPJVT-_PEvYpq07IQWYuzPbPp3Ib1Ace8FrUlPda2XIlTLLeiebii1cipWH7G9BjyIYPgjHm3F8A9QFBo-oyGdNPpzI9zQmiI_4f6PU-NvhIimIsH_OyWxbsBqjE0uqsw0E14ANSCFkSUkGtphiz2Hj87se4ZgmcWd4gFzbU8_yFayzd4nhs4BpLOnA9pkXCMEI2nO7dd0dkFnymI_Vze26cg-l4hoCzRKE1utLnLlzRNNQ_E-LemftxlPLO_8vwf-6Oeg.AAAA"
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.malformed"
+      }
+    },
+    {
+      "name": "malformed-empty",
+      "description": "Empty string.",
+      "input": {
+        "token": ""
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.malformed"
+      }
+    },
+    {
+      "name": "empty-signature",
+      "description": "Signature segment empty on a real header and payload.",
+      "input": {
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IkVFRXVaMUU1djUtd2pNYWRNcm5KREhkZHlKT3JUVjdmWXJadG5PODd1M1UiLCJ0eXAiOiJhdCtqd3QifQ.eyJpc3MiOiJodHRwczovL3Nzby5uYXFxYS5jb20iLCJzdWIiOiJ1c2VyLTdmM2E5MSIsImF1ZCI6ImFwaS5uYXFxYS5jb20iLCJleHAiOjE3OTIwNTkwMDAsImlhdCI6MTc5MjA1ODEwMCwianRpIjoiOWIyZjZjMWUtNGQ3YS00ZTUxLThhMzAtNWMxZDJlN2Y5YTEwIiwiY2xpZW50X2lkIjoibmFxcWEtd2ViIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSIsInJvbGVzIjpbImFkbWluIiwiYmlsbGluZyJdfQ."
+      },
+      "expected": {
+        "valid": false,
+        "error": "jose.signature_missing"
+      }
+    }
+  ]
+}

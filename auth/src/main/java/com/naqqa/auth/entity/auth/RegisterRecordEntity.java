@@ -21,5 +21,6 @@ public class RegisterRecordEntity {
 
     private String password;
     private String code;
+    private int attempts;
 }
 

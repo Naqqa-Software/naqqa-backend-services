@@ -13,8 +13,16 @@ import java.util.Optional;
 public interface RefreshTokenRepository extends MongoRepository<RefreshTokenEntity, Long> {
     Optional<RefreshTokenEntity> findByToken(String token);
     void deleteByToken(String token);
+
+    RefreshTokenEntity removeByToken(String token);
     
     void deleteByUserAndDeviceId(UserEntity user, String deviceId);
     
     List<RefreshTokenEntity> findByExpiryDateBefore(Instant now);
+
+    List<RefreshTokenEntity> findBySessionId(String sessionId);
+
+    List<RefreshTokenEntity> findByUser(UserEntity user);
+
+    void deleteBySessionId(String sessionId);
 }

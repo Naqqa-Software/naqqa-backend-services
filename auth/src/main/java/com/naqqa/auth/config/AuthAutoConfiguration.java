@@ -2,31 +2,36 @@ package com.naqqa.auth.config;
 
 import com.naqqa.auth.config.auth.EmailMessages;
 import com.naqqa.auth.controller.AuthController;
+import com.naqqa.auth.controller.DefaultAuthController;
 import com.naqqa.auth.persistence.AuthSequenceListener;
 import com.naqqa.auth.persistence.SequenceGenerator;
 import com.naqqa.auth.exceptionhandlers.AuthExceptionHandler;
 import com.naqqa.auth.exceptionhandlers.AuthoritiesExceptionHandler;
 import com.naqqa.auth.exceptionhandlers.GlobalExceptionHandler;
-import com.naqqa.auth.repository.RefreshTokenRepository;
 import com.naqqa.auth.repository.RoleRepository;
-import com.naqqa.auth.repository.UserDeviceRepository;
 import com.naqqa.auth.repository.UserRepository;
 import com.naqqa.auth.repository.redis.PasswordResetRepository;
 import com.naqqa.auth.repository.redis.RegisterRecordRepository;
+import com.naqqa.auth.roles.DefaultRoleProvider;
 import com.naqqa.auth.roles.RoleProvider;
-import com.naqqa.auth.security.JwtService;
 import com.naqqa.auth.service.auth.*;
 import com.naqqa.auth.service.security.CodeGenService;
 import com.naqqa.auth.service.security.DeviceSessionService;
-import com.naqqa.auth.service.security.TokenService;
+import com.naqqa.auth.service.security.AuthAudit;
+import com.naqqa.auth.service.security.AuthSessionIssuer;
+import com.naqqa.auth.service.security.PasswordService;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
-import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.time.Clock;
 
 @AutoConfiguration
+@Import(com.naqqa.auth.sso.SsoStoreConfiguration.class)
 @EnableMongoRepositories(basePackages = "com.naqqa.auth.repository")
 public class AuthAutoConfiguration {
 
@@ -79,9 +84,16 @@ public class AuthAutoConfiguration {
             AuthEmailService authEmailService, 
             EmailMessages emailMessages,
             DeviceSessionService deviceSessionService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            ObjectProvider<SsoLoginHandler> ssoLoginHandler
     ) {
-        return new AuthController(authService, authEmailService, emailMessages, deviceSessionService, userRepository);
+        return new AuthController(authService, authEmailService, emailMessages, deviceSessionService, userRepository, ssoLoginHandler);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(DefaultAuthController.class)
+    public DefaultAuthController defaultAuthController(AuthController authController) {
+        return new DefaultAuthController(authController);
     }
 
     // ----------------------------------------
@@ -89,63 +101,40 @@ public class AuthAutoConfiguration {
     // ----------------------------------------
 
     @Bean
+    @ConditionalOnMissingBean(RoleProvider.class)
+    public RoleProvider defaultRoleProvider() {
+        return new DefaultRoleProvider();
+    }
+
+    @Bean
     @ConditionalOnMissingBean(AuthService.class)
     public AuthService defaultAuthService(
             UserRepository userRepository,
             RoleRepository roleRepository,
-            UserDeviceRepository userDeviceRepository,
-            DeviceSessionService deviceSessionService,
-            PasswordEncoder passwordEncoder,
+            PasswordService passwordService,
             RegisterRecordRepository registerRecordRepository,
             PasswordResetRepository passwordResetRepository,
-            RefreshTokenRepository refreshTokenRepository,
-            JwtService jwtService,
             RoleProvider roleProvider,
-            TokenService tokenService,
             CodeGenService codeGenService,
             AuthEmailService authEmailService,
-            EmailMessages emailMessages
+            EmailMessages emailMessages,
+            AuthSessionIssuer authSessionIssuer,
+            Clock clock,
+            ObjectProvider<AuthAudit> authAudit
     ) {
         return new DefaultAuthService(
                 userRepository,
                 roleRepository,
-                userDeviceRepository,
-                deviceSessionService,
-                passwordEncoder,
+                passwordService,
                 registerRecordRepository,
                 passwordResetRepository,
-                refreshTokenRepository,
-                jwtService,
                 roleProvider,
-                tokenService,
                 codeGenService,
                 authEmailService,
-                emailMessages
+                emailMessages,
+                authSessionIssuer,
+                clock,
+                authAudit.getIfAvailable()
         );
     }
-
-
-//    @Bean
-//    @ConditionalOnMissingBean(TokenService.class)
-//    public TokenService defaultTokenService(JwtService jwtService) {
-//        return new DefaultTokenService(jwtService);
-//    }
-//
-//    @Bean
-//    @ConditionalOnMissingBean(CodeGenService.class)
-//    public CodeGenService defaultCodeGenService() {
-//        return new DefaultCodeGenService();
-//    }
-//
-//    @Bean
-//    @ConditionalOnMissingBean(AuthEmailService.class)
-//    public AuthEmailService defaultAuthEmailService() {
-//        return new DefaultAuthEmailService();
-//    }
-//
-//    @Bean
-//    @ConditionalOnMissingBean(RoleProvider.class)
-//    public RoleProvider defaultRoleProvider() {
-//        return new DefaultRoleProvider();
-//    }
 }

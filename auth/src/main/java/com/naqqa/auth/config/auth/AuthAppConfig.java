@@ -10,8 +10,7 @@
         import org.springframework.context.annotation.Bean;
         import org.springframework.context.annotation.Configuration;
         import org.springframework.core.annotation.Order;
-        import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-        import org.springframework.security.crypto.password.PasswordEncoder;
+        import com.naqqa.auth.service.security.PasswordService;
 
         import java.util.Collections;
         import java.util.Optional;
@@ -28,16 +27,11 @@
 
             private final UserRepository userRepository;
             private final RoleRepository roleRepository;
-
-            @Bean
-            public PasswordEncoder adminPasswordEncoder() {
-                return new BCryptPasswordEncoder();
-            }
+            private final PasswordService passwordService;
 
             @Bean
             @Order(2)
             public ApplicationRunner applicationRunner() {
-                PasswordEncoder encoder = adminPasswordEncoder();
 
                 return args -> {
                     final String ADMIN_ROLE_NAME = "ADMIN";
@@ -60,7 +54,7 @@
                         UserEntity admin = UserEntity.builder()
                                 .fullName("APP ADMIN")
                                 .email(user_email)
-                                .password(encoder.encode(user_password))
+                                .password(passwordService.hash(user_password))
                                 .roles(Collections.singleton(adminRole))
                                 .build();
                         userRepository.save(admin);

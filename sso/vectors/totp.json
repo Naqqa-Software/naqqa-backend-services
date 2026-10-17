@@ -1,0 +1,980 @@
+{
+  "description": "RFC 6238 vectors, TOTP verification windows and replay, otpauth URIs and Base32 (RFC 4648).",
+  "version": 1,
+  "generate": [
+    {
+      "name": "rfc6238-sha1-59",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 59
+      },
+      "expected": {
+        "code": "94287082",
+        "step": 1
+      }
+    },
+    {
+      "name": "rfc6238-sha1-1111111109",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 1111111109
+      },
+      "expected": {
+        "code": "07081804",
+        "step": 37037036
+      }
+    },
+    {
+      "name": "rfc6238-sha1-1111111111",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 1111111111
+      },
+      "expected": {
+        "code": "14050471",
+        "step": 37037037
+      }
+    },
+    {
+      "name": "rfc6238-sha1-1234567890",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 1234567890
+      },
+      "expected": {
+        "code": "89005924",
+        "step": 41152263
+      }
+    },
+    {
+      "name": "rfc6238-sha1-2000000000",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 2000000000
+      },
+      "expected": {
+        "code": "69279037",
+        "step": 66666666
+      }
+    },
+    {
+      "name": "rfc6238-sha1-20000000000",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 20000000000
+      },
+      "expected": {
+        "code": "65353130",
+        "step": 666666666
+      }
+    },
+    {
+      "name": "rfc6238-sha256-59",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930313233343536373839303132",
+        "algorithm": "SHA256",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 59
+      },
+      "expected": {
+        "code": "46119246",
+        "step": 1
+      }
+    },
+    {
+      "name": "rfc6238-sha256-1111111109",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930313233343536373839303132",
+        "algorithm": "SHA256",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 1111111109
+      },
+      "expected": {
+        "code": "68084774",
+        "step": 37037036
+      }
+    },
+    {
+      "name": "rfc6238-sha256-1111111111",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930313233343536373839303132",
+        "algorithm": "SHA256",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 1111111111
+      },
+      "expected": {
+        "code": "67062674",
+        "step": 37037037
+      }
+    },
+    {
+      "name": "rfc6238-sha256-1234567890",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930313233343536373839303132",
+        "algorithm": "SHA256",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 1234567890
+      },
+      "expected": {
+        "code": "91819424",
+        "step": 41152263
+      }
+    },
+    {
+      "name": "rfc6238-sha256-2000000000",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930313233343536373839303132",
+        "algorithm": "SHA256",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 2000000000
+      },
+      "expected": {
+        "code": "90698825",
+        "step": 66666666
+      }
+    },
+    {
+      "name": "rfc6238-sha256-20000000000",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930313233343536373839303132",
+        "algorithm": "SHA256",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 20000000000
+      },
+      "expected": {
+        "code": "77737706",
+        "step": 666666666
+      }
+    },
+    {
+      "name": "rfc6238-sha512-59",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "31323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334",
+        "algorithm": "SHA512",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 59
+      },
+      "expected": {
+        "code": "90693936",
+        "step": 1
+      }
+    },
+    {
+      "name": "rfc6238-sha512-1111111109",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "31323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334",
+        "algorithm": "SHA512",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 1111111109
+      },
+      "expected": {
+        "code": "25091201",
+        "step": 37037036
+      }
+    },
+    {
+      "name": "rfc6238-sha512-1111111111",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "31323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334",
+        "algorithm": "SHA512",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 1111111111
+      },
+      "expected": {
+        "code": "99943326",
+        "step": 37037037
+      }
+    },
+    {
+      "name": "rfc6238-sha512-1234567890",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "31323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334",
+        "algorithm": "SHA512",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 1234567890
+      },
+      "expected": {
+        "code": "93441116",
+        "step": 41152263
+      }
+    },
+    {
+      "name": "rfc6238-sha512-2000000000",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "31323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334",
+        "algorithm": "SHA512",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 2000000000
+      },
+      "expected": {
+        "code": "38618901",
+        "step": 66666666
+      }
+    },
+    {
+      "name": "rfc6238-sha512-20000000000",
+      "description": "RFC 6238 appendix B, 8 digits, 30 second step.",
+      "input": {
+        "secretHex": "31323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334",
+        "algorithm": "SHA512",
+        "digits": 8,
+        "period": 30,
+        "epochSeconds": 20000000000
+      },
+      "expected": {
+        "code": "47863826",
+        "step": 666666666
+      }
+    },
+    {
+      "name": "default-sha1-6-59",
+      "description": "Authenticator app defaults: SHA1, 6 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "epochSeconds": 59
+      },
+      "expected": {
+        "code": "287082",
+        "step": 1
+      }
+    },
+    {
+      "name": "default-sha1-6-1234567890",
+      "description": "Authenticator app defaults: SHA1, 6 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "epochSeconds": 1234567890
+      },
+      "expected": {
+        "code": "005924",
+        "step": 41152263
+      }
+    },
+    {
+      "name": "default-sha1-6-2000000000",
+      "description": "Authenticator app defaults: SHA1, 6 digits, 30 second step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "epochSeconds": 2000000000
+      },
+      "expected": {
+        "code": "279037",
+        "step": 66666666
+      }
+    },
+    {
+      "name": "sha256-7-digits-60s",
+      "description": "Non default digits and period.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930313233343536373839303132",
+        "algorithm": "SHA256",
+        "digits": 7,
+        "period": 60,
+        "epochSeconds": 1234567890
+      },
+      "expected": {
+        "code": "6450756",
+        "step": 20576131
+      }
+    }
+  ],
+  "verify": [
+    {
+      "name": "current-code",
+      "description": "Code of the current step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 1,
+        "nowEpochSeconds": 1760522400,
+        "code": "285532",
+        "lastAcceptedStep": null
+      },
+      "expected": {
+        "valid": true,
+        "step": 58684080
+      }
+    },
+    {
+      "name": "previous-step-in-window",
+      "description": "Code of the previous step, window is 1.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 1,
+        "nowEpochSeconds": 1760522400,
+        "code": "465773",
+        "lastAcceptedStep": null
+      },
+      "expected": {
+        "valid": true,
+        "step": 58684079
+      }
+    },
+    {
+      "name": "next-step-in-window",
+      "description": "Code of the next step, window is 1.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 1,
+        "nowEpochSeconds": 1760522400,
+        "code": "284041",
+        "lastAcceptedStep": null
+      },
+      "expected": {
+        "valid": true,
+        "step": 58684081
+      }
+    },
+    {
+      "name": "two-steps-back-outside-window",
+      "description": "Code two steps old is outside window 1.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 1,
+        "nowEpochSeconds": 1760522400,
+        "code": "840485",
+        "lastAcceptedStep": null
+      },
+      "expected": {
+        "valid": false,
+        "step": -1
+      }
+    },
+    {
+      "name": "two-steps-ahead-outside-window",
+      "description": "Code two steps ahead is outside window 1.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 1,
+        "nowEpochSeconds": 1760522400,
+        "code": "858138",
+        "lastAcceptedStep": null
+      },
+      "expected": {
+        "valid": false,
+        "step": -1
+      }
+    },
+    {
+      "name": "replay-of-accepted-step",
+      "description": "The same step was already accepted, so the code is refused.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 1,
+        "nowEpochSeconds": 1760522400,
+        "code": "285532",
+        "lastAcceptedStep": 58684080
+      },
+      "expected": {
+        "valid": false,
+        "step": -1
+      }
+    },
+    {
+      "name": "newer-than-last-accepted",
+      "description": "Last accepted step is older than the code step, accepted.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 1,
+        "nowEpochSeconds": 1760522400,
+        "code": "285532",
+        "lastAcceptedStep": 58684079
+      },
+      "expected": {
+        "valid": true,
+        "step": 58684080
+      }
+    },
+    {
+      "name": "wrong-length",
+      "description": "Five digit code for a six digit config.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 1,
+        "nowEpochSeconds": 1760522400,
+        "code": "85532",
+        "lastAcceptedStep": null
+      },
+      "expected": {
+        "valid": false,
+        "step": -1
+      }
+    },
+    {
+      "name": "non-digit",
+      "description": "Code with a letter.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 1,
+        "nowEpochSeconds": 1760522400,
+        "code": "12345a",
+        "lastAcceptedStep": null
+      },
+      "expected": {
+        "valid": false,
+        "step": -1
+      }
+    },
+    {
+      "name": "window-zero-previous-step",
+      "description": "Window 0 accepts only the current step.",
+      "input": {
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "window": 0,
+        "nowEpochSeconds": 1760522400,
+        "code": "465773",
+        "lastAcceptedStep": null
+      },
+      "expected": {
+        "valid": false,
+        "step": -1
+      }
+    }
+  ],
+  "otpauth": [
+    {
+      "name": "totp-basic",
+      "description": "Defaults, plain issuer and account.",
+      "input": {
+        "type": "totp",
+        "issuer": "Naqqa",
+        "account": "alex@naqqa.com",
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30
+      },
+      "expected": {
+        "ok": true,
+        "uri": "otpauth://totp/Naqqa:alex%40naqqa.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Naqqa&algorithm=SHA1&digits=6&period=30"
+      }
+    },
+    {
+      "name": "totp-space-in-issuer",
+      "description": "Space is encoded as %20, never +.",
+      "input": {
+        "type": "totp",
+        "issuer": "Naqqa Cloud",
+        "account": "alex@naqqa.com",
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30
+      },
+      "expected": {
+        "ok": true,
+        "uri": "otpauth://totp/Naqqa%20Cloud:alex%40naqqa.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Naqqa%20Cloud&algorithm=SHA1&digits=6&period=30"
+      }
+    },
+    {
+      "name": "totp-plus-and-at-in-account",
+      "description": "Plus and at sign in the account.",
+      "input": {
+        "type": "totp",
+        "issuer": "Naqqa",
+        "account": "alex+test@naqqa.com",
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30
+      },
+      "expected": {
+        "ok": true,
+        "uri": "otpauth://totp/Naqqa:alex%2Btest%40naqqa.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Naqqa&algorithm=SHA1&digits=6&period=30"
+      }
+    },
+    {
+      "name": "totp-unicode-account",
+      "description": "Non ASCII account is UTF-8 percent encoded.",
+      "input": {
+        "type": "totp",
+        "issuer": "Naqqa",
+        "account": "\u0219tefan@naqqa.com",
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30
+      },
+      "expected": {
+        "ok": true,
+        "uri": "otpauth://totp/Naqqa:%C8%99tefan%40naqqa.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Naqqa&algorithm=SHA1&digits=6&period=30"
+      }
+    },
+    {
+      "name": "totp-sha256-8-60",
+      "description": "SHA256, 8 digits, 60 second period.",
+      "input": {
+        "type": "totp",
+        "issuer": "Naqqa",
+        "account": "alex@naqqa.com",
+        "secretHex": "3132333435363738393031323334353637383930313233343536373839303132",
+        "algorithm": "SHA256",
+        "digits": 8,
+        "period": 60
+      },
+      "expected": {
+        "ok": true,
+        "uri": "otpauth://totp/Naqqa:alex%40naqqa.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA&issuer=Naqqa&algorithm=SHA256&digits=8&period=60"
+      }
+    },
+    {
+      "name": "totp-sha512",
+      "description": "SHA512 with a 64 byte secret.",
+      "input": {
+        "type": "totp",
+        "issuer": "Naqqa",
+        "account": "alex@naqqa.com",
+        "secretHex": "31323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334",
+        "algorithm": "SHA512",
+        "digits": 6,
+        "period": 30
+      },
+      "expected": {
+        "ok": true,
+        "uri": "otpauth://totp/Naqqa:alex%40naqqa.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA&issuer=Naqqa&algorithm=SHA512&digits=6&period=30"
+      }
+    },
+    {
+      "name": "hotp-counter",
+      "description": "HOTP uri with counter 5.",
+      "input": {
+        "type": "hotp",
+        "issuer": "Naqqa",
+        "account": "alex@naqqa.com",
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "counter": 5
+      },
+      "expected": {
+        "ok": true,
+        "uri": "otpauth://hotp/Naqqa:alex%40naqqa.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Naqqa&algorithm=SHA1&digits=6&counter=5"
+      }
+    },
+    {
+      "name": "reject-colon-in-issuer",
+      "description": "Issuer must not contain a colon.",
+      "input": {
+        "type": "totp",
+        "issuer": "Na:qqa",
+        "account": "alex@naqqa.com",
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30
+      },
+      "expected": {
+        "ok": false,
+        "error": "otpauth_invalid"
+      }
+    },
+    {
+      "name": "reject-empty-account",
+      "description": "Account must not be empty.",
+      "input": {
+        "type": "totp",
+        "issuer": "Naqqa",
+        "account": "",
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30
+      },
+      "expected": {
+        "ok": false,
+        "error": "otpauth_invalid"
+      }
+    },
+    {
+      "name": "reject-empty-issuer",
+      "description": "Issuer must not be empty.",
+      "input": {
+        "type": "totp",
+        "issuer": "",
+        "account": "alex@naqqa.com",
+        "secretHex": "3132333435363738393031323334353637383930",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30
+      },
+      "expected": {
+        "ok": false,
+        "error": "otpauth_invalid"
+      }
+    }
+  ],
+  "base32": [
+    {
+      "name": "rfc4648-encode-empty",
+      "description": "RFC 4648 section 10, no padding (as used in otpauth).",
+      "input": {
+        "op": "encode",
+        "dataHex": "",
+        "padding": false
+      },
+      "expected": {
+        "text": ""
+      }
+    },
+    {
+      "name": "rfc4648-encode-padded-empty",
+      "description": "RFC 4648 section 10, with padding.",
+      "input": {
+        "op": "encode",
+        "dataHex": "",
+        "padding": true
+      },
+      "expected": {
+        "text": ""
+      }
+    },
+    {
+      "name": "rfc4648-encode-f",
+      "description": "RFC 4648 section 10, no padding (as used in otpauth).",
+      "input": {
+        "op": "encode",
+        "dataHex": "66",
+        "padding": false
+      },
+      "expected": {
+        "text": "MY"
+      }
+    },
+    {
+      "name": "rfc4648-encode-padded-f",
+      "description": "RFC 4648 section 10, with padding.",
+      "input": {
+        "op": "encode",
+        "dataHex": "66",
+        "padding": true
+      },
+      "expected": {
+        "text": "MY======"
+      }
+    },
+    {
+      "name": "rfc4648-encode-fo",
+      "description": "RFC 4648 section 10, no padding (as used in otpauth).",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f",
+        "padding": false
+      },
+      "expected": {
+        "text": "MZXQ"
+      }
+    },
+    {
+      "name": "rfc4648-encode-padded-fo",
+      "description": "RFC 4648 section 10, with padding.",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f",
+        "padding": true
+      },
+      "expected": {
+        "text": "MZXQ===="
+      }
+    },
+    {
+      "name": "rfc4648-encode-foo",
+      "description": "RFC 4648 section 10, no padding (as used in otpauth).",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f6f",
+        "padding": false
+      },
+      "expected": {
+        "text": "MZXW6"
+      }
+    },
+    {
+      "name": "rfc4648-encode-padded-foo",
+      "description": "RFC 4648 section 10, with padding.",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f6f",
+        "padding": true
+      },
+      "expected": {
+        "text": "MZXW6==="
+      }
+    },
+    {
+      "name": "rfc4648-encode-foob",
+      "description": "RFC 4648 section 10, no padding (as used in otpauth).",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f6f62",
+        "padding": false
+      },
+      "expected": {
+        "text": "MZXW6YQ"
+      }
+    },
+    {
+      "name": "rfc4648-encode-padded-foob",
+      "description": "RFC 4648 section 10, with padding.",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f6f62",
+        "padding": true
+      },
+      "expected": {
+        "text": "MZXW6YQ="
+      }
+    },
+    {
+      "name": "rfc4648-encode-fooba",
+      "description": "RFC 4648 section 10, no padding (as used in otpauth).",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f6f6261",
+        "padding": false
+      },
+      "expected": {
+        "text": "MZXW6YTB"
+      }
+    },
+    {
+      "name": "rfc4648-encode-padded-fooba",
+      "description": "RFC 4648 section 10, with padding.",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f6f6261",
+        "padding": true
+      },
+      "expected": {
+        "text": "MZXW6YTB"
+      }
+    },
+    {
+      "name": "rfc4648-encode-foobar",
+      "description": "RFC 4648 section 10, no padding (as used in otpauth).",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f6f626172",
+        "padding": false
+      },
+      "expected": {
+        "text": "MZXW6YTBOI"
+      }
+    },
+    {
+      "name": "rfc4648-encode-padded-foobar",
+      "description": "RFC 4648 section 10, with padding.",
+      "input": {
+        "op": "encode",
+        "dataHex": "666f6f626172",
+        "padding": true
+      },
+      "expected": {
+        "text": "MZXW6YTBOI======"
+      }
+    },
+    {
+      "name": "decode-unpadded",
+      "description": "Unpadded input is accepted.",
+      "input": {
+        "op": "decode",
+        "text": "MZXW6YTBOI"
+      },
+      "expected": {
+        "ok": true,
+        "dataHex": "666f6f626172"
+      }
+    },
+    {
+      "name": "decode-padded",
+      "description": "Padded input is accepted.",
+      "input": {
+        "op": "decode",
+        "text": "MZXW6YTBOI======"
+      },
+      "expected": {
+        "ok": true,
+        "dataHex": "666f6f626172"
+      }
+    },
+    {
+      "name": "decode-secret",
+      "description": "Base32 of the RFC 6238 SHA1 secret.",
+      "input": {
+        "op": "decode",
+        "text": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+      },
+      "expected": {
+        "ok": true,
+        "dataHex": "3132333435363738393031323334353637383930"
+      }
+    },
+    {
+      "name": "reject-lowercase",
+      "description": "Lowercase is rejected.",
+      "input": {
+        "op": "decode",
+        "text": "mzxw6ytboi"
+      },
+      "expected": {
+        "ok": false,
+        "error": "base32_invalid"
+      }
+    },
+    {
+      "name": "reject-space",
+      "description": "Embedded space is rejected.",
+      "input": {
+        "op": "decode",
+        "text": "MZXW 6YTB"
+      },
+      "expected": {
+        "ok": false,
+        "error": "base32_invalid"
+      }
+    },
+    {
+      "name": "reject-digit-1",
+      "description": "1 is not in the alphabet.",
+      "input": {
+        "op": "decode",
+        "text": "MZXW1YTB"
+      },
+      "expected": {
+        "ok": false,
+        "error": "base32_invalid"
+      }
+    },
+    {
+      "name": "reject-bad-padding-count",
+      "description": "Wrong amount of padding.",
+      "input": {
+        "op": "decode",
+        "text": "MZXW6YTBOI====="
+      },
+      "expected": {
+        "ok": false,
+        "error": "base32_invalid"
+      }
+    },
+    {
+      "name": "reject-impossible-length",
+      "description": "A single character cannot encode a byte.",
+      "input": {
+        "op": "decode",
+        "text": "A"
+      },
+      "expected": {
+        "ok": false,
+        "error": "base32_invalid"
+      }
+    },
+    {
+      "name": "reject-nonzero-trailing-bits",
+      "description": "Trailing bits must be zero (f encodes as MY).",
+      "input": {
+        "op": "decode",
+        "text": "MZ"
+      },
+      "expected": {
+        "ok": false,
+        "error": "base32_invalid"
+      }
+    },
+    {
+      "name": "reject-padding-in-middle",
+      "description": "Padding only at the end.",
+      "input": {
+        "op": "decode",
+        "text": "MZXW=YTB"
+      },
+      "expected": {
+        "ok": false,
+        "error": "base32_invalid"
+      }
+    }
+  ]
+}

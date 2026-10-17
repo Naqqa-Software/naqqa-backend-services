@@ -41,6 +41,17 @@ public class CookieUtils {
         response.addHeader("Set-Cookie", headerValue);
     }
 
+    public static boolean isSecure() {
+        return isSecure;
+    }
+
+    public static void setClientCookie(HttpServletResponse response, String name, String value, int maxAgeSeconds, boolean httpOnly) {
+        String secureFlag = isSecure ? "; Secure" : "";
+        String httpOnlyFlag = httpOnly ? "; HttpOnly" : "";
+        response.addHeader("Set-Cookie", String.format("%s=%s; Max-Age=%d%s%s; SameSite=Lax; Path=/",
+                name, value, maxAgeSeconds, httpOnlyFlag, secureFlag));
+    }
+
     public static void clearCookie(HttpServletResponse response, String name) {
         Cookie cookie = new Cookie(name, null);
         cookie.setHttpOnly(true);

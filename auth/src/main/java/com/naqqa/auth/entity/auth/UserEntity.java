@@ -51,6 +51,11 @@ public class UserEntity {
     @Builder.Default
     private boolean enabled = true;
 
+    private boolean emailVerified;
+
+    @Indexed(sparse = true)
+    private String phoneNumber;
+
     private String googleId;
     private String facebookId;
     private String appleId;

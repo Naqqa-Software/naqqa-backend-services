@@ -1,0 +1,189 @@
+{
+  "description": "PKCE S256: challenge = base64url(SHA-256(ASCII(verifier))), no padding. Verifier is 43 to 128 unreserved characters.",
+  "version": 1,
+  "method": "S256",
+  "cases": [
+    {
+      "name": "rfc7636-appendix-b",
+      "description": "RFC 7636 appendix B example.",
+      "input": {
+        "verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+      },
+      "expected": {
+        "verifierValid": true,
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        "challengeWellFormed": true,
+        "verifies": true
+      }
+    },
+    {
+      "name": "min-length-43",
+      "description": "Shortest allowed verifier (43 characters).",
+      "input": {
+        "verifier": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP",
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+      },
+      "expected": {
+        "verifierValid": false,
+        "challenge": null,
+        "challengeWellFormed": true,
+        "verifies": false
+      }
+    },
+    {
+      "name": "all-unreserved-characters",
+      "description": "Verifier using every unreserved character class.",
+      "input": {
+        "verifier": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~ABCDEFGHIJKLMNOPQRST",
+        "challenge": "Wb6lX2brUCm6p92g8pH60ovyp1ny5piFgL85_xCkIcc"
+      },
+      "expected": {
+        "verifierValid": true,
+        "challenge": "Wb6lX2brUCm6p92g8pH60ovyp1ny5piFgL85_xCkIcc",
+        "challengeWellFormed": true,
+        "verifies": true
+      }
+    },
+    {
+      "name": "max-length-128",
+      "description": "Longest allowed verifier (128 characters).",
+      "input": {
+        "verifier": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAb1-._~b1-._~b1-._~b1-._~b1-._~b1-._~b1-._~b1-._~b1-._~b1-._~xxxx",
+        "challenge": "pCK3RWFsSo8lMMhbOD1sF8hX-KapsoxpMNOKpdP2M98"
+      },
+      "expected": {
+        "verifierValid": true,
+        "challenge": "pCK3RWFsSo8lMMhbOD1sF8hX-KapsoxpMNOKpdP2M98",
+        "challengeWellFormed": true,
+        "verifies": true
+      }
+    },
+    {
+      "name": "too-short-42",
+      "description": "42 characters is rejected.",
+      "input": {
+        "verifier": "bcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP",
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+      },
+      "expected": {
+        "verifierValid": false,
+        "challenge": null,
+        "challengeWellFormed": true,
+        "verifies": false
+      }
+    },
+    {
+      "name": "too-long-129",
+      "description": "129 characters is rejected.",
+      "input": {
+        "verifier": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAb1-._~b1-._~b1-._~b1-._~b1-._~b1-._~b1-._~b1-._~b1-._~b1-._~xxxxA",
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+      },
+      "expected": {
+        "verifierValid": false,
+        "challenge": null,
+        "challengeWellFormed": true,
+        "verifies": false
+      }
+    },
+    {
+      "name": "illegal-plus",
+      "description": "Plus is not an unreserved character.",
+      "input": {
+        "verifier": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP+",
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+      },
+      "expected": {
+        "verifierValid": false,
+        "challenge": null,
+        "challengeWellFormed": true,
+        "verifies": false
+      }
+    },
+    {
+      "name": "illegal-space",
+      "description": "Space is rejected.",
+      "input": {
+        "verifier": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP ",
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+      },
+      "expected": {
+        "verifierValid": false,
+        "challenge": null,
+        "challengeWellFormed": true,
+        "verifies": false
+      }
+    },
+    {
+      "name": "illegal-non-ascii",
+      "description": "Non ASCII character is rejected.",
+      "input": {
+        "verifier": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP\u00e9",
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+      },
+      "expected": {
+        "verifierValid": false,
+        "challenge": null,
+        "challengeWellFormed": true,
+        "verifies": false
+      }
+    },
+    {
+      "name": "empty",
+      "description": "Empty verifier.",
+      "input": {
+        "verifier": "",
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+      },
+      "expected": {
+        "verifierValid": false,
+        "challenge": null,
+        "challengeWellFormed": true,
+        "verifies": false
+      }
+    },
+    {
+      "name": "wrong-challenge",
+      "description": "Valid verifier, challenge of another verifier.",
+      "input": {
+        "verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+        "challenge": "EAXuMHl94LJ50WpqVBo0jrVt_urHZMCh_KSKX5Mp7xA"
+      },
+      "expected": {
+        "verifierValid": true,
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        "challengeWellFormed": true,
+        "verifies": false
+      }
+    },
+    {
+      "name": "padded-challenge",
+      "description": "Challenge with = padding does not verify.",
+      "input": {
+        "verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM="
+      },
+      "expected": {
+        "verifierValid": true,
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        "challengeWellFormed": false,
+        "verifies": false
+      }
+    },
+    {
+      "name": "plain-method-not-supported",
+      "description": "plain: the challenge equal to the verifier is rejected (S256 only).",
+      "input": {
+        "verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+        "challenge": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+      },
+      "expected": {
+        "verifierValid": true,
+        "challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        "challengeWellFormed": true,
+        "verifies": false
+      }
+    }
+  ]
+}

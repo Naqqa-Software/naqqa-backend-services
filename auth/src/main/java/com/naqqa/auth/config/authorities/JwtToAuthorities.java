@@ -1,35 +1,34 @@
 package com.naqqa.auth.config.authorities;
 
+import com.naqqa.auth.security.AuthPrincipal;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
-/**
- * Converts a JWT object into a collection of Spring Security GrantedAuthority objects.
- * Assumes the JWT contains a claim named 'authorities' which is a list of strings
- * corresponding to your seeded authorities (e.g., "user:read_all").
- */
-public class JwtToAuthorities implements Converter<Jwt, Collection<GrantedAuthority>> {
+public class JwtToAuthorities implements Converter<AuthPrincipal, Collection<GrantedAuthority>> {
 
-    public static final String AUTHORITY_CLAIM_NAME = "authorities"; // Check your JWT claim name
+    public static final String AUTHORITY_CLAIM_NAME = "authorities";
 
     @Override
-    public Collection<GrantedAuthority> convert(Jwt jwt) {
-        Object authoritiesClaim = jwt.getClaims().get(AUTHORITY_CLAIM_NAME);
+    public Collection<GrantedAuthority> convert(AuthPrincipal principal) {
+        return fromClaims(principal.getClaims());
+    }
 
+    public static Collection<GrantedAuthority> fromClaims(Map<String, Object> claims) {
+        Object authoritiesClaim = claims.get(AUTHORITY_CLAIM_NAME);
+        List<GrantedAuthority> out = new ArrayList<>();
         if (authoritiesClaim instanceof List<?> authoritiesList) {
-            return authoritiesList.stream()
-                    .filter(String.class::isInstance)
-                    .map(authority -> new SimpleGrantedAuthority((String) authority))
-                    .collect(Collectors.toList());
+            for (Object authority : authoritiesList) {
+                if (authority instanceof String s) {
+                    out.add(new SimpleGrantedAuthority(s));
+                }
+            }
         }
-
-        return Collections.emptyList();
+        return out;
     }
 }

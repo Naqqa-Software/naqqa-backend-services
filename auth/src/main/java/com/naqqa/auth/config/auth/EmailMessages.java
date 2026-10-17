@@ -4,6 +4,9 @@ import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 @Getter
 @Component
 public class EmailMessages {
@@ -49,7 +52,8 @@ public class EmailMessages {
     }
 
     public String getResetPasswordEmailMessage(String email, String uuid) {
-        String resetButtonUrl = appUrl + "/auth/change-password?uuid=" + uuid + "&email=" + email;
+        String resetButtonUrl = escape(appUrl + "/auth/change-password?uuid=" + URLEncoder.encode(uuid, StandardCharsets.UTF_8)
+                + "&email=" + URLEncoder.encode(email, StandardCharsets.UTF_8));
 
         return """
                 <h1 style='color: %s;'>Reset Your Password</h1>
@@ -70,6 +74,10 @@ public class EmailMessages {
                 <p>If you didn't request this, you can safely ignore this email.</p>
                 <p>Thank you,<br>The %s Team</p>
                 """.formatted(primaryColor, resetButtonUrl, primaryColor, platformName);
+    }
+
+    static String escape(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&#39;").replace("\"", "&quot;");
     }
 
     public String getSubjectEmailConfirmation() {

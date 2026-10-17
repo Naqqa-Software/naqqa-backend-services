@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.List;
 
 @Document(collection = "refresh_tokens")
 @Getter
@@ -32,4 +33,18 @@ public class RefreshTokenEntity {
     private RoleEntity activeRole;
 
     private Instant expiryDate;
+
+    private String sessionId;
+
+    private String clientId;
+
+    private String clientType;
+
+    private List<String> amr;
+
+    private String acr;
+
+    private Instant authTime;
+
+    private boolean rememberMe;
 }

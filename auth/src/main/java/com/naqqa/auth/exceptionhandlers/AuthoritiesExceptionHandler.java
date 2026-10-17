@@ -13,7 +13,7 @@ import org.springframework.core.annotation.Order;
 
 @Slf4j
 @RestControllerAdvice
-@Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
+@Order(org.springframework.core.Ordered.LOWEST_PRECEDENCE)
 public class AuthoritiesExceptionHandler {
 
     // ----------------------------
@@ -109,8 +109,21 @@ public class AuthoritiesExceptionHandler {
     // ----------------------------
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<AuthErrorResponse> handleGeneric(Exception ex) {
-        log.error("Unhandled exception: ", ex);
+    public ResponseEntity<AuthErrorResponse> handleGeneric(Exception ex) throws Exception {
+        if (ex instanceof org.springframework.security.access.AccessDeniedException
+                || ex instanceof org.springframework.security.core.AuthenticationException) {
+            throw ex;
+        }
+        if (ex instanceof org.springframework.web.ErrorResponse errorResponse) {
+            return ResponseEntity
+                    .status(errorResponse.getStatusCode())
+                    .body(new AuthErrorResponse(AuthoritiesErrors.INTERNAL_ERROR, null));
+        }
+        if (ex instanceof org.springframework.dao.DataAccessException || ex instanceof com.mongodb.MongoException) {
+            log.error("Unhandled exception: {}", ex.getClass().getName());
+        } else {
+            log.error("Unhandled exception: ", ex);
+        }
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new AuthErrorResponse(

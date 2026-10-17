@@ -1,13 +1,8 @@
 package com.naqqa.auth.roles;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.stereotype.Component;
-
 import java.util.Collection;
 import java.util.List;
 
-@Component
-@ConditionalOnMissingBean(RoleProvider.class)
 public class DefaultRoleProvider implements RoleProvider {
     @Override
     public Collection<String> getRoles() {

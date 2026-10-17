@@ -5,6 +5,7 @@ import com.naqqa.auth.dto.admin.UserRoleUpdateRequest;
 import com.naqqa.auth.dto.admin.AdminUserResponse;
 import com.naqqa.auth.service.admin.AdminUserService;
 import lombok.AllArgsConstructor;
+import com.naqqa.auth.security.RequiresStepUp;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +20,7 @@ public class AdminUserController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('users:create')")
+    @RequiresStepUp
     public AdminUserResponse createUser(@RequestBody CreateUserRequest request) {
         return adminUserService.createUser(request);
     }
@@ -37,6 +39,7 @@ public class AdminUserController {
 
     @PostMapping("/{userId}/roles/{roleName}")
     @PreAuthorize("hasAuthority('users:update')")
+    @RequiresStepUp
     public AdminUserResponse addRole(
             @PathVariable Long userId,
             @PathVariable String roleName
@@ -46,6 +49,7 @@ public class AdminUserController {
 
     @DeleteMapping("/{userId}/roles/{roleName}")
     @PreAuthorize("hasAuthority('users:update')")
+    @RequiresStepUp
     public AdminUserResponse removeRole(
             @PathVariable Long userId,
             @PathVariable String roleName
@@ -55,6 +59,7 @@ public class AdminUserController {
 
     @PutMapping("/{userId}/roles")
     @PreAuthorize("hasAuthority('users:update')")
+    @RequiresStepUp
     public AdminUserResponse replaceRoles(
             @PathVariable Long userId,
             @RequestBody UserRoleUpdateRequest request
@@ -64,18 +69,21 @@ public class AdminUserController {
 
     @PatchMapping("/{userId}/disable")
     @PreAuthorize("hasAuthority('users:disable')")
+    @RequiresStepUp
     public AdminUserResponse disableUser(@PathVariable Long userId) {
         return adminUserService.disableUser(userId);
     }
 
     @PatchMapping("/{userId}/enable")
     @PreAuthorize("hasAuthority('users:enable')")
+    @RequiresStepUp
     public AdminUserResponse enableUser(@PathVariable Long userId) {
         return adminUserService.enableUser(userId);
     }
 
     @DeleteMapping("/{userId}")
     @PreAuthorize("hasAuthority('users:delete')")
+    @RequiresStepUp
     public void deleteUser(@PathVariable Long userId) {
         adminUserService.deleteUser(userId);
     }

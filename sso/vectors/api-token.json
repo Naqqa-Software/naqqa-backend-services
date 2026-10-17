@@ -1,0 +1,195 @@
+{
+  "description": "Token format: sso_<kind>_<env>_<id16>_<secret43>_<crc6>. Kind pk or sk, env live or test, id and secret Base62. crc is CRC-32 (IEEE, as unsigned integer) of the ASCII text before the last underscore, written as 6 Base62 digits, most significant first, alphabet 0-9A-Za-z. Total length is 91. input.tokenBase64 and expected.secret are standard Base64 of the ASCII text, so that secret scanners do not mistake these test vectors for live keys.",
+  "version": 1,
+  "length": 79,
+  "cases": [
+    {
+      "name": "valid-secret-live",
+      "description": "Secret key, live environment.",
+      "input": {
+        "tokenBase64": "c3NvX3NrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTSA=="
+      },
+      "expected": {
+        "valid": true,
+        "kind": "sk",
+        "env": "live",
+        "id": "GNUbipw3AHOVcjqx",
+        "secret": "VGFob3YyOUdOVWJpcHczQUhPVmNqcXg0QklQV2Rrcnk1Q0pRWGVsc3o2RA=="
+      }
+    },
+    {
+      "name": "valid-secret-test",
+      "description": "Secret key, test environment.",
+      "input": {
+        "tokenBase64": "c3NvX3NrX3Rlc3RfZ251MThGTVRhaG92MjlHTl90MDdFTFNaZ251MThGTVRhaG92MjlHTlViaXB3M0FIT1ZjanF4NEJJUFdkXzNESlI2Tw=="
+      },
+      "expected": {
+        "valid": true,
+        "kind": "sk",
+        "env": "test",
+        "id": "gnu18FMTahov29GN",
+        "secret": "dDA3RUxTWmdudTE4Rk1UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZA=="
+      }
+    },
+    {
+      "name": "valid-publishable-live",
+      "description": "Publishable key, live environment.",
+      "input": {
+        "tokenBase64": "c3NvX3BrX2xpdmVfNkRLUllmbXQwN0VMU1pnbl9KUVhlbHN6NkRLUllmbXQwN0VMU1pnbnUxOEZNVGFob3YyOUdOVWJpcHczXzNNempiSA=="
+      },
+      "expected": {
+        "valid": true,
+        "kind": "pk",
+        "env": "live",
+        "id": "6DKRYfmt07ELSZgn",
+        "secret": "SlFYZWxzejZES1JZZm10MDdFTFNaZ251MThGTVRhaG92MjlHTlViaXB3Mw=="
+      }
+    },
+    {
+      "name": "valid-publishable-test",
+      "description": "Publishable key, test environment.",
+      "input": {
+        "tokenBase64": "c3NvX3BrX3Rlc3RfV2Rrcnk1Q0pRWGVsc3o2RF9qcXg0QklQV2Rrcnk1Q0pRWGVsc3o2REtSWWZtdDA3RUxTWmdudTE4Rk1UXzNYUlRWQQ=="
+      },
+      "expected": {
+        "valid": true,
+        "kind": "pk",
+        "env": "test",
+        "id": "Wdkry5CJQXelsz6D",
+        "secret": "anF4NEJJUFdka3J5NUNKUVhlbHN6NkRLUllmbXQwN0VMU1pnbnUxOEZNVA=="
+      }
+    },
+    {
+      "name": "bad-crc",
+      "description": "Last checksum character changed.",
+      "input": {
+        "tokenBase64": "c3NvX3NrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTYQ=="
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.checksum"
+      }
+    },
+    {
+      "name": "bad-crc-body-changed",
+      "description": "A body character changed, checksum no longer matches.",
+      "input": {
+        "tokenBase64": "c3NvX3NrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF8wMDAwdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTSA=="
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.checksum"
+      }
+    },
+    {
+      "name": "bad-prefix",
+      "description": "Prefix ssx instead of sso.",
+      "input": {
+        "tokenBase64": "c3N4X3NrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTSA=="
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    },
+    {
+      "name": "bad-prefix-uppercase",
+      "description": "Prefix SSO is case sensitive.",
+      "input": {
+        "tokenBase64": "U1NPX3NrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTSA=="
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    },
+    {
+      "name": "wrong-env",
+      "description": "Environment prod is unknown.",
+      "input": {
+        "tokenBase64": "c3NvX3NrX3Byb2RfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTSA=="
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    },
+    {
+      "name": "wrong-kind",
+      "description": "Kind ak is unknown.",
+      "input": {
+        "tokenBase64": "c3NvX2FrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTSA=="
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    },
+    {
+      "name": "secret-too-short",
+      "description": "Secret has 42 characters.",
+      "input": {
+        "tokenBase64": "c3NvX3NrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZfQUFBQUFB"
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    },
+    {
+      "name": "illegal-character-in-secret",
+      "description": "Dash inside the secret.",
+      "input": {
+        "tokenBase64": "c3NvX3NrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYi1wdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTSA=="
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    },
+    {
+      "name": "extra-segment",
+      "description": "Extra underscore segment.",
+      "input": {
+        "tokenBase64": "c3NvX3NrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTSF94"
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    },
+    {
+      "name": "leading-bearer",
+      "description": "Authorization scheme must be stripped before parsing.",
+      "input": {
+        "tokenBase64": "QmVhcmVyIHNzb19za19saXZlX0dOVWJpcHczQUhPVmNqcXhfVGFob3YyOUdOVWJpcHczQUhPVmNqcXg0QklQV2Rrcnk1Q0pRWGVsc3o2RF8yZTllU0g="
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    },
+    {
+      "name": "trailing-space",
+      "description": "Trailing whitespace.",
+      "input": {
+        "tokenBase64": "c3NvX3NrX2xpdmVfR05VYmlwdzNBSE9WY2pxeF9UYWhvdjI5R05VYmlwdzNBSE9WY2pxeDRCSVBXZGtyeTVDSlFYZWxzejZEXzJlOWVTSCA="
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    },
+    {
+      "name": "empty",
+      "description": "Empty string.",
+      "input": {
+        "tokenBase64": ""
+      },
+      "expected": {
+        "valid": false,
+        "error": "token.malformed"
+      }
+    }
+  ]
+}

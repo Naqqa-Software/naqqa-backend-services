@@ -7,11 +7,16 @@ import com.naqqa.auth.entity.authorities.SubRoleEntity;
 import com.naqqa.auth.exceptions.authorities.*;
 import com.naqqa.auth.repository.AuthorityRepository;
 import com.naqqa.auth.repository.SubRoleRepository;
+import com.naqqa.auth.service.security.AuthAudit;
+import com.naqqa.auth.sso.admin.SsoAdminAuthorities;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -21,6 +26,7 @@ public class SubRoleService {
 
     private final SubRoleRepository subRoleRepository;
     private final AuthorityRepository authorityRepository;
+    private final AuthAudit rbacAudit;
 
     // --- Helper: validate and fetch authorities ---
     private Set<AuthorityEntity> getOrCreateAuthorities(Set<String> authorityNames) {
@@ -54,6 +60,8 @@ public class SubRoleService {
             throw new RoleAlreadyExistsException();
         }
 
+        SsoAdminAuthorities.requirePlatformFor(dto.getAuthorityNames());
+        RbacGuard.requireHeld(dto.getAuthorityNames());
         Set<AuthorityEntity> authorities = getOrCreateAuthorities(dto.getAuthorityNames());
 
         SubRoleEntity newRole = new SubRoleEntity();
@@ -61,6 +69,8 @@ public class SubRoleService {
         newRole.setAuthorities(authorities);
 
         SubRoleEntity savedRole = subRoleRepository.save(newRole);
+        rbacAudit.record("rbac.sub_role.create", "role:" + savedRole.getName(), AuthAudit.change("authoritiesBefore", Set.of(),
+                "authoritiesAfter", authorityNames(savedRole.getAuthorities())));
         return toResponseDto(savedRole);
     }
 
@@ -68,6 +78,11 @@ public class SubRoleService {
     public SubRoleResponseDto updateSubRole(Long subRoleId, SubRoleRequestDto dto) {
         SubRoleEntity role = subRoleRepository.findById(subRoleId)
                 .orElseThrow(RoleNotFoundException::new);
+        SsoAdminAuthorities.requirePlatformFor(authorityNames(role.getAuthorities()));
+        SsoAdminAuthorities.requirePlatformFor(dto.getAuthorityNames());
+        Set<String> before = authorityNames(role.getAuthorities());
+        RbacGuard.requireChangeHeld(before, dto.getAuthorityNames());
+        String previousName = role.getName();
 
         if (!role.getName().equalsIgnoreCase(dto.getName())) {
             if (subRoleRepository.findByName(dto.getName()).isPresent()) {
@@ -78,8 +93,12 @@ public class SubRoleService {
 
         Set<AuthorityEntity> authorities = getOrCreateAuthorities(dto.getAuthorityNames());
         role.setAuthorities(authorities);
+        Map<String, String> attrs = new LinkedHashMap<>(AuthAudit.change("authoritiesBefore", before, "authoritiesAfter",
+                authorityNames(authorities)));
+        attrs.put("nameBefore", previousName);
 
         SubRoleEntity updatedSubRole = subRoleRepository.save(role);
+        rbacAudit.record("rbac.sub_role.update", "role:" + updatedSubRole.getName(), attrs);
         return toResponseDto(updatedSubRole);
     }
 
@@ -101,7 +120,11 @@ public class SubRoleService {
     public void deleteSubRole(Long subRoleId) {
         SubRoleEntity subRole = subRoleRepository.findById(subRoleId)
                 .orElseThrow(RoleNotFoundException::new);
+        SsoAdminAuthorities.requirePlatformFor(authorityNames(subRole.getAuthorities()));
+        RbacGuard.requireHeld(authorityNames(subRole.getAuthorities()));
         subRoleRepository.delete(subRole);
+        rbacAudit.record("rbac.sub_role.delete", "role:" + subRole.getName(), AuthAudit.change("authoritiesBefore", authorityNames(subRole.getAuthorities()),
+                "authoritiesAfter", Set.of()));
     }
 
     // --- Convert SubRoleEntity to SubRoleResponseDto ---
@@ -118,5 +141,10 @@ public class SubRoleService {
                 .name(role.getName())
                 .authorityNames(authorityNames)
                 .build();
+    }
+
+    private static Set<String> authorityNames(Set<AuthorityEntity> authorities) {
+        return authorities == null ? Set.of() : authorities.stream().filter(Objects::nonNull).map(AuthorityEntity::getName)
+                .collect(Collectors.toSet());
     }
 }

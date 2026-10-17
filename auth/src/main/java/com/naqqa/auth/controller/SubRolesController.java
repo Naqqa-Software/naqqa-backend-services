@@ -8,6 +8,7 @@ import com.naqqa.auth.service.authorities.RoleService;
 import com.naqqa.auth.service.authorities.SubRoleService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import com.naqqa.auth.security.RequiresStepUp;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,12 +43,14 @@ public class SubRolesController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('sub_roles:create')")
+    @RequiresStepUp
     public ResponseEntity<SubRoleResponseDto> createRole(@RequestBody SubRoleRequestDto roleDto) {
         return ResponseEntity.ok(subRoleService.createSubRole(roleDto));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('sub_roles:update')")
+    @RequiresStepUp
     public ResponseEntity<SubRoleResponseDto> updateRole(
             @PathVariable Long id,
             @RequestBody SubRoleRequestDto roleDto
@@ -57,6 +60,7 @@ public class SubRolesController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('sub_roles:delete')")
+    @RequiresStepUp
     public ResponseEntity<Void> deleteRole(@PathVariable Long id) {
         subRoleService.deleteSubRole(id);
         return ResponseEntity.noContent().build();
