@@ -174,7 +174,7 @@ public class DefaultAuthService implements AuthService {
             throw new WrongCredentialsException();
         }
 
-        if (!user.isEnabled()) {
+        if (!user.canSignIn()) {
             throw new AccountBlockedException();
         }
 

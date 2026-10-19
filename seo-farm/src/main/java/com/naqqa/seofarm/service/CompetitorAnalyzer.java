@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.naqqa.seofarm.model.SeoSite;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Service;
 
@@ -59,10 +58,10 @@ public class CompetitorAnalyzer {
         return new Analysis(summary, top);
     }
 
-    private String fetchContent(String url) {
+    String fetchContent(String url) {
         try {
-            Document doc = Jsoup.connect(url).userAgent(UA).timeout(15000)
-                    .followRedirects(true).ignoreHttpErrors(true).get();
+            // Search results are third-party URLs: public addresses only, every redirect hop checked.
+            Document doc = PublicUrlGuard.fetch(url, conn -> conn.userAgent(UA).timeout(15000).ignoreHttpErrors(true)).parse();
             doc.select("script, style, nav, footer, header, aside, .ad, .advertisement, .cookie-banner, #cookie-notice").remove();
             String text = null;
             for (String sel : List.of("article", "main", "[role=main]", ".content", ".post-content", ".entry-content")) {

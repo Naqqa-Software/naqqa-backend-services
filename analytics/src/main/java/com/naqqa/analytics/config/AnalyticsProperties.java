@@ -49,4 +49,17 @@ public class AnalyticsProperties {
 
     /** "Realtime" window (minutes) used by the realtime endpoint. */
     private int realtimeWindowMinutes = 30;
+
+    /** A realtime SSE stream ends after this many minutes; the dashboard's EventSource reconnects. */
+    private int realtimeStreamTimeoutMinutes = 30;
+
+    /** Upper bound on open realtime SSE streams (each subscription key costs a query per push). */
+    private int realtimeMaxSubscribers = 50;
+
+    /**
+     * Comma separated CIDRs of the reverse proxies in front of the host. {@code X-Real-IP} /
+     * {@code X-Forwarded-For} are honoured only when the direct peer matches; from any other peer they are
+     * client controlled and ignored.
+     */
+    private String trustedProxies = "127.0.0.1/32,::1/128";
 }

@@ -9,6 +9,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -16,6 +17,7 @@ import java.io.File;
 import java.net.InetAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * Resolves an IP to country/region/city/lat/lon. Preferred source is a local MaxMind GeoLite2-City
@@ -30,7 +32,11 @@ public class GeoIpService {
 
     private final AnalyticsProperties props;
     private volatile DatabaseReader reader;
-    private final RestClient http = RestClient.create();
+    /** Only IP literals are looked up: anything else is not a peer address. */
+    private static final Pattern IP_LITERAL = Pattern.compile("[0-9A-Fa-f:.]{2,45}");
+
+    /** Bounded so a slow geo API cannot pin the async ingest threads. */
+    private final RestClient http = RestClient.builder().requestFactory(timeouts()).build();
     /** Per-IP cache for the HTTP fallback (bounded). */
     private final Map<String, Geo> cache = new ConcurrentHashMap<>();
 
@@ -61,8 +67,15 @@ public class GeoIpService {
         }
     }
 
+    private static SimpleClientHttpRequestFactory timeouts() {
+        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
+        f.setConnectTimeout(2000);
+        f.setReadTimeout(3000);
+        return f;
+    }
+
     public Geo lookup(String ip) {
-        if (ip == null || ip.isBlank() || isLocal(ip)) {
+        if (ip == null || ip.isBlank() || !IP_LITERAL.matcher(ip).matches() || isLocal(ip)) {
             return Geo.EMPTY;
         }
         DatabaseReader r = reader;
@@ -83,16 +96,23 @@ public class GeoIpService {
         }
         // No local DB → HTTP fallback (cached).
         if (props.isGeoFallbackEnabled()) {
-            return cache.computeIfAbsent(ip, this::httpLookup);
+            // Not computeIfAbsent: the HTTP call must not run while holding the map's bin lock.
+            Geo cached = cache.get(ip);
+            if (cached != null) {
+                return cached;
+            }
+            Geo fresh = httpLookup(ip);
+            if (cache.size() > 50_000) {
+                cache.clear(); // simple bound
+            }
+            cache.put(ip, fresh);
+            return fresh;
         }
         return Geo.EMPTY;
     }
 
     private Geo httpLookup(String ip) {
         try {
-            if (cache.size() > 50_000) {
-                cache.clear(); // simple bound
-            }
             JsonNode j = http.get()
                     .uri("https://ipwho.is/{ip}?fields=success,country,country_code,region,city,latitude,longitude", ip)
                     .retrieve().body(JsonNode.class);

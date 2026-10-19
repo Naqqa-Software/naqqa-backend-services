@@ -16,8 +16,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -30,9 +33,50 @@ public class FileStorageService {
     private final Storage storage;
     private final com.naqqa.filestorage.config.FileStorageProperties props;
 
+    /** Types a browser runs as a document or script: served from the bucket as downloads, never inline. */
+    private static final Set<String> ACTIVE_TYPES = Set.of("text/html", "application/xhtml+xml", "image/svg+xml",
+            "text/xml", "application/xml", "text/javascript", "application/javascript", "application/x-javascript",
+            "text/xsl", "multipart/x-mixed-replace");
+
+    /** Object key under {@code directory}: client path segments are reduced to safe names, never ".." or absolute. */
+    static String objectKey(String directory, String fileName) {
+        List<String> parts = new ArrayList<>();
+        for (String seg : (directory == null ? "" : directory).split("[/\\\\]+")) {
+            String clean = seg.replaceAll("[^A-Za-z0-9._-]", "_");
+            if (!clean.isBlank() && !clean.matches("\\.+")) {
+                parts.add(clean);
+            }
+        }
+        String name = fileName == null ? "" : fileName.replaceAll(".*[/\\\\]", "").replaceAll("[^A-Za-z0-9._-]", "_");
+        if (name.isBlank() || name.matches("\\.+")) {
+            name = "file";
+        }
+        String dir = parts.isEmpty() ? "general" : String.join("/", parts);
+        return dir + "/" + System.currentTimeMillis() + "_" + name;
+    }
+
+    static boolean isActive(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        String base = contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+        return ACTIVE_TYPES.contains(base) || base.endsWith("+xml");
+    }
+
+    /** Blob metadata for an upload: active content is marked as an attachment so the signed URL downloads it. */
+    private BlobInfo blobInfo(String objectKey, String contentType) {
+        BlobInfo.Builder b = BlobInfo.newBuilder(BlobId.of(props.getBucketName(), objectKey)).setContentType(contentType);
+        if (isActive(contentType)) {
+            b.setContentDisposition("attachment");
+        }
+        return b.build();
+    }
+
     // ------------------ RESUMABLE UPLOAD (For Background/Large Files) ------------------
     public InitiateUploadResponse startResumableSession(String directory, String fileName, String contentType, Long ownerId) {
-        String objectKey = directory + "/" + System.currentTimeMillis() + "_" + fileName;
+        String objectKey = objectKey(directory, fileName);
+        // The signed PUT fixes the stored type: active types are stored as opaque bytes.
+        contentType = isActive(contentType) || contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType;
 
         // 1. Create record in PENDING state
         FileEntity entity = new FileEntity();
@@ -76,7 +120,12 @@ public class FileStorageService {
             throw new AccessDeniedException("Unauthorized: You do not own this file session.");
         }
 
-        entity.setSize(size);
+        // The size the client reports is not trusted: take it from the object actually in the bucket.
+        Blob blob = storage.get(BlobId.of(props.getBucketName(), entity.getFileName()));
+        if (blob == null) {
+            throw new GCPFileException("Upload not found in storage for file ID: " + fileId);
+        }
+        entity.setSize(blob.getSize());
         entity.setStatus("COMPLETED");
         return fileRepository.save(entity);
     }
@@ -87,11 +136,8 @@ public class FileStorageService {
         if (file.isEmpty()) throw new IllegalArgumentException("File is empty");
 
         try {
-            String objectKey = directory + "/" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
-            BlobId blobId = BlobId.of(props.getBucketName(), objectKey);
-            BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
-                    .setContentType(file.getContentType())
-                    .build();
+            String objectKey = objectKey(directory, file.getOriginalFilename());
+            BlobInfo blobInfo = blobInfo(objectKey, file.getContentType());
 
             storage.create(blobInfo, file.getBytes());
 
@@ -116,9 +162,8 @@ public class FileStorageService {
         String mimeType = (contentType == null || contentType.isBlank()) ? "application/octet-stream" : contentType;
 
         try {
-            String objectKey = directory + "/" + System.currentTimeMillis() + "_" + fileName;
-            BlobId blobId = BlobId.of(props.getBucketName(), objectKey);
-            BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType(mimeType).build();
+            String objectKey = objectKey(directory, fileName);
+            BlobInfo blobInfo = blobInfo(objectKey, mimeType);
 
             Blob blob = storage.createFrom(blobInfo, inputStream);
 

@@ -30,10 +30,11 @@ public class AnalyticsCollectController {
             "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
 
     private final AnalyticsIngestService ingest;
+    private final AnalyticsClientIpResolver clientIp;
 
     @PostMapping("/collect")
     public ResponseEntity<Void> collect(@RequestBody CollectRequest req, HttpServletRequest http) {
-        ingest.ingestBeacon(req, clientIp(http), http.getHeader("User-Agent"));
+        ingest.ingestBeacon(req, clientIp.resolve(http), http.getHeader("User-Agent"));
         return ResponseEntity.noContent().build();
     }
 
@@ -49,7 +50,7 @@ public class AnalyticsCollectController {
         CollectRequest req = new CollectRequest(property, entityType, entityId, path, title, "pageview",
                 null, null, null, false, ref != null ? ref : http.getHeader("Referer"), null, null, null,
                 null, null, null, null, null, null);
-        ingest.ingestBeacon(req, clientIp(http), http.getHeader("User-Agent"));
+        ingest.ingestBeacon(req, clientIp.resolve(http), http.getHeader("User-Agent"));
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .contentType(MediaType.IMAGE_GIF)
@@ -68,15 +69,5 @@ public class AnalyticsCollectController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
-    }
-
-    /** Real client IP behind a reverse proxy (nginx sets X-Forwarded-For). */
-    private String clientIp(HttpServletRequest http) {
-        String xff = http.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
-        String real = http.getHeader("X-Real-IP");
-        return (real != null && !real.isBlank()) ? real.trim() : http.getRemoteAddr();
     }
 }

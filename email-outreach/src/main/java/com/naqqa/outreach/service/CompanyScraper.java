@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.naqqa.outreach.config.OutreachProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Jsoup;
+import org.jsoup.Connection;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Service;
@@ -171,17 +171,19 @@ public class CompanyScraper {
 
     private Document fetch(String url) {
         try {
-            org.jsoup.Connection conn = Jsoup.connect(url)
-                    .userAgent(UA)
-                    .timeout(20000)
-                    .followRedirects(true)
-                    .ignoreHttpErrors(true)
-                    .ignoreContentType(false);
-            if (props.getProxyHost() != null && props.getProxyPort() != null) {
-                conn.proxy(new Proxy(Proxy.Type.HTTP,
-                        new InetSocketAddress(props.getProxyHost(), props.getProxyPort())));
-            }
-            return conn.get();
+            // Lead websites come from harvested records: every hop must stay on public addresses.
+            Connection.Response res = PublicUrlGuard.fetch(url, conn -> {
+                conn.userAgent(UA)
+                        .timeout(20000)
+                        .ignoreHttpErrors(true)
+                        .ignoreContentType(false);
+                if (props.getProxyHost() != null && props.getProxyPort() != null) {
+                    conn.proxy(new Proxy(Proxy.Type.HTTP,
+                            new InetSocketAddress(props.getProxyHost(), props.getProxyPort())));
+                }
+                return conn;
+            });
+            return res.parse();
         } catch (Exception e) {
             log.debug("scrape failed for {}: {}", url, e.getMessage());
             return null;

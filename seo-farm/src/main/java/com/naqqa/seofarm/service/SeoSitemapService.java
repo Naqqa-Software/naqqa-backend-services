@@ -32,7 +32,7 @@ public class SeoSitemapService {
 
         for (String page : internalPages()) {
             xml.append("  <url>\n")
-                    .append("    <loc>").append(base).append(page).append("</loc>\n")
+                    .append("    <loc>").append(xml(base + page)).append("</loc>\n")
                     .append("    <lastmod>").append(today).append("</lastmod>\n")
                     .append("    <changefreq>weekly</changefreq>\n")
                     .append("    <priority>").append(page.equals("/") ? "1.0" : "0.8").append("</priority>\n")
@@ -40,7 +40,7 @@ public class SeoSitemapService {
         }
         for (String slug : blogs.slugsByFromSite(fromSite)) {
             xml.append("  <url>\n")
-                    .append("    <loc>").append(base).append("/blog/").append(slug).append("</loc>\n")
+                    .append("    <loc>").append(xml(base + "/blog/" + slug)).append("</loc>\n")
                     .append("    <lastmod>").append(today).append("</lastmod>\n")
                     .append("    <changefreq>monthly</changefreq>\n")
                     .append("    <priority>0.6</priority>\n")
@@ -48,6 +48,12 @@ public class SeoSitemapService {
         }
         xml.append("</urlset>");
         return xml.toString();
+    }
+
+    /** {@code fromSite} is reflected from a public request: it must never reach the document as markup. */
+    private static String xml(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&apos;");
     }
 
     /** Internal page paths from the bundled site-links.json (falls back to a minimal set). */

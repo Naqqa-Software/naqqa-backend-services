@@ -59,4 +59,12 @@ public class UserEntity {
     private String googleId;
     private String facebookId;
     private String appleId;
+
+    /**
+     * Whether the account may sign in or keep acting: enabled and not blocked. {@code blocked} is set outside the
+     * admin API (imports, migrations, operators), so every sign-in, refresh and acting-as path checks both flags.
+     */
+    public boolean canSignIn() {
+        return enabled && !blocked;
+    }
 }

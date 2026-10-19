@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.naqqa.outreach.config.OutreachProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Jsoup;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -85,9 +84,10 @@ public class ApolloClient {
     private Contact scrapeWebsite(String domain) {
         for (String path : SCRAPE_PATHS) {
             try {
-                String html = Jsoup.connect("https://" + domain + "/" + path)
+                // The domain comes from a harvested lead record: public addresses only, redirects included.
+                String html = PublicUrlGuard.fetch("https://" + domain + "/" + path, conn -> conn
                         .userAgent("Mozilla/5.0 (compatible; lead-bot/1.0)")
-                        .timeout(10000).ignoreHttpErrors(true).ignoreContentType(true).execute().body();
+                        .timeout(10000).ignoreHttpErrors(true).ignoreContentType(true)).body();
                 Matcher m = OutreachConstants.EMAIL_SCRAPE.matcher(html);
                 while (m.find()) {
                     String raw = m.group();

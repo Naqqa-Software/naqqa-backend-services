@@ -104,7 +104,7 @@ public class MagicLinkController {
         }
         boolean withinAddressCap = addressLimiter.tryAcquire("magic-account:" + SsoLoginFlow.accountRef(body.email())).allowed();
         UserEntity user = userRepository.findByEmailAnyCase(body.email()).orElse(null);
-        if (user != null && user.isEnabled() && withinAddressCap) {
+        if (user != null && user.canSignIn() && withinAddressCap) {
             MagicLink links = new MagicLink(clock, store, Set.of(redirect), properties.getMagicLink().getTtl());
             MagicLink.Issued issued = links.issue(String.valueOf(user.getId()), redirect, binding);
             String link = emailMessages.getAppUrl() + "/auth/magic-link?token=" + URLEncoder.encode(issued.token(), StandardCharsets.UTF_8);
@@ -139,7 +139,7 @@ public class MagicLinkController {
         }
         String redirect = SsoWeb.isSafeRelativeRedirect(consumed.redirect()) ? consumed.redirect() : "/";
         UserEntity user = loginFlow.loadUser(consumed.userId());
-        if (user == null || !user.isEnabled()) {
+        if (user == null || !user.canSignIn()) {
             throw SsoApiException.unauthorized("MAGIC_LINK_INVALID", "The link is invalid or expired");
         }
         CookieUtils.setClientCookie(response, BINDING_COOKIE, "", 0, true);

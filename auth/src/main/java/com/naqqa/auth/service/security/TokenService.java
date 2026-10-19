@@ -1,5 +1,6 @@
 package com.naqqa.auth.service.security;
 
+import com.naqqa.auth.exceptions.auth.AccountBlockedException;
 import com.naqqa.auth.entity.authorities.AuthorityEntity;
 import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.entity.authorities.SubRoleEntity;
@@ -147,6 +148,10 @@ public class TokenService {
     }
 
     public String generateAccessToken(UserEntity user, RoleEntity activeRole, AccessContext ctx) {
+        if (!user.canSignIn()) {
+            // Every access token (sign-in, refresh, role switch, step-up, impersonation) passes here.
+            throw new AccountBlockedException();
+        }
         return Jwt.sign(authKeyRing, Jwt.TYP_JWT, buildClaims(user, activeRole, ctx));
     }
 }

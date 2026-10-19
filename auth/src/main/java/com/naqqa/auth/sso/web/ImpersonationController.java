@@ -86,7 +86,7 @@ public class ImpersonationController {
         if (target.getId().equals(adminUser.getId())) {
             throw SsoApiException.badRequest("INVALID_TARGET", "Cannot impersonate yourself");
         }
-        if (!target.isEnabled() || privileged(TokenService.authoritiesOf(target))) {
+        if (!target.canSignIn() || privileged(TokenService.authoritiesOf(target))) {
             audit.record("impersonation.start", String.valueOf(adminUser.getId()), String.valueOf(target.getId()), "denied",
                     Map.of("reason", body.reason()));
             throw SsoApiException.forbidden("IMPERSONATION_TARGET_FORBIDDEN", "This account cannot be impersonated");

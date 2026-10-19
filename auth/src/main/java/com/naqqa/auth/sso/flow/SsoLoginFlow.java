@@ -242,7 +242,7 @@ public class SsoLoginFlow implements SsoLoginHandler {
             audit.record("login.password", userId, userId != null ? userId : accountRef(email), "failure", Map.of("reason", "invalid_credentials"));
             throw invalidCredentials();
         }
-        if (!user.isEnabled()) {
+        if (!user.canSignIn()) {
             audit.record("login.password", userId, userId, "denied", Map.of("reason", "blocked"));
             throw SsoApiException.forbidden("ACCOUNT_BLOCKED", Errors.LOGIN_ACCOUNT_LOCKED);
         }
@@ -269,7 +269,7 @@ public class SsoLoginFlow implements SsoLoginHandler {
             throw invalidCredentials();
         }
         String userId = String.valueOf(user.getId());
-        if (!user.isEnabled()) {
+        if (!user.canSignIn()) {
             audit.record("login.password", userId, userId, "denied", Map.of("reason", "blocked"));
             throw SsoApiException.forbidden("ACCOUNT_BLOCKED", Errors.LOGIN_ACCOUNT_LOCKED);
         }

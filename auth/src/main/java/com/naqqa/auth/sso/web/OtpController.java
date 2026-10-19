@@ -87,7 +87,7 @@ public class OtpController {
             throw SsoApiException.rateLimited((limit.retryAfterMillis() + 999) / 1000);
         }
         UserEntity user = lookup(channel, body.destination());
-        boolean known = user != null && user.isEnabled();
+        boolean known = user != null && user.canSignIn();
         factors.requestOtp(channel, body.destination(), SecondFactors.loginPurpose(channel, body.destination()), known, response);
         audit.record("otp.request", known ? String.valueOf(user.getId()) : null,
                 known ? String.valueOf(user.getId()) : SsoLoginFlow.accountRef(body.destination()), "accepted", Map.of("channel", channel.name()));
@@ -106,7 +106,7 @@ public class OtpController {
         UserEntity user = loginFlow.attempt(key, ctx.ip(), () -> {
             boolean ok = factors.verifyOtp(channel, SecondFactors.loginPurpose(channel, body.destination()), body.code(), request, response);
             UserEntity found = ok ? lookup(channel, body.destination()) : null;
-            return found == null || !found.isEnabled() ? null : found;
+            return found == null || !found.canSignIn() ? null : found;
         });
         if (user == null) {
             audit.record("login.otp", null, SsoLoginFlow.accountRef(body.destination()), "failure", Map.of("channel", channel.name()));

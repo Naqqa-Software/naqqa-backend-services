@@ -67,6 +67,7 @@ class IdentityControlMatrixTest extends OidcTestBase {
         SESSIONS_REVOKED_OTHERS("PRRPRRRPPPPP"),
         ADMIN_SESSIONS_REVOKED("RRRRRRRRRRRR"),
         DISABLED("RRRRRRRRRRRR"),
+        BLOCKED("PPRRRRRRRRRR"),
         SCIM_DEACTIVATED("RRRRRRRRRRRR"),
         ERASED("RRRRRRRRRRRR");
 
@@ -323,6 +324,8 @@ class IdentityControlMatrixTest extends OidcTestBase {
                 MvcResult r = loggedIn(manager.getEmail()).patch("/api/admin/users/" + userId + "/disable", null);
                 assertEquals(200, status(r), content(r));
             }
+            case BLOCKED -> mongo.getCollection("users").updateOne(new Document("email", a.email),
+                    new Document("$set", new Document("blocked", true)));
             case ERASED -> {
                 MvcResult r = usersAdmin().delete(ADMIN + "/users/" + userId);
                 assertEquals(200, status(r), content(r));

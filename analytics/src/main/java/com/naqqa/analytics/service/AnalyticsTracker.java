@@ -1,6 +1,7 @@
 package com.naqqa.analytics.service;
 
 import com.naqqa.analytics.model.CollectRequest;
+import com.naqqa.analytics.web.AnalyticsClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import org.springframework.stereotype.Service;
 public class AnalyticsTracker {
 
     private final AnalyticsIngestService ingest;
+    private final AnalyticsClientIpResolver clientIpResolver;
 
     /** Simplest form: record a view, pulling IP / UA / referrer / path from the servlet request. */
     public void trackView(String property, String entityType, String entityId, HttpServletRequest req) {
@@ -60,13 +62,8 @@ public class AnalyticsTracker {
         ingest.ingestBeacon(hit, ip, userAgent);
     }
 
-    /** Real client IP behind a reverse proxy. */
+    /** Real client IP; forwarded headers count only from a trusted proxy (see {@link AnalyticsClientIpResolver}). */
     public String clientIp(HttpServletRequest req) {
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
-        String real = req.getHeader("X-Real-IP");
-        return (real != null && !real.isBlank()) ? real.trim() : req.getRemoteAddr();
+        return clientIpResolver.resolve(req);
     }
 }

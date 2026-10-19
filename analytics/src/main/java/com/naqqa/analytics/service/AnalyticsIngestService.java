@@ -27,6 +27,9 @@ import java.util.HexFormat;
 @Slf4j
 public class AnalyticsIngestService {
 
+    /** Longest value kept for any client-supplied field (paths, titles, referrers, UTM tags, user agents). */
+    static final int MAX_FIELD = 1024;
+
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
 
     private final AnalyticsProperties props;
@@ -44,21 +47,21 @@ public class AnalyticsIngestService {
         try {
             AnalyticsEventEntity e = base(req.property(), req.entityType(), req.entityId(),
                     req.path(), req.title(), ip, userAgent, req.referrer());
-            e.setEventType(isBlank(req.eventType()) ? "pageview" : req.eventType());
-            e.setEventName(req.eventName());
+            e.setEventType(isBlank(req.eventType()) ? "pageview" : clip(req.eventType()));
+            e.setEventName(clip(req.eventName()));
             e.setSource("beacon");
-            e.setLanguage(req.language());
-            e.setScreen(req.screen());
-            e.setViewport(req.viewport());
-            e.setUtmSource(req.utmSource());
-            e.setUtmMedium(req.utmMedium());
-            e.setUtmCampaign(req.utmCampaign());
-            e.setUtmTerm(req.utmTerm());
-            e.setUtmContent(req.utmContent());
+            e.setLanguage(clip(req.language()));
+            e.setScreen(clip(req.screen()));
+            e.setViewport(clip(req.viewport()));
+            e.setUtmSource(clip(req.utmSource()));
+            e.setUtmMedium(clip(req.utmMedium()));
+            e.setUtmCampaign(clip(req.utmCampaign()));
+            e.setUtmTerm(clip(req.utmTerm()));
+            e.setUtmContent(clip(req.utmContent()));
             e.setDurationMs(req.durationMs() != null ? Math.max(0, req.durationMs()) : 0);
 
-            String visitor = isBlank(req.visitorId()) ? hashVisitor(ip, userAgent) : req.visitorId().trim();
-            applyIdentity(e, visitor, req.sessionId());
+            String visitor = isBlank(req.visitorId()) ? hashVisitor(ip, userAgent) : clip(req.visitorId().trim());
+            applyIdentity(e, visitor, clip(req.sessionId()));
             events.save(e);
         } catch (Exception ex) {
             log.debug("[analytics] beacon ingest failed: {}", ex.getMessage());
@@ -76,7 +79,7 @@ public class AnalyticsIngestService {
             AnalyticsEventEntity e = base(property, entityType, entityId, path, title, ip, userAgent, referrer);
             e.setEventType("pageview");
             e.setSource("server");
-            e.setLanguage(language);
+            e.setLanguage(clip(language));
             applyIdentity(e, hashVisitor(ip, userAgent), null);
             events.save(e);
         } catch (Exception ex) {
@@ -89,17 +92,17 @@ public class AnalyticsIngestService {
                                       String title, String ip, String userAgent, String referrer) {
         AnalyticsEventEntity e = new AnalyticsEventEntity();
         Instant now = Instant.now();
-        e.setProperty(property.trim());
-        e.setEntityType(isBlank(entityType) ? "page" : entityType.trim());
-        e.setEntityId(entityId);
-        e.setPath(path);
-        e.setTitle(title);
+        e.setProperty(clip(property.trim()));
+        e.setEntityType(isBlank(entityType) ? "page" : clip(entityType.trim()));
+        e.setEntityId(clip(entityId));
+        e.setPath(clip(path));
+        e.setTitle(clip(title));
         e.setTimestamp(now);
         e.setDay(DAY.format(now));
-        e.setUserAgent(userAgent);
-        e.setReferrer(referrer);
+        e.setUserAgent(clip(userAgent));
+        e.setReferrer(clip(referrer));
         if (props.isStoreRawIp()) {
-            e.setIp(ip);
+            e.setIp(clip(ip));
         }
 
         GeoIpService.Geo g = geo.lookup(ip);
@@ -149,6 +152,11 @@ public class AnalyticsIngestService {
         } catch (Exception e) {
             return Integer.toHexString(s.hashCode());
         }
+    }
+
+    /** Public beacons are anonymous: no client value may grow an event beyond {@link #MAX_FIELD} chars. */
+    private static String clip(String s) {
+        return s == null || s.length() <= MAX_FIELD ? s : s.substring(0, MAX_FIELD);
     }
 
     private boolean isBlank(String s) {

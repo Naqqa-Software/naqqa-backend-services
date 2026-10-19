@@ -19,7 +19,7 @@ public class SsoUsers {
     public UserEntity require(AuthPrincipal principal) {
         Long id = principal.getUserId();
         UserEntity user = id == null ? null : userRepository.findById(id).orElse(null);
-        if (user == null || !user.isEnabled()) {
+        if (user == null || !user.canSignIn()) {
             throw SsoApiException.unauthorized("UNAUTHORIZED", "Authentication required");
         }
         return user;

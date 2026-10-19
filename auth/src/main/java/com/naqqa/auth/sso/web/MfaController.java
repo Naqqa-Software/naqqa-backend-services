@@ -78,7 +78,7 @@ public class MfaController {
         String method = SecondFactors.canonical(body.method());
         MfaTokenService.Context ctx = mfaTokens.parse(body.mfaToken());
         UserEntity user = loginFlow.loadUser(ctx.userId());
-        if (user == null || !user.isEnabled()) {
+        if (user == null || !user.canSignIn()) {
             throw SsoApiException.unauthorized("MFA_TOKEN_INVALID", "MFA session is invalid or expired");
         }
         Set<AssuranceEngine.Factor> enrolled = assurance.enrolled(user);
@@ -127,7 +127,7 @@ public class MfaController {
         String method = SecondFactors.canonical(body.method());
         MfaTokenService.Context ctx = mfaTokens.parse(body.mfaToken());
         UserEntity user = loginFlow.loadUser(ctx.userId());
-        if (user == null || !user.isEnabled()) {
+        if (user == null || !user.canSignIn()) {
             throw SsoApiException.unauthorized("MFA_TOKEN_INVALID", "MFA session is invalid or expired");
         }
         if (!ctx.methods().contains(method)

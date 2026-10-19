@@ -11,6 +11,9 @@ import com.vladsch.flexmark.html.HtmlRenderer;
 import com.vladsch.flexmark.parser.Parser;
 import com.vladsch.flexmark.util.data.MutableDataSet;
 import lombok.RequiredArgsConstructor;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.safety.Safelist;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -65,7 +68,17 @@ public class BlogHtmlBuilder {
         HtmlRenderer renderer = HtmlRenderer.builder(options).build();
         // Strip any stray H1 the model may have added (template owns the H1).
         String md = markdown.replaceAll("(?m)^#\\s+.*$", "").replaceAll("(?m)^.*\\n=+\\s*$", "");
-        return renderer.render(parser.parse(md));
+        return sanitize(renderer.render(parser.parse(md)));
+    }
+
+    /**
+     * The markdown comes from the model, whose prompt carries scraped competitor pages: keep formatting, links
+     * (http, https, mailto, relative and in-page) and images, drop scripts, frames, handlers and other schemes.
+     */
+    static String sanitize(String html) {
+        Safelist safelist = Safelist.relaxed().preserveRelativeLinks(true);
+        Document.OutputSettings out = new Document.OutputSettings().prettyPrint(false);
+        return Jsoup.clean(html, "https://blog.invalid/", safelist, out);
     }
 
     private String resolveInternalLinks(String markdown, JsonNode internalLinks) {
@@ -230,7 +243,8 @@ public class BlogHtmlBuilder {
 
     // ── helpers ─────────────────────────────────────────────────────────────────
     private String jsonLd(String json) {
-        return "<script type=\"application/ld+json\">" + json + "</script>\n";
+        // "<" only occurs inside JSON strings, where \u003c is equivalent and cannot close the script element.
+        return "<script type=\"application/ld+json\">" + json.replace("<", "\\u003c") + "</script>\n";
     }
 
     private String meta(String name, String content) {

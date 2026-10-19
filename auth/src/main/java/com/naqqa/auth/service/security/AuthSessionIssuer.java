@@ -7,6 +7,7 @@ import com.naqqa.auth.entity.auth.UserDeviceEntity;
 import com.naqqa.auth.entity.auth.UserEntity;
 import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.exceptions.BadRequestException;
+import com.naqqa.auth.exceptions.auth.AccountBlockedException;
 import com.naqqa.auth.repository.UserDeviceRepository;
 import com.naqqa.auth.repository.UserRepository;
 import com.naqqa.auth.roles.RoleProvider;
@@ -101,6 +102,10 @@ public class AuthSessionIssuer {
     }
 
     public Issued issue(UserEntity user, Request req, HttpServletResponse response) {
+        if (!user.canSignIn()) {
+            // Last line for every sign-in path: no session for a disabled or blocked account.
+            throw new AccountBlockedException();
+        }
         String deviceId = deviceOrDefault(req.deviceId());
         String clientType = clientTypeOrDefault(req.clientType());
         RoleEntity activeRole = resolveActiveRole(user, deviceId, clientType);
@@ -142,8 +147,12 @@ public class AuthSessionIssuer {
             case OK -> {
                 RefreshTokenEntity binding = rotation.binding();
                 UserEntity user = loadUser(binding);
-                if (user == null || !user.isEnabled() || (hook != null && (!hook.refreshAllowed(binding) || !hook.refreshPermitted(user, binding)))) {
+                if (user == null || !user.canSignIn() || (hook != null && (!hook.refreshAllowed(binding) || !hook.refreshPermitted(user, binding)))) {
                     refreshTokenManager.revokeBinding(binding);
+                    if (user != null && user.isBlocked()) {
+                        // Blocked outside the admin API: end everything the account still holds on first contact.
+                        revokeAllForUser(user, "account_blocked");
+                    }
                     clearTokenCookies(response);
                     throw new BadRequestException(Errors.TOKEN_INVALID);
                 }
@@ -165,7 +174,10 @@ public class AuthSessionIssuer {
             case LEGACY -> {
                 RefreshTokenEntity legacy = rotation.binding();
                 UserEntity user = loadUser(legacy);
-                if (user == null || !user.isEnabled() || (hook != null && !hook.refreshPermitted(user, legacy))) {
+                if (user == null || !user.canSignIn() || (hook != null && !hook.refreshPermitted(user, legacy))) {
+                    if (user != null && user.isBlocked()) {
+                        revokeAllForUser(user, "account_blocked");
+                    }
                     clearTokenCookies(response);
                     throw new BadRequestException(Errors.TOKEN_INVALID);
                 }

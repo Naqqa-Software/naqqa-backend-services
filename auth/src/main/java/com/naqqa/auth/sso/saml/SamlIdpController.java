@@ -334,7 +334,7 @@ public class SamlIdpController {
             return null;
         }
         UserEntity user = userRepository.findById(id).orElse(null);
-        if (user == null || !user.isEnabled()) {
+        if (user == null || !user.canSignIn()) {
             return null;
         }
         return new Current(p, session, user);

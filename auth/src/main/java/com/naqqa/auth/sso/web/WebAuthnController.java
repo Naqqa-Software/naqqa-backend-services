@@ -151,7 +151,7 @@ public class WebAuthnController {
             throw SsoApiException.disabled(result.kind());
         }
         UserEntity user = loginFlow.loadUser(result.userId());
-        if (user == null || !user.isEnabled()) {
+        if (user == null || !user.canSignIn()) {
             audit.record("login.webauthn", result.userId(), result.userId(), "denied", Map.of());
             throw new SsoApiException(HttpStatus.UNAUTHORIZED, "WEBAUTHN_FAILED", "Passkey sign-in failed");
         }
