@@ -14,13 +14,15 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.google.cloud.ReadChannel;
+
+import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -33,10 +35,8 @@ public class FileStorageService {
     private final Storage storage;
     private final com.naqqa.filestorage.config.FileStorageProperties props;
 
-    /** Types a browser runs as a document or script: served from the bucket as downloads, never inline. */
-    private static final Set<String> ACTIVE_TYPES = Set.of("text/html", "application/xhtml+xml", "image/svg+xml",
-            "text/xml", "application/xml", "text/javascript", "application/javascript", "application/x-javascript",
-            "text/xsl", "multipart/x-mixed-replace");
+    /** Bytes read from the start of an upload to check its declared type. */
+    private static final int SNIFF_BYTES = 512;
 
     /** Object key under {@code directory}: client path segments are reduced to safe names, never ".." or absolute. */
     static String objectKey(String directory, String fileName) {
@@ -55,28 +55,43 @@ public class FileStorageService {
         return dir + "/" + System.currentTimeMillis() + "_" + name;
     }
 
-    static boolean isActive(String contentType) {
-        if (contentType == null) {
-            return false;
-        }
-        String base = contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
-        return ACTIVE_TYPES.contains(base) || base.endsWith("+xml");
-    }
-
-    /** Blob metadata for an upload: active content is marked as an attachment so the signed URL downloads it. */
-    private BlobInfo blobInfo(String objectKey, String contentType) {
-        BlobInfo.Builder b = BlobInfo.newBuilder(BlobId.of(props.getBucketName(), objectKey)).setContentType(contentType);
-        if (isActive(contentType)) {
+    /** Blob metadata for an upload: type and disposition from {@link ContentTypePolicy}. */
+    private BlobInfo blobInfo(String objectKey, ContentTypePolicy.Decision decision) {
+        BlobInfo.Builder b = BlobInfo.newBuilder(BlobId.of(props.getBucketName(), objectKey))
+                .setContentType(decision.contentType());
+        if (decision.attachment()) {
             b.setContentDisposition("attachment");
         }
         return b.build();
     }
 
+    private static byte[] head(byte[] bytes) {
+        return Arrays.copyOf(bytes, Math.min(bytes.length, SNIFF_BYTES));
+    }
+
+    /** First bytes of a stored object, or null when they cannot be read. */
+    private byte[] storedHead(BlobId blobId) {
+        try (ReadChannel reader = storage.reader(blobId)) {
+            if (reader == null) {
+                return null;
+            }
+            ByteBuffer buf = ByteBuffer.allocate(SNIFF_BYTES);
+            while (buf.hasRemaining() && reader.read(buf) >= 0) {
+                // keep reading until the buffer is full or the object ends
+            }
+            return Arrays.copyOf(buf.array(), buf.position());
+        } catch (Exception e) {
+            LOGGER.warn("Could not read the start of {} to check its type", blobId.getName(), e);
+            return null;
+        }
+    }
+
     // ------------------ RESUMABLE UPLOAD (For Background/Large Files) ------------------
     public InitiateUploadResponse startResumableSession(String directory, String fileName, String contentType, Long ownerId) {
         String objectKey = objectKey(directory, fileName);
-        // The signed PUT fixes the stored type: active types are stored as opaque bytes.
-        contentType = isActive(contentType) || contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType;
+        // The signed PUT fixes the stored type: one allowlisted media type, or opaque bytes. Inline types are
+        // checked against the stored bytes again in finalizeUpload.
+        contentType = ContentTypePolicy.decide(contentType, null).contentType();
 
         // 1. Create record in PENDING state
         FileEntity entity = new FileEntity();
@@ -128,6 +143,15 @@ public class FileStorageService {
             throw new GCPFileException("Upload not found in storage for file ID: " + fileId);
         }
         entity.setSize(blob.getSize());
+        BlobId blobId = BlobId.of(props.getBucketName(), entity.getFileName());
+        String storedType = blob.getContentType() != null ? blob.getContentType() : entity.getContentType();
+        byte[] head = storedHead(blobId);
+        ContentTypePolicy.Decision decision = ContentTypePolicy.decide(storedType,
+                head == null ? new byte[0] : head);
+        if (decision.attachment()) {
+            storage.update(blobInfo(entity.getFileName(), decision));
+        }
+        entity.setContentType(decision.contentType());
         entity.setStatus("COMPLETED");
         return fileRepository.save(entity);
     }
@@ -139,14 +163,16 @@ public class FileStorageService {
 
         try {
             String objectKey = objectKey(directory, file.getOriginalFilename());
-            BlobInfo blobInfo = blobInfo(objectKey, file.getContentType());
+            byte[] bytes = file.getBytes();
+            ContentTypePolicy.Decision decision = ContentTypePolicy.decide(file.getContentType(), head(bytes));
+            BlobInfo blobInfo = blobInfo(objectKey, decision);
 
-            storage.create(blobInfo, file.getBytes());
+            storage.create(blobInfo, bytes);
 
             FileEntity fileEntity = new FileEntity();
             fileEntity.setFileName(objectKey);
             fileEntity.setOriginalFileName(file.getOriginalFilename());
-            fileEntity.setContentType(file.getContentType());
+            fileEntity.setContentType(decision.contentType());
             fileEntity.setSize(file.getSize());
             fileEntity.setOwnerId(ownerId);
             fileEntity.setStatus("COMPLETED");
@@ -161,13 +187,17 @@ public class FileStorageService {
     public FileEntity uploadFileInputStream(InputStream inputStream, String fileName, String contentType, String directory, Long ownerId) {
         if (inputStream == null) throw new IllegalArgumentException("InputStream is null");
 
-        String mimeType = (contentType == null || contentType.isBlank()) ? "application/octet-stream" : contentType;
-
         try {
+            BufferedInputStream in = new BufferedInputStream(inputStream, SNIFF_BYTES * 2);
+            in.mark(SNIFF_BYTES);
+            byte[] head = in.readNBytes(SNIFF_BYTES);
+            in.reset();
+            ContentTypePolicy.Decision decision = ContentTypePolicy.decide(contentType, head);
+            String mimeType = decision.contentType();
             String objectKey = objectKey(directory, fileName);
-            BlobInfo blobInfo = blobInfo(objectKey, mimeType);
+            BlobInfo blobInfo = blobInfo(objectKey, decision);
 
-            Blob blob = storage.createFrom(blobInfo, inputStream);
+            Blob blob = storage.createFrom(blobInfo, in);
 
             FileEntity fileEntity = new FileEntity();
             fileEntity.setFileName(objectKey);
