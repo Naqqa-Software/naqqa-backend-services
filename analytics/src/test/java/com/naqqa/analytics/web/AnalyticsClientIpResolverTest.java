@@ -51,4 +51,15 @@ class AnalyticsClientIpResolverTest {
         org.mockito.Mockito.verify(ingest).ingestBeacon(org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.eq("203.0.113.9"), org.mockito.ArgumentMatchers.any());
     }
+
+    /**
+     * AU-BE-50: the shipped nginx appends to X-Forwarded-For but passes a client's own X-Real-IP through, so the
+     * appended hop wins over X-Real-IP; trusted proxies in a chain are skipped from the right.
+     */
+    @Test
+    void clientXRealIpPassedThroughByTheProxyDoesNotWin() {
+        assertEquals("198.51.100.7", resolver(null).resolve(request("127.0.0.1", "8.8.8.8, 198.51.100.7", "1.2.3.4")));
+        assertEquals("198.51.100.7", resolver("127.0.0.1/32,172.16.0.0/12")
+                .resolve(request("127.0.0.1", "8.8.8.8, 198.51.100.7, 172.18.0.5", "1.2.3.4")));
+    }
 }

@@ -81,4 +81,26 @@ class FileStorageServiceTest {
         assertEquals(1234L, done.getSize());
         assertEquals("COMPLETED", done.getStatus());
     }
+
+    /** AU-BE-48: the signed resumable PUT must sign the Content-Type, or the client stores any type it likes. */
+    @Test
+    void resumableUploadSignsTheContentType() throws Exception {
+        java.security.KeyPairGenerator gen = java.security.KeyPairGenerator.getInstance("RSA");
+        gen.initialize(2048);
+        com.google.auth.oauth2.ServiceAccountCredentials creds = com.google.auth.oauth2.ServiceAccountCredentials.newBuilder()
+                .setClientEmail("signer@test.iam.gserviceaccount.com")
+                .setPrivateKey(gen.generateKeyPair().getPrivate())
+                .setProjectId("p")
+                .build();
+        Storage signing = com.google.cloud.storage.StorageOptions.newBuilder().setProjectId("p").setCredentials(creds)
+                .build().getService();
+        FileStorageProperties props = new FileStorageProperties();
+        props.setBucketName("bucket");
+        when(repo.save(any())).thenAnswer(i -> i.getArgument(0));
+        String url = new FileStorageService(repo, signing, props)
+                .startResumableSession("docs", "x.pdf", "application/pdf", 7L).getUploadUrl();
+        String signedHeaders = java.net.URLDecoder.decode(url.replaceAll(".*X-Goog-SignedHeaders=([^&]*).*", "$1"),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(signedHeaders.contains("content-type"), "Content-Type not signed: " + signedHeaders);
+    }
 }

@@ -125,7 +125,17 @@ public final class PublicUrlGuard {
             if (firstTenZero && (((b[10] & 0xFF) == 0xFF && (b[11] & 0xFF) == 0xFF) || (b[10] == 0 && b[11] == 0))) {
                 return isBlockedV4(new byte[] { b[12], b[13], b[14], b[15] }); // IPv4-mapped or compatible
             }
-            return false;
+            boolean nat64 = b[0] == 0 && b[1] == 0x64 && (b[2] & 0xFF) == 0xFF && (b[3] & 0xFF) == 0x9B;
+            for (int i = 4; nat64 && i < 12; i++) {
+                nat64 = b[i] == 0;
+            }
+            if (nat64) {
+                return isBlockedV4(new byte[] { b[12], b[13], b[14], b[15] }); // NAT64 64:ff9b::/96
+            }
+            if (b[0] == 0x20 && b[1] == 0x02) {
+                return isBlockedV4(new byte[] { b[2], b[3], b[4], b[5] }); // 6to4 2002::/16
+            }
+            return b[0] == 0x20 && b[1] == 0x01 && (b[2] & 0xFF) == 0x0D && (b[3] & 0xFF) == 0xB8; // 2001:db8::/32
         }
         return true;
     }
@@ -140,6 +150,9 @@ public final class PublicUrlGuard {
                 || (a0 == 172 && a1 >= 16 && a1 <= 31)
                 || (a0 == 192 && a1 == 168)
                 || (a0 == 192 && a1 == 0 && a2 == 0)       // 192.0.0.0/24
+                || (a0 == 192 && a1 == 0 && a2 == 2)       // TEST-NET-1
+                || (a0 == 198 && a1 == 51 && a2 == 100)    // TEST-NET-2
+                || (a0 == 203 && a1 == 0 && a2 == 113)     // TEST-NET-3
                 || (a0 == 198 && (a1 == 18 || a1 == 19));  // benchmarking 198.18.0.0/15
     }
 }

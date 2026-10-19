@@ -98,9 +98,11 @@ public class FileStorageService {
         BlobId blobId = BlobId.of(props.getBucketName(), objectKey);
         BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType(contentType).build();
 
+        // Content-Type is a signed header (V4 SignedHeaders): the PUT must send exactly this type.
         URL signedUrl = storage.signUrl(blobInfo, 1, TimeUnit.HOURS,
                 Storage.SignUrlOption.withV4Signature(),
-                Storage.SignUrlOption.httpMethod(HttpMethod.PUT)
+                Storage.SignUrlOption.httpMethod(HttpMethod.PUT),
+                Storage.SignUrlOption.withExtHeaders(java.util.Map.of("Content-Type", contentType))
         );
         return signedUrl.toString();
     }

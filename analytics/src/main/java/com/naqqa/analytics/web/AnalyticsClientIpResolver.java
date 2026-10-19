@@ -41,15 +41,21 @@ public class AnalyticsClientIpResolver {
         if (!isTrusted(remote)) {
             return remote;
         }
-        String real = request.getHeader("X-Real-IP");
-        if (real != null && !real.isBlank()) {
-            return real.trim();
-        }
+        // X-Forwarded-For first: the proxy appends the address it saw, while a client's own X-Real-IP may be
+        // passed through unchanged (the shipped nginx sets no X-Real-IP). Walk from the right past trusted proxies.
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
             String[] hops = forwarded.split(",");
-            // The last hop is the one the trusted proxy appended (the address it saw).
-            return hops[hops.length - 1].trim();
+            for (int i = hops.length - 1; i >= 0; i--) {
+                String hop = hops[i].trim();
+                if (!hop.isEmpty() && (i == 0 || !isTrusted(hop))) {
+                    return hop;
+                }
+            }
+        }
+        String real = request.getHeader("X-Real-IP");
+        if (real != null && !real.isBlank()) {
+            return real.trim();
         }
         return remote;
     }
