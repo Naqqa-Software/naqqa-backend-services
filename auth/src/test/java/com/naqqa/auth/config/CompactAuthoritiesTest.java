@@ -122,4 +122,57 @@ public class CompactAuthoritiesTest {
         // the plain list is read as before
         assertEquals(Set.of("a:b"), names(Map.of(JwtToAuthorities.AUTHORITY_CLAIM_NAME, List.of("a:b", 7))));
     }
+
+    @Test
+    @DisplayName("SSO-T-auth-807 AU-BE-66: bombs and oversized values stop before inflating, duplicates, unsorted, control characters, both claims and other versions are refused")
+    void attacks() {
+        // A 5 MB zero bomb fits the encoded cap (about 5 KB) and stops at the 64 KB inflate cap, quickly.
+        String bomb = deflate(new byte[5_000_000]);
+        assertTrue(bomb.length() < CompactAuthorities.MAX_ENCODED, String.valueOf(bomb.length()));
+        long t0 = System.nanoTime();
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> CompactAuthorities.decode(bomb));
+        assertTrue(e.getMessage().contains("too large"), e.getMessage());
+        assertTrue(System.nanoTime() - t0 < 500_000_000L, "bomb not stopped early");
+        // A bigger value is refused on its length alone, before base64 or inflate run.
+        String huge = CompactAuthorities.PREFIX + "A".repeat(CompactAuthorities.MAX_ENCODED);
+        e = assertThrows(IllegalArgumentException.class, () -> CompactAuthorities.decode(huge));
+        assertEquals("authz claim too large", e.getMessage());
+        // Too many entries.
+        StringBuilder many = new StringBuilder();
+        for (int i = 0; i < 5000; i++) {
+            many.append(i == 0 ? "" : "\n").append(String.format("a%05d", i));
+        }
+        assertThrows(IllegalArgumentException.class, () -> CompactAuthorities.decode(deflate(many.toString().getBytes(StandardCharsets.UTF_8))));
+        // Non canonical bodies a foreign encoder could write: duplicates, unsorted, control characters, overlong names.
+        for (String body : List.of("a:read\na:read", "b:read\na:read", "a:read\nb\tread", "a:read\nb\u0000", "a:read\n" + "x".repeat(300),
+                "a:read\n", "\na:read")) {
+            assertThrows(IllegalArgumentException.class, () -> CompactAuthorities.decode(deflate(body.getBytes(StandardCharsets.UTF_8))),
+                    body);
+        }
+        // The canonical body of the same names is accepted (control for the cases above).
+        assertEquals(List.of("a:read", "b:read"), CompactAuthorities.decode(deflate("a:read\nb:read".getBytes(StandardCharsets.UTF_8))));
+        // Version confusion: only d1. is known; a zlib (not raw) stream is refused.
+        String good = CompactAuthorities.encode(osAdmin());
+        for (String v : List.of("d0.", "D1.", "d1..", "z1.")) {
+            assertThrows(IllegalArgumentException.class, () -> CompactAuthorities.decode(v + good.substring(3)), v);
+        }
+        Deflater zlib = new Deflater(9, false);
+        zlib.setInput("a:read".getBytes(StandardCharsets.UTF_8));
+        zlib.finish();
+        byte[] buf = new byte[64];
+        int n = zlib.deflate(buf);
+        zlib.end();
+        assertThrows(IllegalArgumentException.class, () -> CompactAuthorities.decode(CompactAuthorities.PREFIX
+                + Base64.getUrlEncoder().withoutPadding().encodeToString(java.util.Arrays.copyOf(buf, n))));
+        // Both forms in one token: refused, never merged.
+        assertThrows(IllegalArgumentException.class, () -> JwtToAuthorities.fromClaims(Map.of(
+                CompactAuthorities.CLAIM, good, JwtToAuthorities.AUTHORITY_CLAIM_NAME, List.of("extra:grant"))));
+        // Names the compact form cannot carry canonically fall back to the plain list.
+        List<String> withControl = new ArrayList<>(osAdmin());
+        withControl.add("bad\tname");
+        assertFalse(CompactAuthorities.shouldCompact(withControl));
+        List<String> withLong = new ArrayList<>(osAdmin());
+        withLong.add("y".repeat(300));
+        assertFalse(CompactAuthorities.shouldCompact(withLong));
+    }
 }

@@ -21,6 +21,14 @@ import java.util.zip.Inflater;
  * The claim is covered by the token signature like every other claim, decoding is verified before it
  * is read, the inflated size and entry count are capped, and any malformed value is refused (the
  * token is treated as invalid, never as a token without authorities).</p>
+ *
+ * <p>AU-BE-66 hardening: the encoded length is capped before anything is decoded or inflated, the inflated
+ * text must be the canonical form this class writes (names strictly ascending, so no duplicates, no empty
+ * or control-character names, each at most {@link #MAX_NAME} characters), only the version prefix
+ * {@code d1.} is known, and a token carrying both {@code authz} and {@code authorities} is refused by
+ * {@link JwtToAuthorities#fromClaims}. The claim is a snapshot of the server-side set at minting time,
+ * exactly like the plain list: refresh, role switch and step-up re-read it from the database, and per
+ * request {@code AuthoritiesCustomizer}s (naqqa-os per-user revocations) apply to it unchanged.</p>
  */
 public final class CompactAuthorities {
 
@@ -28,8 +36,11 @@ public final class CompactAuthorities {
     public static final String PREFIX = "d1.";
     /** A plain list longer than this (sum of name lengths plus separators) is sent compact. */
     public static final int INLINE_LIMIT = 1024;
-    static final int MAX_INFLATED = 64 * 1024;
-    static final int MAX_ENTRIES = 4096;
+    public static final int MAX_INFLATED = 64 * 1024;
+    public static final int MAX_ENTRIES = 4096;
+    /** Longest accepted claim value (prefix plus base64url), checked before decoding or inflating. */
+    public static final int MAX_ENCODED = 12 * 1024;
+    public static final int MAX_NAME = 256;
 
     private CompactAuthorities() {
     }
@@ -38,12 +49,25 @@ public final class CompactAuthorities {
     public static boolean shouldCompact(Collection<String> names) {
         int length = 0;
         for (String n : names) {
-            if (n == null || n.isEmpty() || n.indexOf('\n') >= 0) {
+            if (!validName(n)) {
                 return false;
             }
             length += n.length() + 3;
         }
         return length > INLINE_LIMIT && names.size() <= MAX_ENTRIES;
+    }
+
+    private static boolean validName(String n) {
+        if (n == null || n.isEmpty() || n.length() > MAX_NAME) {
+            return false;
+        }
+        for (int i = 0; i < n.length(); i++) {
+            char c = n.charAt(i);
+            if (c < 0x20 || c == 0x7f) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static String encode(Collection<String> names) {
@@ -70,6 +94,9 @@ public final class CompactAuthorities {
     public static List<String> decode(Object claim) {
         if (!(claim instanceof String s) || !s.startsWith(PREFIX)) {
             throw new IllegalArgumentException("malformed authz claim");
+        }
+        if (s.length() > MAX_ENCODED) {
+            throw new IllegalArgumentException("authz claim too large");
         }
         byte[] compressed;
         try {
@@ -109,11 +136,17 @@ public final class CompactAuthorities {
             throw new IllegalArgumentException("authz claim too large");
         }
         List<String> names = new ArrayList<>(parts.length);
+        String previous = null;
         for (String p : parts) {
-            if (p.isEmpty()) {
+            if (!validName(p)) {
                 throw new IllegalArgumentException("malformed authz claim");
             }
+            if (previous != null && previous.compareTo(p) >= 0) {
+                // not the canonical TreeSet order this class writes: duplicates or a foreign encoder
+                throw new IllegalArgumentException("non canonical authz claim");
+            }
             names.add(p);
+            previous = p;
         }
         return names;
     }

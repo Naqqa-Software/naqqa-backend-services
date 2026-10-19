@@ -27,6 +27,11 @@ public class JwtToAuthorities implements Converter<AuthPrincipal, Collection<Gra
      */
     public static Collection<GrantedAuthority> fromClaims(Map<String, Object> claims) {
         Object authoritiesClaim = claims.get(AUTHORITY_CLAIM_NAME);
+        Object compact = claims.get(CompactAuthorities.CLAIM);
+        if (compact != null && authoritiesClaim != null) {
+            // AU-BE-66: the server writes one form or the other, never both
+            throw new IllegalArgumentException("both authorities and authz claims");
+        }
         List<GrantedAuthority> out = new ArrayList<>();
         if (authoritiesClaim instanceof List<?> authoritiesList) {
             for (Object authority : authoritiesList) {
@@ -35,7 +40,6 @@ public class JwtToAuthorities implements Converter<AuthPrincipal, Collection<Gra
                 }
             }
         }
-        Object compact = claims.get(CompactAuthorities.CLAIM);
         if (compact != null) {
             for (String s : CompactAuthorities.decode(compact)) {
                 out.add(new SimpleGrantedAuthority(s));
