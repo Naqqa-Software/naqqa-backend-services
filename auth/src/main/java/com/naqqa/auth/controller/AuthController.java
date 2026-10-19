@@ -76,16 +76,34 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     public ResponseEntity<String> forgotPassword(@RequestBody ForgotPasswordRequest request) {
-        ResetPasswordInfo info = authService.forgotPassword(request);
-
-        authEmailService.sendEmail(
-                request.email(),
-                emailMessages.getResetPasswordSubject(),
-                emailMessages.getResetPasswordEmailMessage(info.email(), info.uuid())
-        );
-
+        // Lookup + e-mail run off the request thread, so known and unknown addresses answer with the same 200
+        // in the same time (no enumeration by status or timing).
+        FORGOT_PASSWORD_EXECUTOR.execute(() -> {
+            try {
+                ResetPasswordInfo info = authService.forgotPassword(request);
+                authEmailService.sendEmail(
+                        request.email(),
+                        emailMessages.getResetPasswordSubject(),
+                        emailMessages.getResetPasswordEmailMessage(info.email(), info.uuid())
+                );
+            } catch (com.naqqa.auth.exceptions.auth.EmailNotFoundException ignored) {
+                // unknown address: nothing to send
+            } catch (RuntimeException e) {
+                org.slf4j.LoggerFactory.getLogger(AuthController.class).warn("Password reset e-mail failed: {}", e.getMessage());
+            }
+        });
         return new ResponseEntity<>(HttpStatus.OK);
     }
+
+    /** Bounded: at most 2 workers and 200 queued requests; beyond that requests are dropped silently. */
+    private static final java.util.concurrent.ExecutorService FORGOT_PASSWORD_EXECUTOR = new java.util.concurrent.ThreadPoolExecutor(
+            1, 2, 60, java.util.concurrent.TimeUnit.SECONDS, new java.util.concurrent.ArrayBlockingQueue<>(200),
+            runnable -> {
+                Thread thread = new Thread(runnable, "auth-forgot-password");
+                thread.setDaemon(true);
+                return thread;
+            },
+            new java.util.concurrent.ThreadPoolExecutor.DiscardPolicy());
 
     @PostMapping("/reset-password")
     public void resetPassword(@RequestBody ResetPasswordRequest request) {

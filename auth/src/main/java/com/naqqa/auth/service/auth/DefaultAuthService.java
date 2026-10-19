@@ -51,11 +51,28 @@ public class DefaultAuthService implements AuthService {
     private final CodeGenService codeGenService;
     private final AuthEmailService authEmailService;
     private final EmailMessages emailMessages;
+    private final com.naqqa.auth.service.security.AuthAttemptLimiter attemptLimiter;
+
+    /** Verification e-mail resends per address and per address+IP per hour (login of a pending account). */
+    static final int RESENDS_PER_EMAIL = 3;
+    static final int RESENDS_PER_SOURCE = 3;
+    static final long RESEND_WINDOW_MS = 60 * 60_000L;
+    /** Hash of a random secret, used to spend the same time on unknown e-mails as on known ones. */
+    private volatile String dummyHash;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
+        com.naqqa.auth.service.security.PasswordRules.validate(request.getPassword());
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new EmailInUseException();
+            // Uniform answer for existing addresses (no account enumeration): an unusable uuid in the response,
+            // and the real owner gets a heads-up instead of a code (capped per address).
+            if (attemptLimiter.tryAcquire("register-exists", request.getEmail(), RESENDS_PER_EMAIL, RESEND_WINDOW_MS)) {
+                authEmailService.sendEmail(request.getEmail(), emailMessages.getAlreadyRegisteredSubject(),
+                        emailMessages.getAlreadyRegisteredMessage());
+            }
+            RegisterResponse response = new RegisterResponse();
+            response.setUuid(UUID.randomUUID().toString());
+            return response;
         }
 
         RegisterRecordEntity reg = new RegisterRecordEntity();
@@ -117,8 +134,15 @@ public class DefaultAuthService implements AuthService {
             RegisterRecordEntity reg = registerRecordRepository.findByEmail(request.getEmail())
                     .orElse(null);
 
-            if (reg != null) {
-                String uuid = resendVerificationCode(request.getEmail());
+            // A pending registration is only revealed (and its uuid returned) to someone who knows its password;
+            // otherwise the answer and the time spent are the same as for an unknown address.
+            String hash = reg != null ? reg.getPassword() : dummyHash();
+            boolean passwordOk = request.getPassword() != null && passwordEncoder.matches(request.getPassword(), hash);
+            if (reg != null && passwordOk) {
+                boolean resend = attemptLimiter.tryAcquire("resend", request.getEmail(), RESENDS_PER_EMAIL, RESEND_WINDOW_MS)
+                        && attemptLimiter.tryAcquire("resend-src", request.getEmail() + "|" + clientIp(),
+                        RESENDS_PER_SOURCE, RESEND_WINDOW_MS);
+                String uuid = resend ? resendVerificationCode(request.getEmail()) : reg.getUuid();
                 throw new EmailNotVerifiedException(uuid);
             }
 
@@ -278,6 +302,7 @@ public class DefaultAuthService implements AuthService {
     }
 
 
+    @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         PasswordResetEntity resetEntity = passwordResetRepository.findById(request.email())
                 .orElseThrow(() -> new BadRequestException(Errors.PASSWORD_RESET_EXPIRED_LINK));
@@ -294,10 +319,30 @@ public class DefaultAuthService implements AuthService {
         if (user.hasUsablePassword() && passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new SamePasswordException();
         }
+        com.naqqa.auth.service.security.PasswordRules.validate(request.password());
 
         user.setPassword(passwordEncoder.encode(request.password()));
         userRepository.save(user);
+        // A reset must end every existing session: a stolen refresh token would otherwise survive it.
+        refreshTokenRepository.deleteByUser(user);
 
         passwordResetRepository.deleteByEmail(request.email());
+    }
+
+    private String dummyHash() {
+        String hash = dummyHash;
+        if (hash == null) {
+            hash = passwordEncoder.encode(UUID.randomUUID().toString());
+            dummyHash = hash;
+        }
+        return hash;
+    }
+
+    private static String clientIp() {
+        var attributes = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attributes instanceof org.springframework.web.context.request.ServletRequestAttributes servlet) {
+            return servlet.getRequest().getRemoteAddr();
+        }
+        return "";
     }
 }

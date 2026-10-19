@@ -315,7 +315,7 @@ class ChatAiUserMemoryTest {
         assertNull(ChatService.memoryOwner(anas, BOB));
         assertNull(ChatService.memoryOwner(anas, null));
         ChatConversationEntity guest = new ChatConversationEntity();
-        assertEquals(BOB, ChatService.memoryOwner(guest, BOB));
+        assertNull(ChatService.memoryOwner(guest, BOB));
         assertNull(ChatService.memoryOwner(guest, null));
     }
 

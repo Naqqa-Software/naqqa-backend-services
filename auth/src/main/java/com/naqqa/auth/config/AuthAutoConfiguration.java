@@ -99,7 +99,8 @@ public class AuthAutoConfiguration {
                 tokenService,
                 codeGenService,
                 authEmailService,
-                emailMessages
+                emailMessages,
+                new com.naqqa.auth.service.security.AuthAttemptLimiter()
         );
     }
 

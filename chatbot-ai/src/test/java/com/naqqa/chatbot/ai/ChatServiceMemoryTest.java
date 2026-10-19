@@ -176,4 +176,16 @@ class ChatServiceMemoryTest {
         send(guest, "ce știi despre mine?", null);
         assertTrue(lastBot(guest).getText().contains("/auth/login"), lastBot(guest).getText());
     }
+
+    @Test
+    void guestWhoSignsInMidConversationKeepsItAndOwnsIt() {
+        String c = open(null);
+        send(c, "lapte la Linella", null);
+        send(c, "lapte la Linella", 11L);
+        assertEquals(11L, conversations.get(c).getUserId());
+        assertTrue(b.db.containsKey("u:11"));
+        send(c, "lapte la Linella", 22L);
+        assertEquals(11L, conversations.get(c).getUserId());
+        assertNull(b.db.get("u:22"));
+    }
 }

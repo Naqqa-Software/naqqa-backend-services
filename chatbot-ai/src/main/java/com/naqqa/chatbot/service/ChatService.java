@@ -124,11 +124,30 @@ public class ChatService {
         return memory;
     }
 
+    /**
+     * A guest who signs in mid-conversation keeps chatting in the SAME conversation: it is attached to the user.
+     * Only an anonymous conversation is claimed, and only by a request that holds this conversation's visitor
+     * token (verified by the caller), i.e. the session's own conversation; a conversation that already belongs
+     * to someone is never transferred. Compare-and-set under optimistic locking.
+     */
+    ChatConversationEntity claimForViewer(ChatConversationEntity c, Long viewerId) {
+        if (viewerId == null || c.getUserId() != null) {
+            return c;
+        }
+        return store.update(c.getId(), current -> {
+            if (current.getUserId() == null) {
+                current.setUserId(viewerId);
+            }
+        });
+    }
+
     public static Long memoryOwner(ChatConversationEntity c, Long viewer) {
         if (c == null || viewer == null) {
             return null;
         }
-        return c.getUserId() == null || c.getUserId().equals(viewer) ? viewer : null;
+        // Only the conversation's owner. An anonymous conversation never loads or writes a user's memory: anyone
+        // else holding its visitor token could otherwise read replies personalised from that user's memory.
+        return viewer.equals(c.getUserId()) ? viewer : null;
     }
 
     public ChatLanguages languages() {
@@ -314,6 +333,7 @@ public class ChatService {
         if (c.getStatus() == ChatStatus.CLOSED) {
             throw ChatException.closed();
         }
+        c = claimForViewer(c, viewerId);
         if (request == null) {
             throw ChatException.badRequest("Message body is required.");
         }
