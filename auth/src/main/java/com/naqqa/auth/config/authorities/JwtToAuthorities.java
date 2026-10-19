@@ -19,6 +19,12 @@ public class JwtToAuthorities implements Converter<AuthPrincipal, Collection<Gra
         return fromClaims(principal.getClaims());
     }
 
+    /**
+     * Authorities of a verified token: the plain {@code authorities} list, or the compact {@code authz}
+     * claim of large sets ({@link CompactAuthorities}).
+     *
+     * @throws IllegalArgumentException when the compact claim is malformed (the token must be refused)
+     */
     public static Collection<GrantedAuthority> fromClaims(Map<String, Object> claims) {
         Object authoritiesClaim = claims.get(AUTHORITY_CLAIM_NAME);
         List<GrantedAuthority> out = new ArrayList<>();
@@ -27,6 +33,12 @@ public class JwtToAuthorities implements Converter<AuthPrincipal, Collection<Gra
                 if (authority instanceof String s) {
                     out.add(new SimpleGrantedAuthority(s));
                 }
+            }
+        }
+        Object compact = claims.get(CompactAuthorities.CLAIM);
+        if (compact != null) {
+            for (String s : CompactAuthorities.decode(compact)) {
+                out.add(new SimpleGrantedAuthority(s));
             }
         }
         return out;

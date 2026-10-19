@@ -82,6 +82,7 @@ Startup migrations are conditional updates (`emailVerified` exists false, sessio
 ## 4. Residuals
 
 - Removing a role does not revoke sessions; access tokens carry the old authorities until they expire (15 minutes) or are refreshed.
+- Access tokens list the authorities in `authorities`; a set longer than 1 KB of names (an administrator holds about 150) travels as `authz` instead, the sorted names deflated and base64url encoded, so the `access_token` cookie stays under the 4096 byte browser limit (2.0 KB instead of 4.2 KB for the naqqa-os ADMIN, PERF-FE-1). Both are signed claims read by `JwtToAuthorities`; an `authz` that does not decode makes the token invalid, it is never read as a token without authorities.
 - OTP attempt counters use `$max` across nodes: two wrong guesses on two nodes at the same instant through two different paths can count once. Every path holds its per-account lease, the code space is 10^6 with 5 attempts.
 - The registration attempt counter is a read-modify-write on the Redis record; a parallel burst on one pending registration can evaluate more than 5 guesses of the 62^6 code space before the record dies.
 - Without a pepper (legacy mode only) the registration code is stored as SHA-256 (`s:`), keyed HMAC (`m:`) otherwise; SSO mode always has the pepper.

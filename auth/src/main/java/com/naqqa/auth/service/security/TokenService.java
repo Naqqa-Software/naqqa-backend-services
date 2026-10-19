@@ -1,5 +1,7 @@
 package com.naqqa.auth.service.security;
 
+import com.naqqa.auth.config.authorities.CompactAuthorities;
+import com.naqqa.auth.config.authorities.JwtToAuthorities;
 import com.naqqa.auth.exceptions.auth.AccountBlockedException;
 import com.naqqa.auth.entity.authorities.AuthorityEntity;
 import com.naqqa.auth.entity.authorities.RoleEntity;
@@ -129,7 +131,13 @@ public class TokenService {
         claims.put("email", user.getEmail());
         claims.put("fullName", user.getFullName());
         claims.put("roles", allRoleNames);
-        claims.put("authorities", new ArrayList<>(authoritiesOf(user)));
+        Set<String> authorities = authoritiesOf(user);
+        if (CompactAuthorities.shouldCompact(authorities)) {
+            // PERF-FE-1: an administrator's list kept the cookie over the 4096 byte browser limit.
+            claims.put(CompactAuthorities.CLAIM, CompactAuthorities.encode(authorities));
+        } else {
+            claims.put(JwtToAuthorities.AUTHORITY_CLAIM_NAME, new ArrayList<>(authorities));
+        }
         claims.put("role", roleClaim);
         if (ctx.sessionId() != null) {
             claims.put("sid", ctx.sessionId());

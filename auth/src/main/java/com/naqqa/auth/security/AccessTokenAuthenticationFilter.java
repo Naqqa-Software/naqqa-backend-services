@@ -87,8 +87,10 @@ public class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         AuthPrincipal principal;
+        Collection<GrantedAuthority> tokenAuthorities;
         try {
             principal = verifier.verify(token);
+            tokenAuthorities = JwtToAuthorities.fromClaims(principal.getClaims());
         } catch (SsoException e) {
             request.setAttribute(ERROR_ATTRIBUTE, e.code());
             return;
@@ -101,7 +103,7 @@ public class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
             request.setAttribute(ERROR_ATTRIBUTE, "session.revoked");
             return;
         }
-        Collection<GrantedAuthority> authorities = new ArrayList<>(JwtToAuthorities.fromClaims(principal.getClaims()));
+        Collection<GrantedAuthority> authorities = new ArrayList<>(tokenAuthorities);
         for (AuthoritiesCustomizer customizer : customizers.orderedStream().toList()) {
             Collection<? extends GrantedAuthority> next = customizer.customize(principal, List.copyOf(authorities));
             authorities = next == null ? new ArrayList<>() : new ArrayList<>(next);
