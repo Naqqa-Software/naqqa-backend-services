@@ -8,9 +8,6 @@ import java.util.List;
 @Component
 public class DefaultAuthorityProvider implements IAuthorityProvider {
 
-    /**
-     * Default list of domain resources for core user management and roles.
-     */
     @Override
     public List<String> getProtectedResources() {
         return List.of(
@@ -20,9 +17,6 @@ public class DefaultAuthorityProvider implements IAuthorityProvider {
         );
     }
 
-    /**
-     * Standard CRUD and management actions.
-     */
     @Override
     public List<String> getBaseActions() {
         return List.of(
@@ -33,7 +27,6 @@ public class DefaultAuthorityProvider implements IAuthorityProvider {
         );
     }
 
-    // Resource-specific extra actions
     @Override
     public List<String> getExtraActionsForResource(String resource) {
         return switch (resource) {

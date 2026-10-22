@@ -2796,14 +2796,12 @@ public class DefaultChatAiEngine implements ChatAiEngine {
         if (head.size() >= 3) {
             rest.removeIf(r -> r.candidate().price() != null);
         } else if (!head.isEmpty() || rest.stream().anyMatch(r -> mentionsAsMain(r.candidate().title(lang), q))) {
-            // A title that only mentions the term as a flavour/filling ("Iaurt cu banane") is not a match for "banane".
             rest.removeIf(r -> r.candidate().price() != null && !mentionsAsMain(r.candidate().title(lang), q));
         }
         head.addAll(rest);
         return head;
     }
 
-    /** Like {@link #mentionsAny} but ignores mentions that follow a head-break word (cu, aroma, gust, din...). */
     private boolean mentionsAsMain(String title, List<String> q) {
         String previous = null;
         for (String t : TextNormalizer.tokens(title == null ? "" : title)) {

@@ -60,9 +60,7 @@ class ChatAiShoppingPlannerTest {
                 item(3, "Paste făinoase penne 500g", 25), item(4, "MUTTI Pasta de rosii 130g", 5));
         assertEquals(3L, ShoppingPlanner.cheapest(pasta, 2, "kg", 0, "paste").item().candidate().id());
         assertNull(ShoppingPlanner.cheapest(List.of(item(1, "Ulei esential lavanda 10ml", 90)), 2, "l", 0, "ulei"));
-        // unknown pack size for a weight/volume need: refuse instead of multiplying the pack price
         assertNull(ShoppingPlanner.cheapest(List.of(item(1, "Apa minerala", 149)), 12, "l", 0, "apă"));
-        // absurd line total
         assertNull(ShoppingPlanner.cheapest(List.of(item(1, "Cafea 250g", 700)), 2, "kg", 0, "cafea"));
         ShoppingPlanner.Plan plan = ShoppingPlanner.greedy(List.of(new ChatLanguages.BasketItem("apă", 12, "l", true)),
                 Map.of("apă", List.of(item(1, "Apa de toaleta 50ml", 149))), 1.0, null, 0);

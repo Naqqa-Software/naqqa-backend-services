@@ -191,12 +191,6 @@ public class ChatSseHub {
         }
     }
 
-    /**
-     * Re-checks the operator's current authorities at most every {@link #ADMIN_AUTHORITY_REVALIDATE_MS}.
-     * Returns {@code false} when the resolver confirms the operator no longer holds
-     * {@code chat:read_all}/{@code chat:read_assigned}, so the caller should close the emitter. When no
-     * {@link ChatOperatorResolver} is configured, or it cannot answer for this user, access is left as-is.
-     */
     private boolean revalidate(AdminSubscriber subscriber) {
         if (operators == null) {
             return true;

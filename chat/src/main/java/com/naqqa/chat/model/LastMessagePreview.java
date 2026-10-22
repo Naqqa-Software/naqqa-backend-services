@@ -10,9 +10,9 @@ public class LastMessagePreview {
     private Long id;
     private Long senderId;
     private String senderName;
-    private String content;        // decrypted text; null for deleted or media-only messages
-    private ChatMessageType type;  // TEXT / IMAGE / FILE / VIDEO / AUDIO / SYSTEM
-    private String mediaType;      // e.g. "image/jpeg" — use to show "Photo", "Video" etc.
+    private String content;
+    private ChatMessageType type;
+    private String mediaType;
     private boolean deletedForEveryone;
-    private String createdAt;      // ISO-8601
+    private String createdAt;
 }

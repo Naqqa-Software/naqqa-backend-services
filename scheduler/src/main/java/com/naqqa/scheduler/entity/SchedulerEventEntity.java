@@ -45,31 +45,22 @@ public class SchedulerEventEntity implements Serializable {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    /** Optional text/label colour override (e.g. "#fff" for dark backgrounds). */
     @Column(name = "text_color")
     private String textColor;
 
-    /** i18n key the FE uses to build the display label, e.g. "Scheduler.Lesson.Start". */
     @Column(name = "message_key")
     private String messageKey;
 
-    /**
-     * Arbitrary params the FE needs to interpolate the message key.
-     * Example: {courseId, courseTitle:{ro,en,ru}, lessonId, lessonTitle:{ro,en,ru}, lessonNumber}
-     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "message_params", columnDefinition = "jsonb")
     private Map<String, Object> messageParams;
 
-    /** Lesson that originated this event (null for manual events). */
     @Column(name = "lesson_id")
     private Long lessonId;
 
-    /** Lesson slot that originated this event (null for manual events). */
     @Column(name = "slot_id")
     private Long slotId;
 
-    /** Course that originated this event (null for manual events). */
     @Column(name = "course_id")
     private Long courseId;
 

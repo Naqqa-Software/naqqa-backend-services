@@ -23,7 +23,6 @@ public class SubRoleService {
     private final SubRoleRepository subRoleRepository;
     private final AuthorityRepository authorityRepository;
 
-    // --- Helper: validate and fetch authorities ---
     private Set<AuthorityEntity> getOrCreateAuthorities(Set<String> authorityNames) {
         List<AuthorityEntity> existingAuthorities =
                 authorityRepository.findAllByNameIn(authorityNames);
@@ -32,12 +31,10 @@ public class SubRoleService {
                 .map(AuthorityEntity::getName)
                 .collect(Collectors.toSet());
 
-        // Find which authorities do NOT exist
         Set<String> missingNames = authorityNames.stream()
                 .filter(name -> !existingNames.contains(name))
                 .collect(Collectors.toSet());
 
-        // Create missing authorities
         for (String name : missingNames) {
             AuthorityEntity newAuth = new AuthorityEntity();
             newAuth.setName(name);
@@ -49,7 +46,6 @@ public class SubRoleService {
     }
 
 
-    // --- Create ---
     @Transactional
     public SubRoleResponseDto createSubRole(SubRoleRequestDto dto) {
         if (subRoleRepository.findByName(dto.getName()).isPresent()) {
@@ -59,14 +55,13 @@ public class SubRoleService {
         Set<AuthorityEntity> authorities = getOrCreateAuthorities(dto.getAuthorityNames());
 
         SubRoleEntity newRole = new SubRoleEntity();
-        newRole.setName(dto.getName().toUpperCase()); // convert name to uppercase
+        newRole.setName(dto.getName().toUpperCase());
         newRole.setAuthorities(authorities);
 
         SubRoleEntity savedRole = subRoleRepository.save(newRole);
         return toResponseDto(savedRole);
     }
 
-    // --- Update ---
     @Transactional
     public SubRoleResponseDto updateSubRole(Long subRoleId, SubRoleRequestDto dto) {
         SubRoleEntity role = subRoleRepository.findById(subRoleId)
@@ -86,7 +81,6 @@ public class SubRoleService {
         return toResponseDto(updatedSubRole);
     }
 
-    // --- Find all roles ---
     @Transactional(readOnly = true)
     public List<SubRoleResponseDto> findAllSubRolesWithAuthorities() {
         return subRoleRepository.findAll().stream()
@@ -94,7 +88,6 @@ public class SubRoleService {
                 .collect(Collectors.toList());
     }
 
-    // --- Find role by ID ---
     @Transactional(readOnly = true)
     public SubRoleResponseDto findSubRoleById(Long subRoleId) {
         SubRoleEntity subRole = subRoleRepository.findById(subRoleId)
@@ -102,7 +95,6 @@ public class SubRoleService {
         return toResponseDto(subRole);
     }
 
-    // --- Delete ---
     @Transactional
     public void deleteSubRole(Long subRoleId) {
         SubRoleEntity subRole = subRoleRepository.findById(subRoleId)
@@ -110,7 +102,6 @@ public class SubRoleService {
         subRoleRepository.delete(subRole);
     }
 
-    // --- Convert SubRoleEntity to SubRoleResponseDto ---
     public SubRoleResponseDto toResponseDto(SubRoleEntity role) {
         if (role == null) return null;
 

@@ -1,5 +1,6 @@
 package com.naqqa.filestorage.service;
 
+import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.*;
 import com.naqqa.filestorage.config.FileStorageProperties;
 import com.naqqa.filestorage.entities.FileEntity;
@@ -16,19 +17,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/**
- * <p><b>Transaction scope is deliberately per-method.</b> A class-level {@code @Transactional} held a
- * pooled database connection for the whole of every upload — across the GCS round-trip — so a handful
- * of concurrent large uploads could exhaust the pool while doing almost no database work. Only the
- * methods that genuinely need atomicity declare it; single-row saves do not need a transaction, and
- * when these are called from inside a caller's transaction they still join it.
- */
 @Service
 @RequiredArgsConstructor
 public class FileStorageService {
@@ -39,14 +36,46 @@ public class FileStorageService {
     private final Storage storage;
     private final FileStorageProperties props;
 
-    /**
-     * Normalises a caller-supplied directory into a safe key prefix.
-     *
-     * <p>The directory is concatenated straight into the object key, so {@code ..} segments, leading
-     * slashes and backslashes would let a caller write outside the intended prefix — and, where a
-     * public bucket is configured, place an object under the public prefix and have it served
-     * world-readable. Rejecting is deliberate: silently rewriting a path hides an attempted escape.
-     */
+    private static final int SNIFF_BYTES = 512;
+
+    private BlobInfo blobInfo(String objectKey, ContentTypePolicy.Decision decision) {
+        BlobInfo.Builder b = BlobInfo.newBuilder(BlobId.of(props.getBucketName(), objectKey))
+                .setContentType(decision.contentType());
+        if (decision.attachment()) {
+            b.setContentDisposition("attachment");
+        }
+        return b.build();
+    }
+
+    private byte[] storedHead(BlobId blobId) {
+        try (ReadChannel reader = storage.reader(blobId)) {
+            if (reader == null) {
+                return null;
+            }
+            ByteBuffer buf = ByteBuffer.allocate(SNIFF_BYTES);
+            int n;
+            do {
+                n = reader.read(buf);
+            } while (n >= 0 && buf.hasRemaining());
+            return Arrays.copyOf(buf.array(), buf.position());
+        } catch (Exception e) {
+            LOGGER.warn("Could not read the start of {} to check its type", blobId.getName(), e);
+            return null;
+        }
+    }
+
+    private static BufferedInputStream sniffable(InputStream in) {
+        BufferedInputStream buffered = new BufferedInputStream(in, SNIFF_BYTES * 2);
+        buffered.mark(SNIFF_BYTES);
+        return buffered;
+    }
+
+    private static byte[] head(BufferedInputStream in) throws java.io.IOException {
+        byte[] head = in.readNBytes(SNIFF_BYTES);
+        in.reset();
+        return head;
+    }
+
     protected String sanitizeDirectory(String directory) {
         if (directory == null || directory.isBlank()) {
             return "general";
@@ -65,7 +94,6 @@ public class FileStorageService {
         return cleaned;
     }
 
-    /** Strips any path component from a caller-supplied filename before it enters the key. */
     protected String sanitizeFileName(String fileName) {
         if (fileName == null || fileName.isBlank()) {
             return "file";
@@ -79,11 +107,10 @@ public class FileStorageService {
         return base.isBlank() || base.equals(".") || base.equals("..") ? "file" : base;
     }
 
-    // ------------------ RESUMABLE UPLOAD (For Background/Large Files) ------------------
     public InitiateUploadResponse startResumableSession(String directory, String fileName, String contentType, Long ownerId) {
         String objectKey = sanitizeDirectory(directory) + "/" + System.currentTimeMillis() + "_" + sanitizeFileName(fileName);
+        contentType = ContentTypePolicy.decide(contentType, null).contentType();
 
-        // 1. Create record in PENDING state
         FileEntity entity = new FileEntity();
         entity.setFileName(objectKey);
         entity.setOriginalFileName(fileName);
@@ -92,24 +119,11 @@ public class FileStorageService {
         entity.setStatus("PENDING");
         FileEntity saved = fileRepository.save(entity);
 
-        // 2. Generate GCS URL
         String url = initiateResumableUploadByKey(objectKey, contentType);
 
         return new InitiateUploadResponse(url, saved.getId());
     }
 
-    /**
-     * Returns the URL the client uploads to.
-     *
-     * <p>Defaults to a genuine GCS <b>resumable session URI</b>, which is what makes large uploads
-     * survivable: the client can send the object in chunks and resume from the last acknowledged
-     * byte after a dropped connection, and GCS keeps the session valid for a week. The previous
-     * behaviour — a single signed PUT valid for one hour — put a hard ceiling on upload size,
-     * because any transfer slower than the window expired part-way through and had to restart from
-     * zero.
-     *
-     * <p>{@code SIGNED_PUT} keeps that older behaviour for callers that prefer its simplicity.
-     */
     private String initiateResumableUploadByKey(String objectKey, String contentType) {
         return props.getUpload().getMode() == FileStorageProperties.Upload.Mode.RESUMABLE
                 ? startGcsResumableSession(objectKey, contentType)
@@ -123,22 +137,12 @@ public class FileStorageService {
         URL signedUrl = storage.signUrl(blobInfo,
                 props.getUpload().getSignedUrlExpiryMinutes(), TimeUnit.MINUTES,
                 Storage.SignUrlOption.withV4Signature(),
-                Storage.SignUrlOption.httpMethod(HttpMethod.PUT)
+                Storage.SignUrlOption.httpMethod(HttpMethod.PUT),
+                Storage.SignUrlOption.withExtHeaders(Map.of("Content-Type", contentType))
         );
         return signedUrl.toString();
     }
 
-    /**
-     * Opens a resumable session with GCS and returns its session URI.
-     *
-     * <p>The URI itself is the capability — anyone holding it can write to that one object until it
-     * expires — so it is handed to the client exactly as a signed URL would be, and no credentials
-     * ever leave the server.
-     *
-     * <p>Note the client must have CORS permission for {@code PUT} on the bucket, and the bucket
-     * must expose the {@code Location} and {@code Range} response headers, or the browser cannot
-     * read the progress GCS reports back.
-     */
     private String startGcsResumableSession(String objectKey, String contentType) {
         try {
             com.google.auth.Credentials credentials = storage.getOptions().getCredentials();
@@ -149,9 +153,6 @@ public class FileStorageService {
             oauth.refreshIfExpired();
             String accessToken = oauth.getAccessToken().getTokenValue();
 
-            // Build a java.net.URI, not a String. RestClient encodes a String uri, so an
-            // already-encoded key was encoded a second time — every "/" became "%252F" and the
-            // object was created with a flat name containing literal "%2F" instead of a path.
             String encodedName = java.net.URLEncoder
                     .encode(objectKey, java.nio.charset.StandardCharsets.UTF_8)
                     .replace("+", "%20");
@@ -170,12 +171,6 @@ public class FileStorageService {
                     .header("X-Upload-Content-Type", effectiveType)
                     .header("Content-Type", "application/json; charset=UTF-8");
 
-            // Bind the session to the browser's origin.
-            //
-            // GCS decides CORS for a resumable session when the session is CREATED, not on the
-            // uploads that follow. Initiating from the server with no Origin produces a session that
-            // answers every later PUT with 200 but no Access-Control-Allow-Origin — so the browser
-            // reports a CORS failure on a request that actually succeeded.
             String origin = callerOrigin();
             if (origin != null) {
                 request = request.header("Origin", origin);
@@ -198,9 +193,6 @@ public class FileStorageService {
     }
 
 
-    /**
-     * Step 2: Finalizes the record in the database once the frontend confirms GCS upload is done.
-     */
     public FileEntity finalizeUpload(Long fileId, Long size, Long requesterId) {
         return finalizeUpload(fileId, size, requesterId, false);
     }
@@ -213,10 +205,6 @@ public class FileStorageService {
             throw new AccessDeniedException("Unauthorized: You do not own this file session.");
         }
 
-        // Trust the bucket, not the caller. This endpoint used to accept whatever size the client
-        // reported and mark the row COMPLETED without checking anything had been uploaded — so a
-        // client could finalize a session it never used, leaving a COMPLETED row pointing at no
-        // object, with a size of its choosing.
         Blob blob = storage.get(BlobId.of(props.getBucketName(), entity.getFileName()));
         if (blob == null || !blob.exists()) {
             throw new GCPFileException("Cannot finalize " + fileId + ": no object at " + entity.getFileName());
@@ -228,11 +216,17 @@ public class FileStorageService {
                     fileId, size, actualSize);
         }
         entity.setSize(actualSize != null ? actualSize : size);
+        String storedType = blob.getContentType() != null ? blob.getContentType() : entity.getContentType();
+        byte[] head = storedHead(BlobId.of(props.getBucketName(), entity.getFileName()));
+        ContentTypePolicy.Decision decision = ContentTypePolicy.decide(storedType, head == null ? new byte[0] : head);
+        if (decision.attachment()) {
+            storage.update(blobInfo(entity.getFileName(), decision));
+        }
+        entity.setContentType(decision.contentType());
         entity.setStatus("COMPLETED");
         return fileRepository.save(entity);
     }
 
-    // ------------------ STANDARD UPLOAD METHODS ------------------
 
     public FileEntity uploadFile(MultipartFile file, String directory, Long ownerId) {
         if (file.isEmpty()) throw new IllegalArgumentException("File is empty");
@@ -240,21 +234,16 @@ public class FileStorageService {
         try {
             String objectKey = sanitizeDirectory(directory) + "/" + System.currentTimeMillis() + "_"
                     + sanitizeFileName(file.getOriginalFilename());
-            BlobId blobId = BlobId.of(props.getBucketName(), objectKey);
-            BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
-                    .setContentType(file.getContentType())
-                    .build();
-
-            // Stream rather than file.getBytes(): that buffered the entire upload in heap, so a
-            // few concurrent large files could exhaust it. createFrom streams in chunks.
-            try (InputStream in = file.getInputStream()) {
-                storage.createFrom(blobInfo, in);
+            ContentTypePolicy.Decision decision;
+            try (BufferedInputStream in = sniffable(file.getInputStream())) {
+                decision = ContentTypePolicy.decide(file.getContentType(), head(in));
+                storage.createFrom(blobInfo(objectKey, decision), in);
             }
 
             FileEntity fileEntity = new FileEntity();
             fileEntity.setFileName(objectKey);
             fileEntity.setOriginalFileName(file.getOriginalFilename());
-            fileEntity.setContentType(file.getContentType());
+            fileEntity.setContentType(decision.contentType());
             fileEntity.setSize(file.getSize());
             fileEntity.setOwnerId(ownerId);
             fileEntity.setStatus("COMPLETED");
@@ -269,15 +258,14 @@ public class FileStorageService {
     public FileEntity uploadFileInputStream(InputStream inputStream, String fileName, String contentType, String directory, Long ownerId) {
         if (inputStream == null) throw new IllegalArgumentException("InputStream is null");
 
-        String mimeType = (contentType == null || contentType.isBlank()) ? "application/octet-stream" : contentType;
-
         try {
             String objectKey = sanitizeDirectory(directory) + "/" + System.currentTimeMillis() + "_"
                     + sanitizeFileName(fileName);
-            BlobId blobId = BlobId.of(props.getBucketName(), objectKey);
-            BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType(mimeType).build();
+            BufferedInputStream in = sniffable(inputStream);
+            ContentTypePolicy.Decision decision = ContentTypePolicy.decide(contentType, head(in));
+            String mimeType = decision.contentType();
 
-            Blob blob = storage.createFrom(blobInfo, inputStream);
+            Blob blob = storage.createFrom(blobInfo(objectKey, decision), in);
 
             FileEntity fileEntity = new FileEntity();
             fileEntity.setFileName(objectKey);
@@ -294,7 +282,6 @@ public class FileStorageService {
         }
     }
 
-    // ------------------ RETRIEVAL & DELETE ------------------
 
     public FileEntity getFileById(Long fileId) {
         return fileRepository.findById(fileId)
@@ -305,8 +292,6 @@ public class FileStorageService {
     public void deleteFile(Long fileId, Long requestUserId, boolean isAdmin) {
         FileEntity fileEntity = getFileById(fileId);
 
-        // Objects.equals, not getOwnerId().equals: a file uploaded by a job rather than a person has
-        // no owner, and dereferencing that turned an ordinary "not yours" refusal into a 500.
         if (!isAdmin && !java.util.Objects.equals(fileEntity.getOwnerId(), requestUserId)) {
             LOGGER.error("Unauthorized delete attempt! User {} tried to delete file {} owned by {}",
                     requestUserId, fileId, fileEntity.getOwnerId());
@@ -316,25 +301,12 @@ public class FileStorageService {
         BlobId blobId = BlobId.of(props.getBucketName(), fileEntity.getFileName());
         String objectName = fileEntity.getFileName();
 
-        // Queue the row delete; do NOT flush it here.
-        //
-        // Callers routinely delete a file that something still references — replacing a lesson video
-        // deletes the old one while the lesson row still points at it. Left to Hibernate, the UPDATE
-        // that repoints the reference is ordered before the DELETE and everything is fine. Forcing
-        // the DELETE out early instead hits the foreign key and fails the whole request.
         fileRepository.delete(fileEntity);
 
-        // Remove the object only once the transaction has actually committed. Deleting it inline
-        // would destroy the bytes even if the caller later rolled back, leaving a surviving row
-        // pointing at nothing — unrecoverable. After commit, the worst case is an orphaned object,
-        // which is recoverable and which the garbage collector already sweeps up.
         runAfterCommit(() -> deleteObject(blobId, objectName));
         LOGGER.info("Database record queued for deletion, file ID: {}", fileId);
     }
 
-    /**
-     * Runs {@code action} after the current transaction commits, or immediately when there is none.
-     */
     private void runAfterCommit(Runnable action) {
         if (!org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             action.run();
@@ -357,20 +329,11 @@ public class FileStorageService {
                 LOGGER.warn("File {} was not found in GCS; database record removed anyway.", objectName);
             }
         } catch (Exception e) {
-            // The row is already gone and the transaction has committed, so there is nothing to
-            // undo. The object is now an orphan and is logged as one.
             LOGGER.error("Orphaned object: failed to delete {} from GCS after removing its row: {}",
                     objectName, e.getMessage());
         }
     }
 
-    /**
-     * The origin of the browser that asked for this upload.
-     *
-     * <p>Taken from the incoming request so development and production work without separate
-     * configuration, since a session can only be bound to one origin. Falls back to a configured
-     * value for callers with no web request (a scheduled job, a test).
-     */
     private String callerOrigin() {
         try {
             var attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
@@ -381,19 +344,11 @@ public class FileStorageService {
                 }
             }
         } catch (Exception ignored) {
-            // No web request in scope; fall through to the configured origin.
         }
         String configured = props.getUpload().getBrowserOrigin();
         return (configured == null || configured.isBlank()) ? null : configured;
     }
 
-    /**
-     * Whether the object this row points at is actually present in the bucket.
-     *
-     * <p>Rows and objects can drift apart — a delete that half-failed, a bucket restored from an
-     * older snapshot, an object removed out-of-band. Callers use this to tell "the user has no file"
-     * from "the row is a tombstone", so it answers {@code false} rather than throwing on any error.
-     */
     public boolean existsInStorage(FileEntity file) {
         if (file == null || file.getFileName() == null) {
             return false;

@@ -125,7 +125,6 @@ public final class ShoppingPlanner {
             return 0;
         }
         if (size != null && size.unit().equals(unit) && size.amount() > 0) {
-            // Rounding up always over-buys small packs (6 L -> 7 x 0.9 L); accept up to 10% short of the target instead.
             int up = Math.max(1, (int) Math.ceil(need / size.amount() - 1e-9));
             int down = up - 1;
             if (down >= 1 && down * size.amount() >= need * 0.9 - 1e-9) {
@@ -145,7 +144,6 @@ public final class ShoppingPlanner {
     private static final int MAX_PACKS_UNKNOWN_SIZE = 3;
     private static final double MAX_LINE_TOTAL = 1000.0;
 
-    /** Words a product title must not contain for a shopping-list term (folded, substring match). */
     static List<String> avoid(String term) {
         String t = TextNormalizer.fold(term == null ? "" : term).trim();
         List<String> out = new ArrayList<>();

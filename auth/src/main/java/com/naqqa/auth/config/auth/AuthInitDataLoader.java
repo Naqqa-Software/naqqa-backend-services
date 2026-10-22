@@ -48,9 +48,6 @@ public class AuthInitDataLoader {
             RoleRepository roleRepository
     ) {
         return args -> {
-            /* =========================
-             * 1. Seed authorities
-             * ========================= */
             Set<String> allAuthorityNames = authorityRegistry.getAllAvailableAuthorities();
 
             Set<String> existingAuthorityNames = authorityRepository.findAll().stream()
@@ -74,9 +71,6 @@ public class AuthInitDataLoader {
                 System.out.println("Seeded " + newAuthorities.size() + " new authorities.");
             }
 
-            /* =========================
-             * 2. Ensure ADMIN role exists
-             * ========================= */
             RoleEntity adminRole = roleRepository.findByName(ADMIN_ROLE_NAME)
                     .orElseGet(() -> {
                         RoleEntity role = new RoleEntity();
@@ -85,9 +79,6 @@ public class AuthInitDataLoader {
                         return roleRepository.save(role);
                     });
 
-            /* =========================
-             * 3. Merge ALL authorities into ADMIN
-             * ========================= */
             Set<AuthorityEntity> allAuthorities =
                     new HashSet<>(authorityRepository.findAll());
 

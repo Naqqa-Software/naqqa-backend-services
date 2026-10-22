@@ -11,30 +11,20 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 
-/**
- * AES-256/GCM encryption for chat message content.
- * Each conversation gets its own random key; keys are stored server-side only.
- * Decryption happens server-side — clients never receive the raw key.
- */
 @Service
 @Slf4j
 public class ChatEncryptionService {
 
     private static final String ALGORITHM     = "AES/GCM/NoPadding";
-    private static final int    GCM_IV_LENGTH = 12;   // 96-bit IV
-    private static final int    GCM_TAG_BITS  = 128;  // authentication tag
+    private static final int    GCM_IV_LENGTH = 12;
+    private static final int    GCM_TAG_BITS  = 128;
 
-    /** Generates a new random AES-256 key for a conversation (Base64-encoded). */
     public String generateKey() {
-        byte[] key = new byte[32]; // 256 bits
+        byte[] key = new byte[32];
         new SecureRandom().nextBytes(key);
         return Base64.getEncoder().encodeToString(key);
     }
 
-    /**
-     * Encrypts {@code plaintext} with the given Base64 AES-256 key.
-     * Returns a Base64 string: [12-byte IV || ciphertext+tag].
-     */
     public String encrypt(String plaintext, String base64Key) {
         if (plaintext == null) return null;
         try {
@@ -48,7 +38,6 @@ public class ChatEncryptionService {
 
             byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
 
-            // Prepend IV
             byte[] combined = new byte[GCM_IV_LENGTH + ciphertext.length];
             System.arraycopy(iv, 0, combined, 0, GCM_IV_LENGTH);
             System.arraycopy(ciphertext, 0, combined, GCM_IV_LENGTH, ciphertext.length);
@@ -59,10 +48,6 @@ public class ChatEncryptionService {
         }
     }
 
-    /**
-     * Decrypts a Base64 string produced by {@link #encrypt}.
-     * Returns the original plaintext, or {@code null} if ciphertext is null.
-     */
     public String decrypt(String ciphertext, String base64Key) {
         if (ciphertext == null) return null;
         try {
@@ -78,7 +63,7 @@ public class ChatEncryptionService {
             return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.error("Chat decryption failed", e);
-            return null; // gracefully return null instead of crashing
+            return null;
         }
     }
 }

@@ -30,7 +30,6 @@ class CdnSignedCookieServiceTest {
 
     @Test
     void scopesTheCookieToOneLadder() {
-        // The prefix is the security boundary: entitlement to one lesson must not reach another.
         assertEquals("/vod/42/", service.cookiePath("42"));
         assertEquals("https://dev.deedakt.com/vod/42/master.m3u8", service.masterPlaylistUrl("42"));
     }
@@ -42,7 +41,6 @@ class CdnSignedCookieServiceTest {
         assertTrue(cookie.contains(":Expires="), cookie);
         assertTrue(cookie.contains(":KeyName=vod-key-1"), cookie);
         assertTrue(cookie.contains(":Signature="), cookie);
-        // Base64url only — a '+' or '/' here means the wrong alphabet and the edge rejects it.
         String sig = cookie.substring(cookie.indexOf(":Signature=") + 11);
         assertFalse(sig.contains("+") || sig.contains("/") || sig.contains("="), sig);
     }
@@ -61,7 +59,6 @@ class CdnSignedCookieServiceTest {
         assertThrows(IllegalStateException.class, () -> service.sign("42"));
     }
 
-    /** Writes a cookie signed with the real key so it can be replayed against the live CDN. */
     @Test
     void emitCookieForLiveCheck() throws Exception {
         String out = System.getProperty("cdn.out");

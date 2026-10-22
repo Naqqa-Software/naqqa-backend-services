@@ -25,9 +25,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @AutoConfiguration
 public class AuthAutoConfiguration {
 
-    // ----------------------------------------
-    //  EXCEPTION HANDLERS
-    // ----------------------------------------
 
     @Bean
     @ConditionalOnMissingBean(AuthExceptionHandler.class)
@@ -47,9 +44,6 @@ public class AuthAutoConfiguration {
         return new AuthoritiesExceptionHandler();
     }
 
-    // ----------------------------------------
-    //  CONTROLLER OVERRIDABLE BY MAIN APPLICATION
-    // ----------------------------------------
 
     @Bean
     @ConditionalOnMissingBean(AuthController.class)
@@ -63,9 +57,6 @@ public class AuthAutoConfiguration {
         return new AuthController(authService, authEmailService, emailMessages, deviceSessionService, userRepository);
     }
 
-    // ----------------------------------------
-    //  SERVICES OVERRIDABLE BY MAIN APPLICATION
-    // ----------------------------------------
 
     @Bean
     @ConditionalOnMissingBean(AuthService.class)
@@ -99,32 +90,10 @@ public class AuthAutoConfiguration {
                 tokenService,
                 codeGenService,
                 authEmailService,
-                emailMessages
+                emailMessages,
+                new com.naqqa.auth.service.security.AuthAttemptLimiter()
         );
     }
 
 
-//    @Bean
-//    @ConditionalOnMissingBean(TokenService.class)
-//    public TokenService defaultTokenService(JwtService jwtService) {
-//        return new DefaultTokenService(jwtService);
-//    }
-//
-//    @Bean
-//    @ConditionalOnMissingBean(CodeGenService.class)
-//    public CodeGenService defaultCodeGenService() {
-//        return new DefaultCodeGenService();
-//    }
-//
-//    @Bean
-//    @ConditionalOnMissingBean(AuthEmailService.class)
-//    public AuthEmailService defaultAuthEmailService() {
-//        return new DefaultAuthEmailService();
-//    }
-//
-//    @Bean
-//    @ConditionalOnMissingBean(RoleProvider.class)
-//    public RoleProvider defaultRoleProvider() {
-//        return new DefaultRoleProvider();
-//    }
 }

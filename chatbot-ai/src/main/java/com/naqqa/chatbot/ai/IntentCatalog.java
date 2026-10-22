@@ -216,7 +216,6 @@ public final class IntentCatalog {
         if (hasResults || alwaysWithoutResults.isEmpty()) {
             return base;
         }
-        // Chips every "nothing found" reply must carry (e.g. report a problem), even when the intent lists its own.
         List<String> merged = new ArrayList<>(base);
         for (String key : alwaysWithoutResults) {
             if (!merged.contains(key)) {

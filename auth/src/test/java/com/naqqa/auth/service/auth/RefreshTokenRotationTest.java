@@ -42,7 +42,6 @@ class RefreshTokenRotationTest {
     @Mock RefreshTokenRepository refreshTokenRepository;
     @Mock TokenService tokenService;
     @Mock JwtService jwtService;
-    // remaining constructor dependencies of DefaultAuthService (unused by refresh/logout)
     @Mock com.naqqa.auth.repository.UserRepository userRepository;
     @Mock com.naqqa.auth.repository.RoleRepository roleRepository;
     @Mock com.naqqa.auth.repository.UserDeviceRepository userDeviceRepository;
@@ -108,7 +107,6 @@ class RefreshTokenRotationTest {
 
         assertThat(setCookies(res)).anyMatch(c -> c.startsWith("refresh_token=R2;"));
         assertThat(setCookies(res)).anyMatch(c -> c.startsWith("access_token=new-access;"));
-        // Max-Age of the rotated cookie = remaining family lifetime (~10 days), not a fresh 30 days
         String refreshCookie = setCookies(res).stream().filter(c -> c.startsWith("refresh_token=")).findFirst().orElseThrow();
         long maxAge = Long.parseLong(refreshCookie.replaceAll(".*Max-Age=(\\d+).*", "$1"));
         assertThat(maxAge).isBetween(10L * 86400 - 60, 10L * 86400);
@@ -188,7 +186,7 @@ class RefreshTokenRotationTest {
         r1.setRotatedAt(Instant.now().minusSeconds(3));
         r1.setReplacedById(2L);
         when(refreshTokenRepository.findByTokenForUpdate("R1")).thenReturn(Optional.of(r1));
-        when(refreshTokenRepository.findById(2L)).thenReturn(Optional.empty()); // logged out meanwhile
+        when(refreshTokenRepository.findById(2L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.refresh("R1", new MockHttpServletResponse()))
                 .isInstanceOf(BadRequestException.class)

@@ -47,9 +47,6 @@ public class DefaultSocialAuthService implements SocialAuthService {
         UserEntity user = new UserEntity();
         user.setEmail(email);
         user.setFullName(name);
-        // No local password: the provider is the only credential until the user sets one.
-        // (Storing a random UUID here left a plaintext, password-shaped value in the column and
-        // made the account indistinguishable from a password account to every other caller.)
         user.setPassword(UserEntity.NO_PASSWORD);
         user.setEnabled(true);
 

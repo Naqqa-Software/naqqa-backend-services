@@ -15,13 +15,7 @@ public class ConversationResponse {
     private Map<String, String> title;
     private List<Long> memberIds;
     private String avatarUrl;
-    /**
-     * Full info for every member of this conversation.
-     * For DIRECT chats the FE can pick the entry whose id != currentUserId to get the display name.
-     * For GROUP chats all members are included.
-     */
     private List<ParticipantInfo> participants;
 
-    /** Preview of the last message in this conversation; null if no messages yet. */
     private LastMessagePreview lastMessage;
 }

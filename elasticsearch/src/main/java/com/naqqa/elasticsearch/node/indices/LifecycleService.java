@@ -72,14 +72,6 @@ public final class LifecycleService implements ClusterStateListener {
         return clusterStateManager == null || !clusterStateManager.isMultiNode() || clusterStateManager.isLeader();
     }
 
-    /**
-     * Applies a pending cluster-state policy sync while the caller already holds {@link #lock}.
-     * Cluster-state listener notifications can fire synchronously from within a thread that is
-     * itself blocked waiting on a cluster-state submission made while holding {@link #lock} (e.g.
-     * from {@link #tick()} executing a rollover); acquiring {@link #lock} again from
-     * {@link #clusterChanged} in that situation would deadlock, so that path only records the
-     * latest metadata and every method that legitimately holds the lock drains it first.
-     */
     private void drainPendingPolicySync() {
         Metadata metadata = pendingPolicySync;
         if (metadata != null) {
@@ -403,13 +395,6 @@ public final class LifecycleService implements ClusterStateListener {
         persistExecutionStates(indices);
     }
 
-    /**
-     * Cluster-state listener notifications can be delivered synchronously from a thread that is
-     * itself blocked inside a cluster-state submission issued while {@link #lock} is held (e.g.
-     * from within {@link #tick()}); {@link ReentrantLock#tryLock()} lets that reentrant case fall
-     * through without blocking, deferring the sync to the next call that legitimately holds the
-     * lock instead of deadlocking against itself.
-     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         latestIndices = event.state().getMetadata().getIndices();

@@ -124,11 +124,22 @@ public class ChatService {
         return memory;
     }
 
+    ChatConversationEntity claimForViewer(ChatConversationEntity c, Long viewerId) {
+        if (viewerId == null || c.getUserId() != null) {
+            return c;
+        }
+        return store.update(c.getId(), current -> {
+            if (current.getUserId() == null) {
+                current.setUserId(viewerId);
+            }
+        });
+    }
+
     public static Long memoryOwner(ChatConversationEntity c, Long viewer) {
         if (c == null || viewer == null) {
             return null;
         }
-        return c.getUserId() == null || c.getUserId().equals(viewer) ? viewer : null;
+        return viewer.equals(c.getUserId()) ? viewer : null;
     }
 
     public ChatLanguages languages() {
@@ -314,6 +325,7 @@ public class ChatService {
         if (c.getStatus() == ChatStatus.CLOSED) {
             throw ChatException.closed();
         }
+        c = claimForViewer(c, viewerId);
         if (request == null) {
             throw ChatException.badRequest("Message body is required.");
         }
@@ -461,8 +473,6 @@ public class ChatService {
         ChatConversationEntity afterBot = store.get(id);
         boolean shouldEscalate = !afterBot.isEscalated()
                 && ChatEscalation.shouldEscalate(false, reply.escalate(), afterBot.getLowConfidenceStreak());
-        // Never hand a low-confidence / gibberish message over to "nobody": when no operator is online the bot keeps
-        // answering (no-offers message + example questions) instead of "Momentan nu sunt operatori disponibili".
         if (shouldEscalate && !reply.escalate() && !operatorsOnline()) {
             shouldEscalate = false;
         }

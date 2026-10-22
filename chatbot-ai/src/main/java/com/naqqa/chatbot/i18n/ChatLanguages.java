@@ -888,7 +888,6 @@ public final class ChatLanguages {
         return headBreaks.contains(token);
     }
 
-    /** True when the title contains one of the (normalized) phrases as whole words. */
     public boolean containsWord(String title, List<String> phrases) {
         String phrase = " " + TextNormalizer.normalizedPhrase(title == null ? "" : title).trim() + " ";
         for (String p : phrases) {
@@ -899,7 +898,6 @@ public final class ChatLanguages {
         return false;
     }
 
-    /** Household/hygiene products ("pastă de dinți", "Cif") must never satisfy a food term, unless the term itself says so. */
     public boolean nonFood(String title, String term) {
         if (nonFoodMarkers.isEmpty()) {
             return false;

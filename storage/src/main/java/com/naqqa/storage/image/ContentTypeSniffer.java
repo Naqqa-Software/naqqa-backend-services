@@ -1,10 +1,5 @@
 package com.naqqa.storage.image;
 
-/**
- * Detects a content type from an object's leading magic bytes. The old object store kept no content
- * type, so on migration (and whenever a caller has none) we sniff it here and route/serve accordingly
- * — notably {@code application/pdf} (invoices) to the private tier and images to the public tier.
- */
 public final class ContentTypeSniffer {
 
     public static final String OCTET_STREAM = "application/octet-stream";
@@ -13,7 +8,6 @@ public final class ContentTypeSniffer {
     private ContentTypeSniffer() {
     }
 
-    /** Best-effort MIME from magic bytes; {@link #OCTET_STREAM} when unknown. Never null. */
     public static String sniff(byte[] b) {
         if (b == null || b.length < 4) {
             return OCTET_STREAM;
@@ -41,7 +35,6 @@ public final class ContentTypeSniffer {
         return OCTET_STREAM;
     }
 
-    /** True when the bytes are a PDF — the one private tier the current product has (invoices). */
     public static boolean isPdf(byte[] b) {
         return PDF.equals(sniff(b));
     }

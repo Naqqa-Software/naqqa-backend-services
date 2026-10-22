@@ -138,7 +138,6 @@ public final class BannerValidation {
             errors.put(field, "banners.validation.image_required");
             return;
         }
-        // SEC-12: creative images must be https (or internal path / localhost for dev); plain http is no longer rewritten-and-accepted.
         if (!(BannerUrlPolicy.validExternal(url) || BannerUrlPolicy.validInternal(url) || url.startsWith("http://localhost:") || url.startsWith("http://localhost/"))) {
             errors.put(field, "banners.validation.invalid_url");
         }

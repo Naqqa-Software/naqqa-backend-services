@@ -20,11 +20,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * The library is meant to be adoptable a piece at a time. These cover the two ways it was not:
- * an application that scans it but does no transcoding could not start, and a file with no owner
- * could not be refused without a NullPointerException.
- */
 class LibraryOptionalityTest {
 
     private static final String TOKEN = "s3cret-token";
@@ -42,7 +37,6 @@ class LibraryOptionalityTest {
         return props;
     }
 
-    // ── The callback endpoint without a handler ─────────────────────────────────
 
     @Test
     void callbackWithoutHandlerAnswersServiceUnavailable() {
@@ -51,8 +45,6 @@ class LibraryOptionalityTest {
         var response = controller.callback(TOKEN,
                 new TranscodeCallbackController.CallbackRequest("vod/1", "READY", null));
 
-        // Not 2xx: the job retries on failure, and reporting success for a result nothing consumed
-        // would strand the ladder in a state no one ever corrects.
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
     }
 
@@ -79,7 +71,6 @@ class LibraryOptionalityTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
-    // ── Deleting a file that has no owner ───────────────────────────────────────
 
     private RoutingFileStorageService serviceHolding(FileEntity file) {
         FileRepository repo = mock(FileRepository.class);
@@ -102,8 +93,6 @@ class LibraryOptionalityTest {
     void deletingAnOwnerlessFileIsRefused() {
         var service = serviceHolding(ownerlessFile());
 
-        // A file uploaded by a job belongs to no one, so no ordinary caller owns it — refusing is
-        // right. Doing so with a NullPointerException is not: it reaches the caller as a 500.
         assertThatThrownBy(() -> service.deleteFile(9L, 42L, false))
                 .isInstanceOf(AccessDeniedException.class);
     }

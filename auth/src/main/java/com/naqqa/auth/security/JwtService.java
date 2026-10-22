@@ -45,20 +45,17 @@ public class JwtService {
                 .setClaims(extraClaims)
                 .setSubject(username)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24)) // 24h
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24))
                 .signWith(getSignInKey(false), SignatureAlgorithm.HS256)
                 .compact();
     }
 
     public String generateRefreshToken(String username) {
-        // A random jti makes every refresh token unique: without it two tokens minted for the same
-        // user in the same second (iat has one-second resolution) were identical strings, which
-        // collides on refresh_tokens.token and would make rotation hand back the token just used.
         return Jwts.builder()
                 .setSubject(username)
                 .setId(java.util.UUID.randomUUID().toString())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 30)) // 30 days
+                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 30))
                 .signWith(getSignInKey(true), SignatureAlgorithm.HS256)
                 .compact();
     }

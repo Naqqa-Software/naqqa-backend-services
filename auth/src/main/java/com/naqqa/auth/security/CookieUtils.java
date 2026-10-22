@@ -16,8 +16,6 @@ public class CookieUtils {
 
     private static boolean isSecure;
 
-    // Spring uses this non-static setter to inject the value into the static field.
-    // It defaults to 'true' if the property is missing from application.properties.
     @Value("${app.cookie.secure:true}")
     public void setIsSecure(boolean secureValue) {
         CookieUtils.isSecure = secureValue;
@@ -30,8 +28,6 @@ public class CookieUtils {
         cookie.setPath("/");
         cookie.setMaxAge(maxAgeSeconds);
 
-        // Note: Calling BOTH addCookie and addHeader creates duplicate Set-Cookie headers.
-        // It's safer to just use addHeader if you need SameSite support.
         String sameSite = "Lax";
         String secureFlag = isSecure ? "; Secure" : "";
 

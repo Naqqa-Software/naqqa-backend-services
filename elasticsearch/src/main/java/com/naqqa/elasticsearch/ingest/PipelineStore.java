@@ -18,11 +18,6 @@ public final class PipelineStore {
         pipelineConfigs.put(id, config);
     }
 
-    /**
-     * Reconciles the local compiled-pipeline cache against the authoritative set of pipeline
-     * configurations held in the cluster state, compiling anything new or changed and dropping
-     * anything no longer present.
-     */
     public synchronized void syncFrom(Map<String, Map<String, Object>> configs, ProcessorRegistry registry) {
         for (String id : new ArrayList<>(pipelineConfigs.keySet())) {
             if (!configs.containsKey(id)) {

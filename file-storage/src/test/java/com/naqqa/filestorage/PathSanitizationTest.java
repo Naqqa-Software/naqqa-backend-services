@@ -7,14 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * The directory and filename land verbatim in the object key, so these are a security boundary:
- * an escape writes outside the intended prefix, and where a public bucket is configured it can
- * place attacker-chosen content somewhere world-readable.
- */
 class PathSanitizationTest {
 
-    /** Exposes the protected hooks; no GCS or database involved. */
     private static class Probe extends FileStorageService {
         Probe() { super(null, null, new FileStorageProperties()); }
         String dir(String s) { return sanitizeDirectory(s); }
@@ -56,8 +50,6 @@ class PathSanitizationTest {
 
     @Test
     void normalisationCannotBeUsedToSmuggleThePublicPrefix() {
-        // " public/x" must normalise to exactly "public/x" so routing sees the same string the
-        // object key is built from — disagreement there put public content in the private bucket.
         assertEquals("public/x", probe.dir("  public/x  "));
         assertEquals("public/x", probe.dir("/public/x"));
     }

@@ -1,0 +1,1299 @@
+{
+  "description": "WebAuthn registration and authentication responses (attestation none and packed self) with expected outcomes. Binary values are base64url without padding. Challenges are single use and valid 300 seconds from challengeIssuedAtIso.",
+  "version": 1,
+  "cases": [
+    {
+      "name": "register-none-es256",
+      "description": "Registration with attestation none, ES256 credential.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "9auBqb_aDsg-tIAXKlh_gkWgxMhCDjZiY2i4vKWG3mE",
+        "user": {
+          "id": "user-register-none-es256",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "FcWAXaW__PBEN0rFyRADYZGC-6Pm3fZpQR2s5ro3tpc"
+        },
+        "response": {
+          "id": "xFbbG473mMKYI1DNTTrpBhbqG3_oPoC4nzMOSqNSAQo",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiOWF1QnFiX2FEc2ctdElBWEtsaF9na1dneE1oQ0RqWmlZMmk0dktXRzNtRSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikIlv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATsdFAAAAAAAAAAAAAAAAAAAAAAAAAAAAIMRW2xuO95jCmCNQzU066QYW6ht_6D6AuJ8zDkqjUgEKpQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "credentialId": "xFbbG473mMKYI1DNTTrpBhbqG3_oPoC4nzMOSqNSAQo",
+        "algorithm": "ES256",
+        "signCount": 0,
+        "userVerified": true,
+        "backupEligible": false,
+        "attestationFormat": "none",
+        "attestationType": "NONE",
+        "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E"
+      }
+    },
+    {
+      "name": "register-packed-self-es256",
+      "description": "Registration with packed self attestation, ES256 credential.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "u66EVyoND5YJT73mztdg8ZeFa1M8AAYUPexQhLrwO1w",
+        "user": {
+          "id": "user-register-packed-self-es256",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "rx1v6_rqSdU4bBIXkLKSUMQrgSgJHwyIvaX1gyPvkFc"
+        },
+        "response": {
+          "id": "cWPu-8_ffkf2gMyngmnRCVctx6GjeRKK6Pq9dBx93tw",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoidTY2RVZ5b05ENVlKVDczbXp0ZGc4WmVGYTFNOEFBWVVQZXhRaExyd08xdyIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRmcGFja2VkZ2F0dFN0bXSiY2FsZyZjc2lnWEcwRQIgKon37H5OfzxYEV-lYaNmE7CdGo_iK7eUA-xaqan21R4CIQCmaNsUG3vUB9ZrvRda9VO4jybwhGd-x36NMCOstt6aDGhhdXRoRGF0YVikIlv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATsdFAAAAAAAAAAAAAAAAAAAAAAAAAAAAIHFj7vvP335H9oDMp4Jp0QlXLceho3kSiuj6vXQcfd7cpQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "credentialId": "cWPu-8_ffkf2gMyngmnRCVctx6GjeRKK6Pq9dBx93tw",
+        "algorithm": "ES256",
+        "signCount": 0,
+        "userVerified": true,
+        "backupEligible": false,
+        "attestationFormat": "packed",
+        "attestationType": "SELF",
+        "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E"
+      }
+    },
+    {
+      "name": "authenticate-es256",
+      "description": "Assertion for an ES256 credential, counter 5 to 6.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "bMI1Ysa4t30RRmvBJ4lqfctS8zFvAAiZC0ZiEbT1_Jg",
+        "stored": {
+          "credentialId": "vIZINZEiXgGl--bVGRbGURKu3iU4hjq_LiRcRQS2nSU",
+          "userId": "user-authenticate-es256",
+          "userHandle": "9NIpOt8svxxtbcajCLhthV_7_wvIIBATlesAxMlzdl0",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "vIZINZEiXgGl--bVGRbGURKu3iU4hjq_LiRcRQS2nSU",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiYk1JMVlzYTR0MzBSUm12Qko0bHFmY3RTOHpGdkFBaVpDMFppRWJUMV9KZyIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "MEYCIQDG3JF7b-9xf2c8LiMhcD6g0IMwKx60yeSVNnV9R-63HAIhANAqjJqArnrkmMSr-GAzu7S97HGeWUSeNIfsdDYgEEmr",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": true,
+        "userId": "user-authenticate-es256",
+        "userVerified": true,
+        "cloneDetected": false,
+        "signCount": 6
+      }
+    },
+    {
+      "name": "register-none-rs256",
+      "description": "Registration with attestation none, RS256 credential.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "ahf72y1hAQFEjVYkVA88cVyNa10wUbybiPnAP2hm8tc",
+        "user": {
+          "id": "user-register-none-rs256",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "kG8BgyVRzfehDWA_sLIbSbliy3acSusM8ZTZxpPsqv4"
+        },
+        "response": {
+          "id": "wjNQWkrlR2tmtvj8jHdlmBdZY1KzQ92t-vx9MXbAisU",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiYWhmNzJ5MWhBUUZFalZZa1ZBODhjVnlOYTEwd1VieWJpUG5BUDJobTh0YyIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVkBZyJb-RX_twsg4jaenZFYTuWSvLB23OHXcZOdXEdJgE7HRQAAAAAAAAAAAAAAAAAAAAAAAAAAACDCM1BaSuVHa2a2-PyMd2WYF1ljUrND3a36_H0xdsCKxaQBAwM5AQAgWQEA5-Li_qhsVqgzuI3j5lXxxN4UQ7yhxkaes-61kHpyjTN4sfTKLYS1yU3fieRRjVnnz04fqOt1FScenqYdoSnsVs3o8pVFbc2fwwwGKiY3hjrZdl0rUA0HBAnUZwFT5Xj4GntCVYoEavWgRSUNsjyIogjZS3WjyR-4VBaKM6eWoeegaSRhs45nn1CJ7ucyUl490A5LaTjsacJop26byS0f1HTf0b_55K2j7C_sO6LwV5BNG70RENc6UR0I9Z5gFYyA5-pXPHV5Di-krDU1UFNgDQUDaGBpaEuG7iMNQl_Oku7Hi3g-xDWxzf2MsOv-XF0tsINhrcKMXZeh8MtWqWCwQyFDAQAB",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "credentialId": "wjNQWkrlR2tmtvj8jHdlmBdZY1KzQ92t-vx9MXbAisU",
+        "algorithm": "RS256",
+        "signCount": 0,
+        "userVerified": true,
+        "backupEligible": false,
+        "attestationFormat": "none",
+        "attestationType": "NONE",
+        "publicKeyCose": "pAEDAzkBACBZAQDn4uL-qGxWqDO4jePmVfHE3hRDvKHGRp6z7rWQenKNM3ix9MothLXJTd-J5FGNWefPTh-o63UVJx6eph2hKexWzejylUVtzZ_DDAYqJjeGOtl2XStQDQcECdRnAVPlePgae0JVigRq9aBFJQ2yPIiiCNlLdaPJH7hUFoozp5ah56BpJGGzjmefUInu5zJSXj3QDktpOOxpwminbpvJLR_UdN_Rv_nkraPsL-w7ovBXkE0bvREQ1zpRHQj1nmAVjIDn6lc8dXkOL6SsNTVQU2ANBQNoYGloS4buIw1CX86S7seLeD7ENbHN_Yyw6_5cXS2wg2Gtwoxdl6Hwy1apYLBDIUMBAAE"
+      }
+    },
+    {
+      "name": "register-packed-self-rs256",
+      "description": "Registration with packed self attestation, RS256 credential.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "jBItKetaCc_Be08m1qDH8PvObpHSK_z6PeLLpzGZRzA",
+        "user": {
+          "id": "user-register-packed-self-rs256",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "mTKOM_gzdeaEwgkXV4edZjrUl1C7_0OgjTgv4i9JyIA"
+        },
+        "response": {
+          "id": "LJMWn-I9vvCYmHyFrLdI4HobenJkystTuHPdB8bOp50",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiakJJdEtldGFDY19CZTA4bTFxREg4UHZPYnBIU0tfejZQZUxMcHpHWlJ6QSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRmcGFja2VkZ2F0dFN0bXSiY2FsZzkBAGNzaWdZAQCp9mwiW_XKmTE9KVpxJk6grZdgNtXZtnYGGmnHon84NZIvQfm2ia18W2N4f3ZvcwoW7KustRP9jvNjPGWLDebJGTAAXdiFNOXYUYTVD2fKBKFVGTF7NomVhjt3gc52Et60ka7mWreF_sIaZy5ehiDDrBEdSz5HLk8t-8625aGbwhb6-jMQZ2iIOTCjeOwU2gNb9xZBCM4rSo7VSJrBvsBvfLAyM9rtJVUY8ljeMXyQEYWYXO0QGMdBZTtmLpOUElkNCBFCzCEG1_zufYstwqkWWPOmyrleSfXpDKQXYUDq4LoP84HmJkJVOlBe6rqScngkHMmrvgzUi8HVTzccA6yOaGF1dGhEYXRhWQFnIlv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATsdFAAAAAAAAAAAAAAAAAAAAAAAAAAAAICyTFp_iPb7wmJh8hay3SOB6G3pyZMrLU7hz3QfGzqedpAEDAzkBACBZAQDn4uL-qGxWqDO4jePmVfHE3hRDvKHGRp6z7rWQenKNM3ix9MothLXJTd-J5FGNWefPTh-o63UVJx6eph2hKexWzejylUVtzZ_DDAYqJjeGOtl2XStQDQcECdRnAVPlePgae0JVigRq9aBFJQ2yPIiiCNlLdaPJH7hUFoozp5ah56BpJGGzjmefUInu5zJSXj3QDktpOOxpwminbpvJLR_UdN_Rv_nkraPsL-w7ovBXkE0bvREQ1zpRHQj1nmAVjIDn6lc8dXkOL6SsNTVQU2ANBQNoYGloS4buIw1CX86S7seLeD7ENbHN_Yyw6_5cXS2wg2Gtwoxdl6Hwy1apYLBDIUMBAAE",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "credentialId": "LJMWn-I9vvCYmHyFrLdI4HobenJkystTuHPdB8bOp50",
+        "algorithm": "RS256",
+        "signCount": 0,
+        "userVerified": true,
+        "backupEligible": false,
+        "attestationFormat": "packed",
+        "attestationType": "SELF",
+        "publicKeyCose": "pAEDAzkBACBZAQDn4uL-qGxWqDO4jePmVfHE3hRDvKHGRp6z7rWQenKNM3ix9MothLXJTd-J5FGNWefPTh-o63UVJx6eph2hKexWzejylUVtzZ_DDAYqJjeGOtl2XStQDQcECdRnAVPlePgae0JVigRq9aBFJQ2yPIiiCNlLdaPJH7hUFoozp5ah56BpJGGzjmefUInu5zJSXj3QDktpOOxpwminbpvJLR_UdN_Rv_nkraPsL-w7ovBXkE0bvREQ1zpRHQj1nmAVjIDn6lc8dXkOL6SsNTVQU2ANBQNoYGloS4buIw1CX86S7seLeD7ENbHN_Yyw6_5cXS2wg2Gtwoxdl6Hwy1apYLBDIUMBAAE"
+      }
+    },
+    {
+      "name": "authenticate-rs256",
+      "description": "Assertion for an RS256 credential, counter 5 to 6.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "V3yyuKoNhBDP9hHsUBGcutyYoSTjuQaTWNhd-YDAx0M",
+        "stored": {
+          "credentialId": "VwR_CYtZaMSEU0baUCvxcR1tJmcvC3dChisEUIJKN00",
+          "userId": "user-authenticate-rs256",
+          "userHandle": "cwKv2fRFYqZmxvohRyaErQiSxkY9N7hAmF1qPEoKLOs",
+          "publicKeyCose": "pAEDAzkBACBZAQDn4uL-qGxWqDO4jePmVfHE3hRDvKHGRp6z7rWQenKNM3ix9MothLXJTd-J5FGNWefPTh-o63UVJx6eph2hKexWzejylUVtzZ_DDAYqJjeGOtl2XStQDQcECdRnAVPlePgae0JVigRq9aBFJQ2yPIiiCNlLdaPJH7hUFoozp5ah56BpJGGzjmefUInu5zJSXj3QDktpOOxpwminbpvJLR_UdN_Rv_nkraPsL-w7ovBXkE0bvREQ1zpRHQj1nmAVjIDn6lc8dXkOL6SsNTVQU2ANBQNoYGloS4buIw1CX86S7seLeD7ENbHN_Yyw6_5cXS2wg2Gtwoxdl6Hwy1apYLBDIUMBAAE",
+          "algorithm": "RS256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "VwR_CYtZaMSEU0baUCvxcR1tJmcvC3dChisEUIJKN00",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiVjN5eXVLb05oQkRQOWhIc1VCR2N1dHlZb1NUanVRYVRXTmhkLVlEQXgwTSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "UdgPZWHGtWfUt0Q1iahB9CNiYmeZRuI2iLsDGUxsBExBpMlgAVO8oIJZHsDuRc-AJ3N1zeVwAtbdSXjXomuy7IJPttHbonQ_thtBpPEAqBn00U3c9UMHji3VbuIGQD8feSOUmDSIuRNOnL83nlD4qdx-AsAQplCZ2Z1D5vrOxU-GD7RmT2Er6YMsDhAIUJ3881l3TaL8nOWoax4hW7MBt5F2ijc4BTCt9AaXlIoHt3un_7_blzOvvlrylA1gn9jWsBHE4ppSpVnOSn4WEbLvTolFSUe5apl8zCrGxyy_sH_qt9zXH_SliZeBOb7eNt9qFRPcE91-e-awEGTeIPrLVA",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": true,
+        "userId": "user-authenticate-rs256",
+        "userVerified": true,
+        "cloneDetected": false,
+        "signCount": 6
+      }
+    },
+    {
+      "name": "register-none-eddsa",
+      "description": "Registration with attestation none, EDDSA credential.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "id2Sg8dZ1LKtCozdyyVruBl7FKYrx1JlLbgaS7tQth0",
+        "user": {
+          "id": "user-register-none-eddsa",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "opE0ChuInfVbSlJxyCNnPAg8h07QWHn3rCsuD7mvbNs"
+        },
+        "response": {
+          "id": "yf_r6j1L84_6OACZTp1S1ELD6HRMgzUV8LGm1hjAxGc",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiaWQyU2c4ZFoxTEt0Q296ZHl5VnJ1Qmw3RktZcngxSmxMYmdhUzd0UXRoMCIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YViBIlv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATsdFAAAAAAAAAAAAAAAAAAAAAAAAAAAAIMn_6-o9S_OP-jgAmU6dUtRCw-h0TIM1FfCxptYYwMRnpAEBAycgBiFYIETI36TZ-y8oMrRT98OY_JoiPz0bjIiGZKWYT_uhTebO",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "credentialId": "yf_r6j1L84_6OACZTp1S1ELD6HRMgzUV8LGm1hjAxGc",
+        "algorithm": "EDDSA",
+        "signCount": 0,
+        "userVerified": true,
+        "backupEligible": false,
+        "attestationFormat": "none",
+        "attestationType": "NONE",
+        "publicKeyCose": "pAEBAycgBiFYIETI36TZ-y8oMrRT98OY_JoiPz0bjIiGZKWYT_uhTebO"
+      }
+    },
+    {
+      "name": "register-packed-self-eddsa",
+      "description": "Registration with packed self attestation, EDDSA credential.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "Po2rG8eRARLfoRQ9L6f0Bq8HHV8RRxvxoHG3Isx1fc4",
+        "user": {
+          "id": "user-register-packed-self-eddsa",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "jFFyTNe84lXQU-A2fL2j6N5h0DwAnAekDrLG2OziTZ0"
+        },
+        "response": {
+          "id": "OdTEIpNwuSKH7wzLYl97bqxbYEB5g7ruB1tX-tjnN2s",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiUG8yckc4ZVJBUkxmb1JROUw2ZjBCcThISFY4UlJ4dnhvSEczSXN4MWZjNCIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRmcGFja2VkZ2F0dFN0bXSiY2FsZydjc2lnWEBZtUdu6sIzafP2XNlX42hONXn-JTjkL05zJ2Bpp3lYZiLTJT-kpOf0o0xXKqOeUPUoTo17RT0HYF8Bis--la0NaGF1dGhEYXRhWIEiW_kV_7cLIOI2np2RWE7lkrywdtzh13GTnVxHSYBOx0UAAAAAAAAAAAAAAAAAAAAAAAAAAAAgOdTEIpNwuSKH7wzLYl97bqxbYEB5g7ruB1tX-tjnN2ukAQEDJyAGIVggRMjfpNn7LygytFP3w5j8miI_PRuMiIZkpZhP-6FN5s4",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": true,
+        "credentialId": "OdTEIpNwuSKH7wzLYl97bqxbYEB5g7ruB1tX-tjnN2s",
+        "algorithm": "EDDSA",
+        "signCount": 0,
+        "userVerified": true,
+        "backupEligible": false,
+        "attestationFormat": "packed",
+        "attestationType": "SELF",
+        "publicKeyCose": "pAEBAycgBiFYIETI36TZ-y8oMrRT98OY_JoiPz0bjIiGZKWYT_uhTebO"
+      }
+    },
+    {
+      "name": "authenticate-eddsa",
+      "description": "Assertion for an EDDSA credential, counter 5 to 6.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "k0qi82S5ktPRsE7pZ82FYOqMdS0mPXotOTeCcZ9mfOs",
+        "stored": {
+          "credentialId": "Wnl2gg9kQHFWPaD5GCiJimv_AbuizgCJFpkZmKvduss",
+          "userId": "user-authenticate-eddsa",
+          "userHandle": "-Wl7ZT7anev709L0Z4h0neo_ZVAjGjNjR1E5kfqAloI",
+          "publicKeyCose": "pAEBAycgBiFYIETI36TZ-y8oMrRT98OY_JoiPz0bjIiGZKWYT_uhTebO",
+          "algorithm": "EDDSA",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "Wnl2gg9kQHFWPaD5GCiJimv_AbuizgCJFpkZmKvduss",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiazBxaTgyUzVrdFBSc0U3cFo4MkZZT3FNZFMwbVBYb3RPVGVDY1o5bWZPcyIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "aMN9mTuhxWzqizK1XOwjDFQnceNpKW6qkekK5h99nKBUsjqJ6U6w2KXY5UtHh5v3q2SbMogdMoAsypOBKg4XDw",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": true,
+        "userId": "user-authenticate-eddsa",
+        "userVerified": true,
+        "cloneDetected": false,
+        "signCount": 6
+      }
+    },
+    {
+      "name": "authenticate-synced-passkey",
+      "description": "Backup eligible credential with backup state set.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "vwC-sc2W0Es9un5L25lAI13JRj2hIC2QcM7BSkN6bns",
+        "stored": {
+          "credentialId": "onvAo8JzCbIe_V80YxO5ezMikADeVXKy02Shns1n1S4",
+          "userId": "user-authenticate-synced-passkey",
+          "userHandle": "zvTH0ewEtwaRSvKuijgjTV0yCB44_t_F48r_SDkl3w0",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": true,
+          "backupState": false
+        },
+        "response": {
+          "id": "onvAo8JzCbIe_V80YxO5ezMikADeVXKy02Shns1n1S4",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoidndDLXNjMlcwRXM5dW41TDI1bEFJMTNKUmoyaElDMlFjTTdCU2tONmJucyIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscdAAAABg",
+          "signature": "MEUCIQCQlx7EIcp03uewKUGLk74MFqgdsrWqCmYeqSu592lQDQIgL0DHNJnEkg-zU692rBykoBOxBLQtyOCAze0yAoN2Ods",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": true,
+        "userId": "user-authenticate-synced-passkey",
+        "userVerified": true,
+        "cloneDetected": false,
+        "signCount": 6
+      }
+    },
+    {
+      "name": "authenticate-counter-unsupported",
+      "description": "Authenticator without counter: 0 to 0 is not a clone signal.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "ecSnT3rCqmXGr034xSWvz8xtv2lniqVroJRiWFWhGaM",
+        "stored": {
+          "credentialId": "uR0pCz3HCMW-_a1e-Ci_mhR8mYoATbU8Xh8UOyrFskc",
+          "userId": "user-authenticate-counter-unsupported",
+          "userHandle": "2FwBWoo2Vb_gCaRtszaWrzzxmGJvckdarVf6zc3JGLQ",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 0,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "uR0pCz3HCMW-_a1e-Ci_mhR8mYoATbU8Xh8UOyrFskc",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZWNTblQzckNxbVhHcjAzNHhTV3Z6OHh0djJsbmlxVnJvSlJpV0ZXaEdhTSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAAAA",
+          "signature": "MEUCIQC6DiRG15KdIFSJ6Gcob_BWF5ndUMPqFDEgTVKIwCkvtgIgY2Fq0LIHAZNIjyKFTPgu-n1agD4s0KB63rXUv_tOoaA",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": true,
+        "userId": "user-authenticate-counter-unsupported",
+        "userVerified": true,
+        "cloneDetected": false,
+        "signCount": 0
+      }
+    },
+    {
+      "name": "register-bad-origin",
+      "description": "clientDataJSON origin is not in the allowed list.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "glMJhiLixrb0YnvEaK9iGPg7Yo_roojX1gv-3K2XD00",
+        "user": {
+          "id": "user-register-bad-origin",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "sB4s1w-GbzIxUuRzOcYtAxhjN9aunpvFOcj5gp0-OEE"
+        },
+        "response": {
+          "id": "kY4IgNd-m0a42o91UqMiglOWV1xH_gEeYAj8RLuunZU",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiZ2xNSmhpTGl4cmIwWW52RWFLOWlHUGc3WW9fcm9valgxZ3YtM0syWEQwMCIsIm9yaWdpbiI6Imh0dHBzOi8vZXZpbC5leGFtcGxlLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikIlv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATsdFAAAAAAAAAAAAAAAAAAAAAAAAAAAAIJGOCIDXfptGuNqPdVKjIoJTlldcR_4BHmAI_ES7rp2VpQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.origin_mismatch"
+      }
+    },
+    {
+      "name": "authenticate-bad-origin",
+      "description": "Assertion from an origin that is not allowed.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "DuBXno7bj8vDuRGWCK9Iz4ZzUDJU2lFmMysSq4qPn08",
+        "stored": {
+          "credentialId": "CKgipQ_FhCFVHisbtJucoEE6MobCjiAhApAihNgNTUk",
+          "userId": "user-authenticate-bad-origin",
+          "userHandle": "f7MCOFOVpr0G4le7rWDc4fbqaougFym_moOBPc_wgfM",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "CKgipQ_FhCFVHisbtJucoEE6MobCjiAhApAihNgNTUk",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiRHVCWG5vN2JqOHZEdVJHV0NLOUl6NFp6VURKVTJsRm1NeXNTcTRxUG4wOCIsIm9yaWdpbiI6Imh0dHBzOi8vZXZpbC5leGFtcGxlLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "MEUCIQD0WIk4uQZglEd5cHyskUSEiNh3cGvXCl9A8u_XkgcQigIgAJQ90ccxyk6XFeQtCDDpnMHy3R5kFNxnZiTI0Nmcd3A",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.origin_mismatch"
+      }
+    },
+    {
+      "name": "register-wrong-type",
+      "description": "Registration response with type webauthn.get.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "347YTI60c7WR3LqxqFJRVG56VOjvw0_2VzzrR07bcVY",
+        "user": {
+          "id": "user-register-wrong-type",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "OI6MfVXmSiSHbsUcxrvK9I1EcNN__ztkApX0Zrdwn2k"
+        },
+        "response": {
+          "id": "YbmVznrTxijXCD35kjxcPENPf0VBjvj5zvCfrbyJGPE",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiMzQ3WVRJNjBjN1dSM0xxeHFGSlJWRzU2Vk9qdncwXzJWenpyUjA3YmNWWSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikIlv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATsdFAAAAAAAAAAAAAAAAAAAAAAAAAAAAIGG5lc5608Yo1wg9-ZI8XDxDT39FQY74-c7wn628iRjxpQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.type_mismatch"
+      }
+    },
+    {
+      "name": "authenticate-wrong-type",
+      "description": "Assertion with type webauthn.create.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "tOCHofJsMzzdFNUMY8Mo7IVa1xppPcdQqL9EtupiT_Y",
+        "stored": {
+          "credentialId": "dFcXPLe8guZ8cXAUgvG-5RPnRW3P71nOAPelMZsp3ck",
+          "userId": "user-authenticate-wrong-type",
+          "userHandle": "iBES79IjXSLhtPFR_H-UZt0nKelziM4pfPdMhw0j0o8",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "dFcXPLe8guZ8cXAUgvG-5RPnRW3P71nOAPelMZsp3ck",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoidE9DSG9mSnNNenpkRk5VTVk4TW83SVZhMXhwcFBjZFFxTDlFdHVwaVRfWSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "MEUCIQCAmhffQLmAD_2KsZQz5Kn1OgQpQoKGl1WJ-2JmwWHzMQIgHhlSO_ZPw1OREV05zumoRdwK8l_rXc9UOrS182cYwp4",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.type_mismatch"
+      }
+    },
+    {
+      "name": "register-uv-missing-biometric-policy",
+      "description": "Policy requires user verification, UV flag absent.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "required",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "AI3Hu0Xd3dXB4igFgbLDy3nGpkVcSgbMhWNdVYikMOk",
+        "user": {
+          "id": "user-register-uv-missing-biometric-policy",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "OpNJwBnbbqLQxDPQjQQPQgjcIGOqDaj40Gm1FZtPlXQ"
+        },
+        "response": {
+          "id": "1kUx6rimG5piDILYb4o3__DKHj14GlRzXNbosUjWNHc",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiQUkzSHUwWGQzZFhCNGlnRmdiTER5M25HcGtWY1NnYk1oV05kVllpa01PayIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikIlv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATsdBAAAAAAAAAAAAAAAAAAAAAAAAAAAAINZFMeq4phuaYgyC2G-KN__wyh49eBpUc1zW6LFI1jR3pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.user_not_verified"
+      }
+    },
+    {
+      "name": "authenticate-uv-missing-biometric-policy",
+      "description": "Policy requires user verification, UV flag absent.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "required",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "RCgHRYlQwKURsqiQLX7y0SVVjjQNf8tsjfwoG3ZfAuk",
+        "stored": {
+          "credentialId": "X0VRRuAlnH-zyp2iCcIF57YgyEJhrIjUw_ICJZcxR8E",
+          "userId": "user-authenticate-uv-missing-biometric-policy",
+          "userHandle": "aujUMadOKgkS_FG7WiT1OJCCpPQufD9lNFfiwK_F4xM",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "X0VRRuAlnH-zyp2iCcIF57YgyEJhrIjUw_ICJZcxR8E",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiUkNnSFJZbFF3S1VSc3FpUUxYN3kwU1ZWampRTmY4dHNqZndvRzNaZkF1ayIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscBAAAABg",
+          "signature": "MEQCICc2MKbOTHURqDZ2PNwICAsW8PoyRqRyiyMGkWzpwj1KAiBVUKOM1ZNjOvQqR3abbEhNj2FlZqjy9HM73HmG1hyvBA",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.user_not_verified"
+      }
+    },
+    {
+      "name": "authenticate-uv-present-biometric-policy",
+      "description": "Policy requires user verification, UV flag present.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "required",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "UKIL2jzhHyP_f0hxAspEWUZt36cy2YV-CJgv11fsa-M",
+        "stored": {
+          "credentialId": "rvHkce0sa5N5-d_LoS2gBiIYBk8z89dUBE9aO7Fql6A",
+          "userId": "user-authenticate-uv-present-biometric-policy",
+          "userHandle": "SzB2YZcd0bpXrSdD7l8OAGEFnhS7q-6ABtO2rUaaHYc",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "rvHkce0sa5N5-d_LoS2gBiIYBk8z89dUBE9aO7Fql6A",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiVUtJTDJqemhIeVBfZjBoeEFzcEVXVVp0MzZjeTJZVi1DSmd2MTFmc2EtTSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "MEUCIQDrJci7ZaZjrCUChA3n-UEbcbSybflVqgyFEmvsuopdPAIgdN7zpekvFZLETMJBV3SSgjuuvBagApMa5f9rTxliJ34",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": true,
+        "userId": "user-authenticate-uv-present-biometric-policy",
+        "userVerified": true,
+        "cloneDetected": false,
+        "signCount": 6
+      }
+    },
+    {
+      "name": "authenticate-uv-absent-preferred-policy",
+      "description": "Policy prefers UV, absent flag is tolerated.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "Tc2n8xwlH36qvqirKysD9qpQm866O1UFX4MFcwGh_xo",
+        "stored": {
+          "credentialId": "XNCJCoz0k5lGLqmvwsL7wM9mZet6W7Z1p_OcDCDd-wM",
+          "userId": "user-authenticate-uv-absent-preferred-policy",
+          "userHandle": "7cPLNF1EnRgjGhHEqg06B337RpsFvOCt_Kos_sE7Gi4",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "XNCJCoz0k5lGLqmvwsL7wM9mZet6W7Z1p_OcDCDd-wM",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiVGMybjh4d2xIMzZxdnFpckt5c0Q5cXBRbTg2Nk8xVUZYNE1GY3dHaF94byIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscBAAAABg",
+          "signature": "MEUCIQD34sR5oY3Ezvmvi5PsT3eZAThF0IidcEUHt5mLlHxK0QIgZwC49Sju8xVHyhqVo79NgVrz1pd5dDKEvGMklofyUzg",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": true,
+        "userId": "user-authenticate-uv-absent-preferred-policy",
+        "userVerified": false,
+        "cloneDetected": false,
+        "signCount": 6
+      }
+    },
+    {
+      "name": "authenticate-user-not-present",
+      "description": "UP flag not set.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "6SU0NLRDpq6tBpOKqDhhR7aWftY4EIwE6yRO0kcellc",
+        "stored": {
+          "credentialId": "r9D0nBnivYunN72dCvo2jZy20NENoVekzj9bigS_DSk",
+          "userId": "user-authenticate-user-not-present",
+          "userHandle": "kM85OLeTPRkZ7JyH8hMuSxwt9Bjid8DnvT8uWosjDAM",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "r9D0nBnivYunN72dCvo2jZy20NENoVekzj9bigS_DSk",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiNlNVME5MUkRwcTZ0QnBPS3FEaGhSN2FXZnRZNEVJd0U2eVJPMGtjZWxsYyIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscEAAAABg",
+          "signature": "MEUCIFgMuJsOEHGyh1JUEiMcWIemD9kwJlhht4B_IEq6zUngAiEA1gbT7r1Jw7QdnxpTzGMHypdS04mDjtcnr8NV5dYwvVU",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.user_not_present"
+      }
+    },
+    {
+      "name": "authenticate-counter-regression",
+      "description": "Counter did not increase: possible clone, policy fails closed.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "MX3Ev4ZauS1uw6Jg2JQS6M5QaLS9-yw6KVxB4J-245A",
+        "stored": {
+          "credentialId": "HQHJ_4DDu4TPgjJU2-5Z-sT4kbjdndjiO_2hHj0UjJw",
+          "userId": "user-authenticate-counter-regression",
+          "userHandle": "1R2ewHL13onMnbN-DOj1or4u-3pJu6VO-PlHouhBMtk",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 10,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "HQHJ_4DDu4TPgjJU2-5Z-sT4kbjdndjiO_2hHj0UjJw",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiTVgzRXY0WmF1UzF1dzZKZzJKUVM2TTVRYUxTOS15dzZLVnhCNEotMjQ1QSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAACg",
+          "signature": "MEUCIA9RZ_TiB3EUfBML5Bb40RiVOD3uw_-g4LCYMycdSuo8AiEA1WsTEuGtQ23BRz4n17dxpYOsMoSmpwP3kQ3u3BknoWI",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.clone_detected"
+      }
+    },
+    {
+      "name": "authenticate-counter-lower",
+      "description": "Counter went backwards.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "MM49w1Rief5B8pqT82oxXV91H3oov5vqtemxadRLKR4",
+        "stored": {
+          "credentialId": "Fh26yqVM2ngbBl1E2o9uhHd4w_Iy6hvHEMOCTwPbSuk",
+          "userId": "user-authenticate-counter-lower",
+          "userHandle": "-jDd1Ssh4fhYdqFU40JvYqHrPbH4-_OFB00DdSZsPUA",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 10,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "Fh26yqVM2ngbBl1E2o9uhHd4w_Iy6hvHEMOCTwPbSuk",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiTU00OXcxUmllZjVCOHBxVDgyb3hYVjkxSDNvb3Y1dnF0ZW14YWRSTEtSNCIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAAAw",
+          "signature": "MEYCIQC_tmGBtQpDYfZ6P4ftEYABkuo6xHnPwbg0JR7mYXrJEAIhAJl7IepWDRl0GMqni3vBkPnbX862mv4xo4nYg1AVz-jo",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.clone_detected"
+      }
+    },
+    {
+      "name": "authenticate-counter-regression-tolerant-policy",
+      "description": "Same regression with failOnClone off: succeeds and reports cloneDetected.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": false
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "b6gGxCJtv-QG06PjR-9Fc24Kp8riy-95gHpVZTM-q1k",
+        "stored": {
+          "credentialId": "Haq5JS2UP1ijtst8nKE_EsjQZNtVz30m-CT-taFQy-E",
+          "userId": "user-authenticate-counter-regression-tolerant-policy",
+          "userHandle": "eQk1C3kMJkJ3Lx01JGE-z08FDvFJC410hc7xijLz4dU",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 10,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "Haq5JS2UP1ijtst8nKE_EsjQZNtVz30m-CT-taFQy-E",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiYjZnR3hDSnR2LVFHMDZQalItOUZjMjRLcDhyaXktOTVnSHBWWlRNLXExayIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAACQ",
+          "signature": "MEQCIFFzeGkAuaTq67R68HXOpMn0j49IhuZ8wXr0gS_RL2NLAiAVHfbSufAHP_ooN8PE2rjPB7rbgxaPxKlBwQD8L4u4Wg",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": true,
+        "userId": "user-authenticate-counter-regression-tolerant-policy",
+        "userVerified": true,
+        "cloneDetected": true,
+        "signCount": 10
+      }
+    },
+    {
+      "name": "authenticate-bad-signature",
+      "description": "Last byte of the assertion signature flipped.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "8Ymyt9-xVL_XQePA2gHh7uYggfVxWUbW6TzIbKaAN4s",
+        "stored": {
+          "credentialId": "xJVWOS2Rr3CFBpRb1EQahUS0VFEJ2YIJ3eKCLYNXfOo",
+          "userId": "user-authenticate-bad-signature",
+          "userHandle": "1pb04HFEG0wWZrm8NLcUcAQSiEK-OARc07Yuvl_0XMI",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "xJVWOS2Rr3CFBpRb1EQahUS0VFEJ2YIJ3eKCLYNXfOo",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiOFlteXQ5LXhWTF9YUWVQQTJnSGg3dVlnZ2ZWeFdVYlc2VHpJYkthQU40cyIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "MEQCIDzDnA47LMiiDzI6jawQHurjcUOxjWCfrBX_RnYJAxZoAiA5fWzJfSqxkA68KnLmt03RgqAkG3FLKkB8v5e5Z_YfpQ",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.signature_invalid"
+      }
+    },
+    {
+      "name": "authenticate-rp-id-hash-mismatch",
+      "description": "authenticatorData rpIdHash is for another RP.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "zq-JYwjdykXHJP_XP_RT3McwsqNsgKMJ9oB86YO5tno",
+        "stored": {
+          "credentialId": "XDSGkxf6KqEIDTIz9FoEsPKzHrqdI2ysNj9lDVEcIeQ",
+          "userId": "user-authenticate-rp-id-hash-mismatch",
+          "userHandle": "0Kv42d3Vu_fTKX6RoH2OMcC_qV0wvdIGp-guxHusuBo",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "XDSGkxf6KqEIDTIz9FoEsPKzHrqdI2ysNj9lDVEcIeQ",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoienEtSll3amR5a1hISlBfWFBfUlQzTWN3c3FOc2dLTUo5b0I4NllPNXRubyIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "SXyxFFh6tdu62dQFcdieRmAtBDIpnZzdDhEfpiQarsIFAAAABg",
+          "signature": "MEQCIDNJUp3xx0ACNl8q4RIWHlVdI2cWAjZSF9qQJScgRd3BAiBJHwoHdDFEEDhNoaUNg1QT0Q4_QUEKRUZNKSNr2mGcGA",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.rp_id_mismatch"
+      }
+    },
+    {
+      "name": "register-rp-id-hash-mismatch",
+      "description": "authenticatorData rpIdHash is for another RP.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "ypiwas5PitSu6txMm3NDMmyyaGDu23k5To-Ztq_WeGM",
+        "user": {
+          "id": "user-register-rp-id-hash-mismatch",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "FDcBpLjc0U2H2S0nGq7abJv0HQ25pia8kCe03zz0oxI"
+        },
+        "response": {
+          "id": "GlJ-aneiwmIf7P0p3gjAo4MXQ7nCVIjbTa-HEWcZRd8",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoieXBpd2FzNVBpdFN1NnR4TW0zTkRNbXl5YUdEdTIzazVUby1adHFfV2VHTSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikSXyxFFh6tdu62dQFcdieRmAtBDIpnZzdDhEfpiQarsJFAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBpSfmp3osJiH-z9Kd4IwKODF0O5wlSI202vhxFnGUXfpQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.rp_id_mismatch"
+      }
+    },
+    {
+      "name": "authenticate-unknown-credential",
+      "description": "Credential id is not registered.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "ZGcVLD5Pl9Hc4oA3qemyQFD02ZPPY6pBnlaNyvMGLiM",
+        "stored": {
+          "credentialId": "Bv7o8cnnUq_1Mw6K4B6RTW4oI6oaPDXSI4E-_Ne3lkI",
+          "userId": "user-authenticate-unknown-credential",
+          "userHandle": "PT1qhtB_uU0t8A0hIiBKa1rd1E8N6xOfUZNRFqYCTzk",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "gD4txUjzlK9p_NW8Sm6XhCHAJRhaexEwV9OBr_eDqzQ",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiWkdjVkxENVBsOUhjNG9BM3FlbXlRRkQwMlpQUFk2cEJubGFOeXZNR0xpTSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "MEUCIAZXaADA2S9IkQ9w7h5d1em4v0U7PQkiAZCIpVSlU9lbAiEAjet4oad2vl5O7KpBt3_y1ASPHpwxTBAsZQlfEN6RB28",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.credential_unknown"
+      }
+    },
+    {
+      "name": "authenticate-user-handle-mismatch",
+      "description": "userHandle belongs to another user.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "Wr-QDg0aiBWHH3O76m3etLAunO0vRlDAsfb3sDeqOjA",
+        "stored": {
+          "credentialId": "TI7Wob0AC03CXwQD9ACk-ujz0OUpcyQYIpEi-2gWS20",
+          "userId": "user-authenticate-user-handle-mismatch",
+          "userHandle": "N99M8KIZtCg2AhQgK3lTI8Vq_lmLifFmp3nsTSp0smU",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "TI7Wob0AC03CXwQD9ACk-ujz0OUpcyQYIpEi-2gWS20",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiV3ItUURnMGFpQldISDNPNzZtM2V0TEF1bk8wdlJsREFzZmIzc0RlcU9qQSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "MEUCIGKLifoqiGN3VZoLIvqNUMfGSb1uqAtW9vXAl4XBs9DgAiEAySVkaXxlDebHyQ3c1Ygi4bhCNIwcyQzmcFONGYuRImE",
+          "userHandle": "Vvf3p9NoPdKxvvdnEbpfo6nq3xwwqZsZkKdlcPZS-HE"
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.user_handle_mismatch"
+      }
+    },
+    {
+      "name": "authenticate-backup-eligibility-changed",
+      "description": "BE flag set but the stored credential is not backup eligible.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "CxGgMSdydhOC04EDWxOzBrJ1IRJONgqnBaYkjMU-1A0",
+        "stored": {
+          "credentialId": "5gkbMKrxnF39YwSAJI4OYUR-jsDM_GlVaDrTcNWqJyc",
+          "userId": "user-authenticate-backup-eligibility-changed",
+          "userHandle": "fHPPf71zki2QShLFHDvJfGKmqJOVafV33eKCUC-30c0",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "5gkbMKrxnF39YwSAJI4OYUR-jsDM_GlVaDrTcNWqJyc",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiQ3hHZ01TZHlkaE9DMDRFRFd4T3pCckoxSVJKT05ncW5CYVlrak1VLTFBMCIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscNAAAABg",
+          "signature": "MEUCIQC09EeM883NuSVSiYU61KTx7OhYWybJu0fOcUGKt7W4nAIgbmHPlNnDyLaz71PfbtumivNlITM2Fjp4zg6OcbOfnWQ",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.backup_eligibility_changed"
+      }
+    },
+    {
+      "name": "register-challenge-mismatch",
+      "description": "Challenge in clientDataJSON was never issued.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "ecfN38V1wz0_ov1l_VU3NWsCQ0J-G24eJ0OddHvzXcs",
+        "user": {
+          "id": "user-register-challenge-mismatch",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "rnv7ipzZ6_vNqV-rNx-a7a_1AcF_le7S2USI6UIOnls"
+        },
+        "response": {
+          "id": "75hd5JtxD8gO82H6MbjXQpYzddmHH3PDVNYC_cEkKz0",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoid1M1bXNEVDdSYWYzM25ZejctTmlKUkpvWnRDWDBWSmJmS3pFOERWQVJkMCIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikIlv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATsdFAAAAAAAAAAAAAAAAAAAAAAAAAAAAIO-YXeSbcQ_IDvNh-jG410KWM3XZhx9zw1TWAv3BJCs9pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.challenge_invalid"
+      }
+    },
+    {
+      "name": "authenticate-challenge-mismatch",
+      "description": "Challenge in clientDataJSON was never issued.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "ZosLI_wfbByOQzB2Vt2tvCD1lgJPfe30EdJzj-k26S8",
+        "stored": {
+          "credentialId": "VUay-Q9VOyWnms2MLvEPCIsj1BibTFNW_9SZRm7ulVY",
+          "userId": "user-authenticate-challenge-mismatch",
+          "userHandle": "idxsKtZFgSgKikr9wstdBUXr6e_vPuqZha8WD10qiQA",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "VUay-Q9VOyWnms2MLvEPCIsj1BibTFNW_9SZRm7ulVY",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiME0zaVdOMGRiZlMyN1VZdHcwX2U5UU9XWlRmVk1qc0hPN3Z6S1plM1F2WSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "MEUCIQDeonSWKpVMKS-89mObenX__uT14FwGCX6tQ5h3WL0fzwIgeP6ukDbQiCW6zMzKNWncL5RA_cdVGwo63CpRAKo96p4",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.challenge_invalid"
+      }
+    },
+    {
+      "name": "authenticate-challenge-expired",
+      "description": "Challenge issued 301 seconds ago, ttl is 300.",
+      "input": {
+        "ceremony": "authentication",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T09:54:59Z",
+        "challenge": "qCRDKfIsxr0_3u1GW88FZYeogu7hIjR6rVITx8hTpBc",
+        "stored": {
+          "credentialId": "msByzPdx6CTsg-rxMXI45_5axqOdfqFAnuRHLMFomwc",
+          "userId": "user-authenticate-challenge-expired",
+          "userHandle": "pCMKFQeytIAk-ldUbYOlGJF053ZihZFmAsYEn3Uopyw",
+          "publicKeyCose": "pQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "algorithm": "ES256",
+          "signCount": 5,
+          "backupEligible": false,
+          "backupState": false
+        },
+        "response": {
+          "id": "msByzPdx6CTsg-rxMXI45_5axqOdfqFAnuRHLMFomwc",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicUNSREtmSXN4cjBfM3UxR1c4OEZaWWVvZ3U3aElqUjZyVklUeDhoVHBCYyIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "authenticatorData": "Ilv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATscFAAAABg",
+          "signature": "MEQCIC2VqOtjfJoEPxj-ZpOFr93cMhX11-D_EEjj-2Ec-oGLAiBuGAIhzvbqpyRMJAV46m9BOdyttnjtoNYY4zgizt2fVQ",
+          "userHandle": null
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.challenge_invalid"
+      }
+    },
+    {
+      "name": "register-packed-bad-signature",
+      "description": "Self attestation signature flipped.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["EDDSA", "ES256", "RS256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "vaROiZZpuYsijJM6eT3GWTyj__dgnF-b523D1MpTh40",
+        "user": {
+          "id": "user-register-packed-bad-signature",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "5OQHHf8ApcBk3I_Oa9YV9YJueFteWl5qICbmvtKQODQ"
+        },
+        "response": {
+          "id": "tuR8B5TDPe3zVmML0c53xZ_3hz3NoWZ1M7qaI61W0pA",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoidmFST2laWnB1WXNpakpNNmVUM0dXVHlqX19kZ25GLWI1MjNEMU1wVGg0MCIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRmcGFja2VkZ2F0dFN0bXSiY2FsZyZjc2lnWEcwRQIhAJPx1vGvMBmeSPrSeaTshJcgtp9ksmvL-ktUCjWZojWVAiBMaO4MGE-WqGgNg6k5L5I28q7xQp4VIO5tfWG2BkrLIGhhdXRoRGF0YVikIlv5Ff-3CyDiNp6dkVhO5ZK8sHbc4ddxk51cR0mATsdFAAAAAAAAAAAAAAAAAAAAAAAAAAAAILbkfAeUwz3t81ZjC9HOd8Wf94c9zaFmdTO6miOtVtKQpQECAyYgASFYIM-kP4XCOiZDEXFMX20z2QQTeCmlt_hi-4SFQSesMGA4IlggPi8XrgyBZw3lYdlvZ_KUMFi1PSGrzxMJEQt0G73-_2E",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.attestation.signature"
+      }
+    },
+    {
+      "name": "register-algorithm-not-allowed",
+      "description": "RS256 credential while the policy allows only ES256.",
+      "input": {
+        "ceremony": "registration",
+        "policy": {
+          "rpId": "naqqa.com",
+          "origins": ["https://app.naqqa.com"],
+          "userVerification": "preferred",
+          "allowedAlgorithms": ["ES256"],
+          "failOnClone": true
+        },
+        "nowIso": "2026-10-15T10:00:00Z",
+        "challengeIssuedAtIso": "2026-10-15T10:00:00Z",
+        "challenge": "-H9aXc-ACINV2rqcYKjWwick86hWJxamqqjbk2SRXEM",
+        "user": {
+          "id": "user-register-algorithm-not-allowed",
+          "name": "alex@naqqa.com",
+          "displayName": "Alex",
+          "handle": "I_ddSbJuDQo7oXFGa9ZTIwQ5pKiGlB89LHDielCY4d8"
+        },
+        "response": {
+          "id": "DqHFfjI413X9jXK0h1tiMppOdZvCl5tiWfcYk90KHyY",
+          "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiLUg5YVhjLUFDSU5WMnJxY1lLald3aWNrODZoV0p4YW1xcWpiazJTUlhFTSIsIm9yaWdpbiI6Imh0dHBzOi8vYXBwLm5hcXFhLmNvbSIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+          "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVkBZyJb-RX_twsg4jaenZFYTuWSvLB23OHXcZOdXEdJgE7HRQAAAAAAAAAAAAAAAAAAAAAAAAAAACAOocV-MjjXdf2NcrSHW2Iymk51m8KXm2JZ9xiT3QofJqQBAwM5AQAgWQEA5-Li_qhsVqgzuI3j5lXxxN4UQ7yhxkaes-61kHpyjTN4sfTKLYS1yU3fieRRjVnnz04fqOt1FScenqYdoSnsVs3o8pVFbc2fwwwGKiY3hjrZdl0rUA0HBAnUZwFT5Xj4GntCVYoEavWgRSUNsjyIogjZS3WjyR-4VBaKM6eWoeegaSRhs45nn1CJ7ucyUl490A5LaTjsacJop26byS0f1HTf0b_55K2j7C_sO6LwV5BNG70RENc6UR0I9Z5gFYyA5-pXPHV5Di-krDU1UFNgDQUDaGBpaEuG7iMNQl_Oku7Hi3g-xDWxzf2MsOv-XF0tsINhrcKMXZeh8MtWqWCwQyFDAQAB",
+          "transports": ["internal"]
+        }
+      },
+      "expected": {
+        "ok": false,
+        "error": "webauthn.alg_not_allowed"
+      }
+    }
+  ]
+}

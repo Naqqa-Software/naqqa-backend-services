@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 public class SendMessageRequest {
-    private Long conversationId;   // used by WS handler
+    private Long conversationId;
     private String content;
     private ChatMessageType type;
     private String mediaUrl;

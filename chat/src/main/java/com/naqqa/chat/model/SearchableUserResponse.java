@@ -9,6 +9,5 @@ public class SearchableUserResponse {
     private Long id;
     private String fullName;
     private String avatarUrl;
-    /** "ORGANIZER" or "STUDENT" */
     private String role;
 }

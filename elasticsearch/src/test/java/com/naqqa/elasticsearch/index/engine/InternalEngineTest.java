@@ -268,7 +268,6 @@ public final class InternalEngineTest {
             com.naqqa.elasticsearch.common.unit.TimeValue.MINUS_ONE, com.naqqa.elasticsearch.index.translog.Durability.REQUEST,
             com.naqqa.elasticsearch.common.unit.TimeValue.timeValueSeconds(5), null);
         com.naqqa.elasticsearch.store.Directory dir = new com.naqqa.elasticsearch.store.FSDirectory(shardPath.resolve("index"));
-        // generation size (2 KB) is far below the flush threshold (20 KB): the old per-generation check never fired.
         EngineConfig config = EngineConfig.defaultConfig(shardPath, dir, mapperService, tc)
             .withRefreshInterval(com.naqqa.elasticsearch.common.unit.TimeValue.MINUS_ONE)
             .withFlushThresholdSize(com.naqqa.elasticsearch.common.unit.ByteSizeValue.ofBytes(20_000));

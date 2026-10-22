@@ -32,13 +32,6 @@ import java.util.TreeSet;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Default {@link ImageOptimizer}. Decodes a raster image (honouring EXIF orientation), downscales to
- * the configured widths with Thumbnailator, and re-encodes with stock ImageIO — JPEG for opaque images,
- * PNG when transparency is needed. A full-size re-encode is added for non-lossy sources up to
- * {@code fullSizeMaxWidth}. No native codecs are involved: TwelveMonkeys provides pure-Java JPEG/WebP
- * reading, and the native webp-imageio encoder is intentionally not used.
- */
 public class DefaultImageOptimizer implements ImageOptimizer {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultImageOptimizer.class);
@@ -140,10 +133,6 @@ public class DefaultImageOptimizer implements ImageOptimizer {
         }
     }
 
-    /**
-     * Pure-Java re-encode of a sanitized BufferedImage: JPEG for opaque images, PNG when transparency is
-     * needed. No native code is involved anywhere in the pipeline.
-     */
     public byte[] encode(BufferedImage image, boolean alpha) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         if (alpha) {

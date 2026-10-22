@@ -8,25 +8,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 
-/**
- * Mints Cloud CDN signed cookies scoped to a single ladder.
- *
- * <p>The cookie is what replaces per-segment authorisation: the application decides once whether the
- * viewer may watch, and the CDN enforces that decision at the edge for every segment afterwards. The
- * origin bucket stays private throughout — only the CDN's cache-fill service account can read it.
- *
- * <p><b>The prefix is the security boundary.</b> A cookie is signed for
- * {@code <baseUrl>/<vodPrefix>/<groupId>/} and is rejected for anything outside it, so a viewer
- * entitled to one lesson cannot use their cookie to reach another. That is why the ladder layout
- * puts each group in its own directory.
- *
- * <p>Cloud CDN validates HMAC-SHA1 over the policy string. SHA-1 is not our choice — it is the
- * algorithm the service defines — and it is used here as a keyed MAC, where the collision weaknesses
- * that rule SHA-1 out for signatures do not apply.
- */
 public class CdnSignedCookieService {
 
-    /** The cookie name Cloud CDN looks for. Not configurable. */
     public static final String COOKIE_NAME = "Cloud-CDN-Cookie";
 
     private final FileStorageProperties props;
@@ -43,26 +26,18 @@ public class CdnSignedCookieService {
                 && notBlank(cdn.getKeyValue());
     }
 
-    /** The path a cookie for {@code groupId} is scoped to, and the path the cookie must be set on. */
     public String cookiePath(String groupId) {
         return "/" + props.getTranscode().getVodPrefix() + "/" + groupId + "/";
     }
 
-    /** Absolute master playlist URL served by the CDN. */
     public String masterPlaylistUrl(String groupId) {
         return trimmedBaseUrl() + cookiePath(groupId) + "master.m3u8";
     }
 
-    /** Seconds the issued cookie remains valid — also the revocation window. */
     public int ttlSeconds() {
         return props.getHls().getCdn().getCookieTtlSeconds();
     }
 
-    /**
-     * Builds the signed cookie value for one ladder.
-     *
-     * @param groupId the ladder the viewer has been authorised for
-     */
     public String sign(String groupId) {
         if (!isEnabled()) {
             throw new IllegalStateException("CDN signed cookies are not configured");
@@ -90,7 +65,6 @@ public class CdnSignedCookieService {
         }
     }
 
-    /** The key is stored base64url without padding, as {@code add-signed-url-key} expects it. */
     private static byte[] decodeKey(String keyValue) {
         String padded = keyValue.trim();
         int remainder = padded.length() % 4;

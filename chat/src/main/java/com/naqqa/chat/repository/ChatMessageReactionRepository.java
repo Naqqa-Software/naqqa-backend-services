@@ -10,6 +10,5 @@ public interface ChatMessageReactionRepository extends JpaRepository<ChatMessage
 
     Optional<ChatMessageReactionEntity> findByMessageIdAndUserId(Long messageId, Long userId);
 
-    /** All reactions for a given message, ordered by insertion time (stable emoji order). */
     List<ChatMessageReactionEntity> findAllByMessageIdOrderByCreatedAtAsc(Long messageId);
 }

@@ -23,7 +23,6 @@ public class JwtConfig {
 
     private final RSAKeys rsaKeys;
 
-    // This component converts a JWT into a collection of granted authorities
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
         grantedAuthoritiesConverter.setAuthoritiesClaimName("authorities");

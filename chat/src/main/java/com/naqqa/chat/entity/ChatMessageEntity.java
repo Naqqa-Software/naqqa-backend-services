@@ -25,7 +25,6 @@ public class ChatMessageEntity {
     @Column(name = "sender_id", nullable = false)
     private Long senderId;
 
-    /** AES/GCM-encrypted content (Base64). Null for media-only messages. */
     @Column(columnDefinition = "TEXT")
     private String content;
 

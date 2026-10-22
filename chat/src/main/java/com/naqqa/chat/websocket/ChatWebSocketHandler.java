@@ -22,17 +22,14 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
-    /** userId → open session (wrapped for concurrent send safety). One session per user (last-wins). */
     private final Map<Long, WebSocketSession> sessions = new ConcurrentHashMap<>();
 
-    /** Max ms to wait for a single send; messages queued beyond bufferSizeLimit are dropped. */
     private static final int SEND_TIME_LIMIT_MS  = 5_000;
-    private static final int SEND_BUFFER_SIZE    = 128 * 1024; // 128 KB
+    private static final int SEND_BUFFER_SIZE    = 128 * 1024;
 
     private final ChatService  chatService;
     private final ObjectMapper objectMapper;
 
-    // ─── Connection lifecycle ─────────────────────────────────────────────────
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -41,7 +38,6 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             closeQuietly(session);
             return;
         }
-        // Wrap in a thread-safe decorator so concurrent sends are queued, not dropped
         WebSocketSession safe = new ConcurrentWebSocketSessionDecorator(
                 session, SEND_TIME_LIMIT_MS, SEND_BUFFER_SIZE);
         sessions.put(userId, safe);
@@ -52,13 +48,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         Long userId = extractUserId(session);
         if (userId != null) {
-            // Remove only if the stored session belongs to this physical session
             sessions.remove(userId);
         }
         log.info("WebSocket disconnected: sessionId={} status={}", session.getId(), status);
     }
 
-    // ─── Incoming frames ──────────────────────────────────────────────────────
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
@@ -77,7 +71,6 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    // ─── Frame handlers ───────────────────────────────────────────────────────
 
     private void handleMessageFrame(Long senderId, JsonNode payload) {
         try {
@@ -97,13 +90,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
             MessageResponse saved = chatService.sendMessage(conversationId, senderId, req);
 
-            // Wrap in typed frame so FE can distinguish event types
             ObjectNode frame = objectMapper.createObjectNode();
             frame.put("type", "MESSAGE");
             frame.set("payload", objectMapper.valueToTree(saved));
             broadcast(conversationId, objectMapper.writeValueAsString(frame));
 
-            // Push updated unread counts to all members except the sender
             broadcastUnreadToMembers(conversationId, senderId);
         } catch (Exception e) {
             log.error("Error handling WS MESSAGE frame from userId={}: {}", senderId, e.getMessage());
@@ -116,7 +107,6 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             Long conversationId = payload.path("conversationId").asLong();
             String json = objectMapper.writeValueAsString(frame);
 
-            // Forward to all OTHER members of the conversation
             chatService.getMemberIds(conversationId).stream()
                     .filter(uid -> !uid.equals(senderId))
                     .forEach(uid -> sendToUser(uid, json));
@@ -125,14 +115,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    // ─── Broadcast helpers ────────────────────────────────────────────────────
 
-    /** Broadcasts a raw JSON string to all online members of a conversation (including sender). */
     public void broadcast(Long conversationId, String json) {
         chatService.getMemberIds(conversationId).forEach(uid -> sendToUser(uid, json));
     }
 
-    /** Sends a JSON payload to a single user if they have an open session. */
     public void sendToUser(Long userId, String json) {
         WebSocketSession session = sessions.get(userId);
         if (session == null || !session.isOpen()) {
@@ -146,10 +133,6 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    /**
-     * Sends a personalised UNREAD_COUNT frame to a single user.
-     * Call this after any action that changes that user's unread state.
-     */
     public void sendUnreadCountUpdate(Long userId) {
         try {
             ObjectNode frame = objectMapper.createObjectNode();
@@ -161,17 +144,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    /**
-     * After a new message is saved, notifies every member of the conversation
-     * (except the sender) that their unread count has changed.
-     */
     public void broadcastUnreadToMembers(Long conversationId, Long senderId) {
         chatService.getMemberIds(conversationId).stream()
                 .filter(uid -> !uid.equals(senderId))
                 .forEach(this::sendUnreadCountUpdate);
     }
 
-    // ─── Utility ─────────────────────────────────────────────────────────────
 
     private Long extractUserId(WebSocketSession session) {
         String query = session.getUri() != null ? session.getUri().getQuery() : null;

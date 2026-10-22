@@ -1,6 +1,6 @@
 package com.naqqa.auth.exceptionhandlers;
 
-import com.naqqa.auth.dto.auth.AuthErrorResponse; // you can reuse this DTO
+import com.naqqa.auth.dto.auth.AuthErrorResponse;
 import com.naqqa.auth.exceptions.authorities.*;
 import com.naqqa.auth.config.authorities.AuthoritiesErrors;
 import lombok.extern.slf4j.Slf4j;
@@ -16,9 +16,6 @@ import org.springframework.core.annotation.Order;
 @Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
 public class AuthoritiesExceptionHandler {
 
-    // ----------------------------
-    // Roles
-    // ----------------------------
 
     @ExceptionHandler(RoleNotFoundException.class)
     public ResponseEntity<AuthErrorResponse> handleRoleNotFound(RoleNotFoundException ex) {
@@ -70,9 +67,6 @@ public class AuthoritiesExceptionHandler {
                 ));
     }
 
-    // ----------------------------
-    // Authorities
-    // ----------------------------
 
     @ExceptionHandler(AuthorityNotFoundException.class)
     public ResponseEntity<AuthErrorResponse> handleAuthorityNotFound(AuthorityNotFoundException ex) {
@@ -104,9 +98,6 @@ public class AuthoritiesExceptionHandler {
                 ));
     }
 
-    // ----------------------------
-    // Generic / fallback
-    // ----------------------------
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<AuthErrorResponse> handleGeneric(Exception ex) {

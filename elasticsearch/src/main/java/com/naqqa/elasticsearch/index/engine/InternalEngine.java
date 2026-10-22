@@ -131,7 +131,6 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         engine.memoryController.register(engine);
         long replayed = engine.recoverFromTranslog();
         if (replayed > 0) {
-            // Commit what was replayed so that the next restart does not have to replay the same operations again.
             try {
                 engine.flush(true);
             } catch (IOException | RuntimeException ignored) {
@@ -696,12 +695,6 @@ public final class InternalEngine extends Engine implements IndexingMemoryContro
         }
     }
 
-    /**
-     * Commits (and so trims the translog) when there are uncommitted operations and the last flush is at least
-     * {@code intervalMillis} old, so an idle or slowly written index never accumulates a long translog.
-     *
-     * @return true if a flush was performed
-     */
     boolean maybeFlushPeriodically(long nowMillis, long intervalMillis) throws IOException {
         if (closed || nowMillis - lastFlushTimeMillis < intervalMillis) {
             return false;

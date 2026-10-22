@@ -3,6 +3,7 @@ package com.naqqa.tts.web;
 import com.naqqa.tts.config.TtsProperties;
 import com.naqqa.tts.core.TtsException;
 import com.naqqa.tts.core.TtsService;
+import com.naqqa.tts.dto.TtsStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
@@ -52,8 +53,8 @@ public class TtsController {
     }
 
     @GetMapping("${naqqa.tts.path:/api/public/tts}/status")
-    public Map<String, Object> status() {
-        return Map.of("enabled", properties.isEnabled(), "ready", service.ready(), "languages", service.languages());
+    public TtsStatus status() {
+        return new TtsStatus(properties.isEnabled(), service.ready(), service.languages());
     }
 
     @ExceptionHandler(TtsException.class)

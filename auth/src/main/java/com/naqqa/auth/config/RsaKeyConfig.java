@@ -28,7 +28,7 @@ public class RsaKeyConfig {
         String key = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
                 .replace("-----BEGIN PUBLIC KEY-----", "")
                 .replace("-----END PUBLIC KEY-----", "")
-                .replaceAll("\\s", ""); // Remove all whitespace/newlines
+                .replaceAll("\\s", "");
 
         byte[] decode = Base64.getDecoder().decode(key);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");

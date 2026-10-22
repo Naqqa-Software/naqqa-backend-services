@@ -6,7 +6,7 @@ import lombok.Data;
 public class FileUploadRequest {
     private String fileName;
     private String contentType;
-    private String objectKey; // Received from the session initiation
+    private String objectKey;
     private Long size;
     private String directory;
 }

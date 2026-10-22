@@ -12,7 +12,7 @@ public class FileEntity {
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String fileName; // GCS Object Key
+    private String fileName;
 
     private String originalFileName;
     private String contentType;

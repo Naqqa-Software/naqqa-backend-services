@@ -26,7 +26,6 @@ public final class LimitTokenCountFilter extends TokenFilter {
         if (count >= maxTokenCount) {
             if (consumeAllTokens) {
                 while (input.incrementToken()) {
-                    // drain
                 }
             }
             return false;

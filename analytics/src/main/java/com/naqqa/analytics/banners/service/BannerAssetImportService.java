@@ -9,12 +9,7 @@ import com.naqqa.analytics.banners.store.BannerRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 
-import java.io.InputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -33,14 +28,14 @@ public class BannerAssetImportService {
     private final BannerCampaignCache cache;
     private final Supplier<BannerAssetStorage> storage;
     private final long maxBytes;
-    private final HttpClient http;
+    private final com.naqqa.analytics.banners.security.PinnedHttpFetcher fetcher;
 
     public BannerAssetImportService(BannerRepository repository, BannerCampaignCache cache, Supplier<BannerAssetStorage> storage, long maxBytes) {
         this.repository = repository;
         this.cache = cache;
         this.storage = storage;
         this.maxBytes = Math.max(1024, maxBytes);
-        this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();
+        this.fetcher = new com.naqqa.analytics.banners.security.PinnedHttpFetcher(10_000, 20_000);
     }
 
     public ImportResult importRelative(String base, String prefix, boolean dryRun) {
@@ -89,7 +84,7 @@ public class BannerAssetImportService {
                     Map<String, String> f = new LinkedHashMap<>();
                     f.put("creativeId", creative.getId());
                     f.put("url", path);
-                    f.put("error", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                    f.put("error", "import failed");
                     failed.add(f);
                     log.warn("Banner asset {} could not be imported: {}", path, e.getMessage());
                 }
@@ -105,16 +100,7 @@ public class BannerAssetImportService {
     }
 
     private BannerImage upload(BannerAssetStorage store, String url) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(20)).GET().build();
-        HttpResponse<InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        if (response.statusCode() != 200) {
-            response.body().close();
-            throw new IllegalStateException("HTTP " + response.statusCode());
-        }
-        byte[] bytes;
-        try (InputStream in = response.body()) {
-            bytes = in.readNBytes((int) Math.min(Integer.MAX_VALUE - 8, maxBytes + 1));
-        }
+        byte[] bytes = fetcher.get(url, maxBytes);
         if (bytes.length > maxBytes) {
             throw new IllegalStateException("File exceeds " + (maxBytes / 1024) + " KB");
         }

@@ -153,10 +153,6 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
         return CompletableFuture.completedFuture(Wire.encode(Map.of("ok", ok)));
     }
 
-    /**
-     * Refreshes every copy (primary and replicas) of every shard of the given indices across the
-     * whole cluster, not just the copies allocated on this node.
-     */
     public void refreshEverywhere(List<String> indices) {
         ClusterState state = clusterStateManager.state();
         for (String index : indices) {
@@ -455,9 +451,6 @@ public final class IndicesService implements ClusterStateApplier, Closeable {
             if (copy.active() && inSync.contains(id) && !present.contains(id) && !failedAllocations.contains(id)) {
                 ShardCopy newCopy = remoteCopy(state, copy, target.primary().primaryContext().currentTerm());
                 target.addInSyncReplica(newCopy);
-                // Whenever a replica is (re)attached to a group whose primary just changed (e.g. after
-                // a promotion) it must be caught up from the current global checkpoint, not just the
-                // one candidate that was promoted, otherwise the other in-sync copies silently drift.
                 try {
                     target.resyncReplica(newCopy);
                 } catch (IOException e) {

@@ -18,7 +18,6 @@ class RoutingFileStorageServiceTest {
         props.setBucketName("private-bucket");
         props.setPublicBucketName(publicBucket);
         props.setPublicBaseUrl(baseUrl);
-        // Storage and repository are untouched on the public path — no signing, no I/O.
         return new RoutingFileStorageService(null, null, props);
     }
 
@@ -28,12 +27,6 @@ class RoutingFileStorageServiceTest {
         return f;
     }
 
-    /**
-     * The parent {@link FileStorageService} is annotated {@code @Service}, so any application
-     * scanning this package registers it. Without these annotations here, auto-configuration backs
-     * off through {@code @ConditionalOnMissingBean}, the plain service wins, and every public object
-     * is signed against the private bucket — a 404 on every image, with nothing in the logs.
-     */
     @Test
     void isRegisteredByScanningAndWinsOverThePlainService() {
         assertTrue(RoutingFileStorageService.class.isAnnotationPresent(Service.class),
@@ -70,10 +63,7 @@ class RoutingFileStorageServiceTest {
 
     @Test
     void withNoPublicBucketNothingIsRoutedAway() {
-        // Blank public bucket must degrade to plain behaviour rather than half-routing.
         RoutingFileStorageService s = service("", "");
-        // A private key would be signed (needs GCS); assert instead that the public path is not taken
-        // by checking it does not return an unsigned public URL.
         assertThrows(Exception.class,
                 () -> s.getFileUrl(file("public/avatars/a.jpg"), FileAccessEnum.PUBLIC_READ),
                 "with no public bucket this must fall through to signing, not emit a public URL");

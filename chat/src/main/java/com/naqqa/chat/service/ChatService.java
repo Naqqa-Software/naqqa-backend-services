@@ -33,10 +33,8 @@ public class ChatService {
     private final ChatEncryptionService       encryption;
     private final ChatSupportProvider         support;
 
-    // ─── Conversations ────────────────────────────────────────────────────────
 
     public Page<ConversationResponse> listConversations(Long userId, String query, int page, int size) {
-        // Sort is embedded in the native query (ORDER BY created_at DESC); pass unsorted Pageable
         return conversationRepository
                 .searchByMemberId(userId, query != null ? query.trim() : "",
                         PageRequest.of(page, size))
@@ -53,7 +51,6 @@ public class ChatService {
         }
     }
 
-    /** Convenience overload for callers that only have a plain string title (e.g. legacy). */
     @Transactional
     public ConversationResponse createGroup(Long callerId, String titleStr, List<Long> memberIds) {
         Map<String, String> titleMap = titleStr != null ? Map.of("default", titleStr) : null;
@@ -62,7 +59,6 @@ public class ChatService {
 
     @Transactional
     public ConversationResponse createDirect(Long callerId, Long targetUserId) {
-        // Return existing if already exists
         Optional<ChatConversationEntity> existing =
                 conversationRepository.findDirectBetween(callerId, targetUserId);
         if (existing.isPresent()) {
@@ -104,7 +100,6 @@ public class ChatService {
         return toConversationResponse(conv, members, userId);
     }
 
-    /** Creates a course group chat if one doesn't exist yet. Returns the conversation. */
     @Transactional
     public ChatConversationEntity getOrCreateCourseGroupChat(Long courseId, Map<String, String> titleTranslations) {
         return conversationRepository.findByCourseId(courseId).orElseGet(() -> {
@@ -118,7 +113,6 @@ public class ChatService {
         });
     }
 
-    /** Adds a user to the course group chat (idempotent). */
     @Transactional
     public void addUserToCourseChat(Long courseId, Map<String, String> titleTranslations, Long userId) {
         ChatConversationEntity conv = getOrCreateCourseGroupChat(courseId, titleTranslations);
@@ -127,14 +121,11 @@ public class ChatService {
         }
     }
 
-    // ─── Messages ─────────────────────────────────────────────────────────────
 
     public Page<MessageResponse> getMessages(Long conversationId, Long userId, int page, int size) {
         requireMember(conversationId, userId);
         String key = requireConversation(conversationId).getEncryptionKey();
 
-        // Fetch newest-first so page 0 always returns the most recent messages,
-        // then reverse the content so the FE receives them oldest→newest (display order).
         Page<ChatMessageEntity> raw = messageRepository
                 .findAllByConversationIdOrderByCreatedAtDesc(conversationId, PageRequest.of(page, size));
 
@@ -161,7 +152,6 @@ public class ChatService {
         msg.setRepliedToMessageId(req.getRepliedToMessageId());
         msg = messageRepository.save(msg);
 
-        // Bump conversation's last-activity timestamp for sort order
         conv.setLastMessageAt(msg.getCreatedAt() != null ? msg.getCreatedAt() : java.time.LocalDateTime.now());
         conversationRepository.save(conv);
 
@@ -189,12 +179,7 @@ public class ChatService {
         messageRepository.save(msg);
     }
 
-    // ─── Reactions ────────────────────────────────────────────────────────────
 
-    /**
-     * Toggles an emoji reaction for a user on a message.
-     * @return the conversationId the message belongs to (for WS broadcast)
-     */
     @Transactional
     public Long toggleReaction(Long messageId, Long userId, String emoji) {
         ChatMessageEntity msg = requireMessage(messageId);
@@ -216,20 +201,11 @@ public class ChatService {
         return msg.getConversationId();
     }
 
-    /**
-     * Returns aggregated reaction summaries for a message from a single caller's perspective.
-     * Fetches all reactions in one query, groups by emoji in Java.
-     */
     public List<ReactionSummary> getReactionSummaries(Long messageId, Long callerId) {
         return buildReactionSummaries(messageId, callerId);
     }
 
-    // ─── Unread counts ────────────────────────────────────────────────────────
 
-    /**
-     * Returns the total unread message count for the user plus a per-conversation breakdown.
-     * Only conversations with ≥1 unread message appear in byConversation.
-     */
     public UnreadCountResponse getUnreadCounts(Long userId) {
         long total = messageRepository.countTotalUnread(userId);
 
@@ -246,13 +222,11 @@ public class ChatService {
                 .build();
     }
 
-    // ─── Read receipts ────────────────────────────────────────────────────────
 
     @Transactional
     public void markRead(Long conversationId, Long userId, Long lastMessageId) {
         requireMember(conversationId, userId);
 
-        // If no lastMessageId supplied, auto-detect the most recent message
         Long resolvedLastMessageId = lastMessageId;
         if (resolvedLastMessageId == null) {
             resolvedLastMessageId = messageRepository
@@ -260,7 +234,7 @@ public class ChatService {
                     .map(ChatMessageEntity::getId)
                     .orElse(null);
         }
-        if (resolvedLastMessageId == null) return; // conversation has no messages yet
+        if (resolvedLastMessageId == null) return;
 
         ChatReadReceiptKey key = new ChatReadReceiptKey(conversationId, userId);
         ChatReadReceiptEntity receipt = receiptRepository
@@ -274,26 +248,17 @@ public class ChatService {
         receiptRepository.save(receipt);
     }
 
-    // ─── Searchable users ─────────────────────────────────────────────────────
 
-    /**
-     * Returns users that the caller is allowed to DM. The candidate set (and each
-     * candidate's role) is supplied by the host application via {@link ChatSupportProvider};
-     * the chat module removes users the caller already has a DIRECT chat with and applies
-     * the text query.
-     */
     public List<SearchableUserResponse> searchableUsers(Long callerId, String query) {
         List<SearchableContact> candidates = support.searchableContacts(callerId);
         if (candidates == null || candidates.isEmpty()) return List.of();
 
-        // Preserve the provider's order while de-duplicating and dropping the caller
         Map<Long, String> roleByUserId = new LinkedHashMap<>();
         for (SearchableContact c : candidates) {
             if (c == null || c.getUserId() == null || c.getUserId().equals(callerId)) continue;
             roleByUserId.putIfAbsent(c.getUserId(), c.getRole());
         }
 
-        // Remove users with whom the caller already has a DIRECT chat
         new HashSet<>(conversationRepository.findDirectChatPartnerIds(callerId))
                 .forEach(roleByUserId::remove);
 
@@ -317,7 +282,6 @@ public class ChatService {
                 .collect(Collectors.toList());
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private void addMember(Long conversationId, Long userId) {
         ChatMemberKey key = new ChatMemberKey(conversationId, userId);
@@ -375,7 +339,7 @@ public class ChatService {
                     if (!m.isDeletedForEveryone() && m.getContent() != null) {
                         try {
                             content = encryption.decrypt(m.getContent(), conv.getEncryptionKey());
-                        } catch (Exception ignored) { /* leave null if key mismatch */ }
+                        } catch (Exception ignored) {  }
                     }
                     return LastMessagePreview.builder()
                             .id(m.getId())
@@ -392,14 +356,6 @@ public class ChatService {
                 .orElse(null);
     }
 
-    /**
-     * Resolves the avatar URL for a conversation:
-     * <ul>
-     *   <li>GROUP with a linked course → course thumbnail (via {@link ChatSupportProvider})</li>
-     *   <li>GROUP without a course (manual) → stored avatarUrl (may be null)</li>
-     *   <li>DIRECT → profile picture of the OTHER member</li>
-     * </ul>
-     */
     private String resolveAvatarUrl(ChatConversationEntity conv, List<Long> memberIds, Long callerId) {
         if (conv.getType() == ChatConversationType.GROUP) {
             if (conv.getCourseId() != null) {
@@ -408,7 +364,6 @@ public class ChatService {
             return conv.getAvatarUrl();
         }
 
-        // DIRECT — find the other participant
         Long otherUserId = memberIds.stream()
                 .filter(id -> !id.equals(callerId))
                 .findFirst()
@@ -442,14 +397,13 @@ public class ChatService {
                 .build();
     }
 
-    /** Builds the embedded reply-to preview (4 fields only, no recursion). */
     private EmbeddedMessage buildEmbeddedMessage(Long repliedToMessageId, String encKey) {
         if (repliedToMessageId == null) return null;
         return messageRepository.findById(repliedToMessageId).map(parent -> {
             String parentContent = null;
             if (!parent.isDeletedForEveryone() && parent.getContent() != null) {
                 try { parentContent = encryption.decrypt(parent.getContent(), encKey); }
-                catch (Exception ignored) { /* leave null if decryption fails */ }
+                catch (Exception ignored) {  }
             }
             return EmbeddedMessage.builder()
                     .id(parent.getId())
@@ -460,14 +414,12 @@ public class ChatService {
         }).orElse(null);
     }
 
-    /** Fetches all reactions for a message (1 query) and groups them by emoji in Java. */
     private List<ReactionSummary> buildReactionSummaries(Long messageId, Long callerId) {
         if (messageId == null) return List.of();
         List<ChatMessageReactionEntity> all =
                 reactionRepository.findAllByMessageIdOrderByCreatedAtAsc(messageId);
         if (all.isEmpty()) return List.of();
 
-        // LinkedHashMap preserves insertion-time order (stable display order)
         Map<String, List<ChatMessageReactionEntity>> byEmoji = all.stream()
                 .collect(Collectors.groupingBy(
                         ChatMessageReactionEntity::getEmoji,
@@ -484,12 +436,10 @@ public class ChatService {
                 .collect(Collectors.toList());
     }
 
-    /** Resolves the encryption key for a conversation — needed by the WS handler. */
     public String getEncryptionKey(Long conversationId) {
         return requireConversation(conversationId).getEncryptionKey();
     }
 
-    /** Returns all member user-IDs for a conversation — needed for WS broadcast. */
     public List<Long> getMemberIds(Long conversationId) {
         return memberRepository.findUserIdsByConversationId(conversationId);
     }

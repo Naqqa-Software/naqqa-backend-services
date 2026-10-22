@@ -4,20 +4,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
 
-/**
- * Configuration for {@code naqqa-storage}, prefix {@code naqqa.storage}.
- *
- * <pre>
- * naqqa.storage.gcs.project-id=alert-library-360220
- * naqqa.storage.gcs.credentials-location=file:/etc/omy/gcs-key.json   # or classpath:... ; empty => ADC
- * naqqa.storage.gcs.public-bucket=omy-public
- * naqqa.storage.gcs.private-bucket=omy-private
- * naqqa.storage.gcs.public-base-url=https://storage.googleapis.com
- * naqqa.storage.gcs.signed-url-ttl-seconds=300
- * naqqa.storage.image.enabled=true
- * naqqa.storage.image.widths=480,960,1600
- * </pre>
- */
 @ConfigurationProperties(prefix = "naqqa.storage")
 public class StorageProperties {
 
@@ -33,17 +19,11 @@ public class StorageProperties {
     }
 
     public static class Gcs {
-        /** GCP project id. If empty, inferred from the credentials. */
         private String projectId;
-        /** Spring resource for the service-account JSON ("file:…", "classpath:…" or a bare path). Empty => Application Default Credentials. */
         private String credentialsLocation;
-        /** Bucket for public, directly-served objects (per-object publicRead). */
         private String publicBucket;
-        /** Bucket for private objects (served only via signed URLs). */
         private String privateBucket;
-        /** Base for public object URLs; the bucket and key are appended. */
         private String publicBaseUrl = "https://storage.googleapis.com";
-        /** Default TTL for signed URLs when a caller does not pass one. */
         private int signedUrlTtlSeconds = 300;
 
         public String getProjectId() { return projectId; }

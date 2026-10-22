@@ -19,11 +19,6 @@ import org.springframework.core.io.Resource;
 import java.io.IOException;
 import java.io.InputStream;
 
-/**
- * Auto-configuration for {@code naqqa-storage}. Exposes a GCS {@link Storage} client, a
- * {@link NaqqaStorage} over the configured public/private buckets, and an {@link ImageOptimizer}.
- * Every bean is {@link ConditionalOnMissingBean} so a consumer can override any of them.
- */
 @AutoConfiguration
 @EnableConfigurationProperties(StorageProperties.class)
 public class StorageAutoConfiguration {
@@ -40,8 +35,6 @@ public class StorageAutoConfiguration {
         }
         String location = gcs.getCredentialsLocation();
         if (location != null && !location.isBlank()) {
-            // Never abort application startup on a bad key path: log and fall back to ADC. A missing key
-            // then fails only the actual GCS calls, instead of crash-looping the whole service.
             try {
                 Resource resource = new DefaultResourceLoader().getResource(location);
                 try (InputStream in = resource.getInputStream()) {

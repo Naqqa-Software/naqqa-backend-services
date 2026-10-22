@@ -84,7 +84,7 @@
         <dependency>
             <groupId>com.naqqa</groupId>
             <artifactId>naqqa-auth</artifactId>
-            <version>0.0.35</version>
+            <version>0.0.67</version>
         </dependency>
     </dependencies>
 

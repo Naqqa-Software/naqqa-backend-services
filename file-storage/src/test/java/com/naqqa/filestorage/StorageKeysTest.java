@@ -20,7 +20,6 @@ class StorageKeysTest {
 
     @Test
     void identicalNamesNeverCollide() {
-        // The whole point: the same filename uploaded repeatedly must not produce the same key.
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < 5_000; i++) {
             assertTrue(seen.add(StorageKeys.uniquify("video.mp4")), "collision at " + i);

@@ -38,7 +38,6 @@ public class RoleService {
     private final RoleProvider roleProvider;
     private final TokenService tokenService;
 
-    // --- Helper: validate and fetch authorities ---
     private Set<AuthorityEntity> getOrCreateAuthorities(Set<String> authorityNames) {
         List<AuthorityEntity> existingAuthorities =
                 authorityRepository.findAllByNameIn(authorityNames);
@@ -47,12 +46,10 @@ public class RoleService {
                 .map(AuthorityEntity::getName)
                 .collect(Collectors.toSet());
 
-        // Find which authorities do NOT exist
         Set<String> missingNames = authorityNames.stream()
                 .filter(name -> !existingNames.contains(name))
                 .collect(Collectors.toSet());
 
-        // Create missing authorities
         for (String name : missingNames) {
             AuthorityEntity newAuth = new AuthorityEntity();
             newAuth.setName(name);
@@ -64,7 +61,6 @@ public class RoleService {
     }
 
 
-    // --- Create ---
     @Transactional
     public RoleResponseDto createRole(RoleRequestDto dto) {
         if (roleRepository.findByName(dto.getName()).isPresent()) {
@@ -74,14 +70,13 @@ public class RoleService {
         Set<AuthorityEntity> authorities = getOrCreateAuthorities(dto.getAuthorityNames());
 
         RoleEntity newRole = new RoleEntity();
-        newRole.setName(dto.getName().toUpperCase()); // convert name to uppercase
+        newRole.setName(dto.getName().toUpperCase());
         newRole.setAuthorities(authorities);
 
         RoleEntity savedRole = roleRepository.save(newRole);
         return toResponseDto(savedRole);
     }
 
-    // --- Update ---
     @Transactional
     public RoleResponseDto updateRole(Long roleId, RoleRequestDto dto) {
         RoleEntity role = roleRepository.findById(roleId)
@@ -101,7 +96,6 @@ public class RoleService {
         return toResponseDto(updatedRole);
     }
 
-    // --- Find all roles ---
     @Transactional(readOnly = true)
     public List<RoleResponseDto> findAllRolesWithAuthorities() {
         return roleRepository.findAll().stream()
@@ -109,7 +103,6 @@ public class RoleService {
                 .collect(Collectors.toList());
     }
 
-    // --- Find role by ID ---
     @Transactional(readOnly = true)
     public RoleResponseDto findRoleById(Long roleId) {
         RoleEntity role = roleRepository.findById(roleId)
@@ -117,7 +110,6 @@ public class RoleService {
         return toResponseDto(role);
     }
 
-    // --- Delete ---
     @Transactional
     public void deleteRole(Long roleId) {
         RoleEntity role = roleRepository.findById(roleId)
@@ -160,7 +152,6 @@ public class RoleService {
     }
 
 
-    // --- Convert RoleEntity to RoleResponseDto ---
     public RoleResponseDto toResponseDto(RoleEntity role) {
         if (role == null) return null;
 

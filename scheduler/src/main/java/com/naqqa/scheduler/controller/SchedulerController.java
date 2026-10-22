@@ -28,15 +28,6 @@ public class SchedulerController {
     @Value("${naqqa.scheduler.ics-filename:events.ics}")
     private String icsFilename;
 
-    /**
-     * GET /api/scheduler?type=day|week|month|year&date=2026-05-21
-     * <ul>
-     *   <li>day   → List&lt;SchedulerEventResponse&gt;</li>
-     *   <li>week  → List&lt;SchedulerEventResponse&gt;</li>
-     *   <li>month → List&lt;String&gt; (dates with events)</li>
-     *   <li>year  → List&lt;String&gt; (dates with events)</li>
-     * </ul>
-     */
     @GetMapping
     public ResponseEntity<SchedulerEventsResponse> getEvents(
             @RequestParam(defaultValue = "day") String type,
@@ -46,7 +37,6 @@ public class SchedulerController {
         return ResponseEntity.ok(service.getEvents(userId, type, date));
     }
 
-    /** POST /api/scheduler – create a new event for the authenticated user. */
     @PostMapping
     public ResponseEntity<SchedulerEventResponse> create(
             @RequestBody SchedulerEventRequest request,
@@ -55,7 +45,6 @@ public class SchedulerController {
         return ResponseEntity.ok(service.create(userId, request));
     }
 
-    /** PUT /api/scheduler/{id} – update own event. */
     @PutMapping("/{id}")
     public ResponseEntity<SchedulerEventResponse> update(
             @PathVariable Long id,
@@ -65,7 +54,6 @@ public class SchedulerController {
         return ResponseEntity.ok(service.update(id, userId, request));
     }
 
-    /** DELETE /api/scheduler/{id} – delete own event. */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
             @PathVariable Long id,
@@ -75,11 +63,6 @@ public class SchedulerController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * GET /api/scheduler/export.ics
-     * Downloads an iCalendar (.ics) file containing all events from today onwards.
-     * Compatible with Google Calendar ("Import") and Apple Calendar ("File → Import").
-     */
     @GetMapping(value = "/export.ics", produces = "text/calendar")
     public ResponseEntity<byte[]> exportIcs(Authentication authentication) {
         Long userId = Long.valueOf(authentication.getName());

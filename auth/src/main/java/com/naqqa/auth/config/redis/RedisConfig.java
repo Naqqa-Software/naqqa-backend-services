@@ -59,9 +59,6 @@ public class RedisConfig {
         perEntityCacheNamesMap.put(UserEntity.class, userCache);
     }
 
-    /**
-     * JedisConnectionFactory for Spring RedisTemplate & Cache
-     */
     @Bean
     public JedisConnectionFactory jedisConnectionFactory() {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(redisHost, redisPort);
@@ -74,7 +71,6 @@ public class RedisConfig {
             config.setPassword(redisPassword);
         }
 
-        // Overrides the default 2000ms timeout to prevent connection drops to remote droplets
         JedisClientConfiguration clientConfig = JedisClientConfiguration.builder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .readTimeout(Duration.ofSeconds(10))
@@ -83,9 +79,6 @@ public class RedisConfig {
         return new JedisConnectionFactory(config, clientConfig);
     }
 
-    /**
-     * RedisTemplate for programmatic Redis access
-     */
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
@@ -94,9 +87,6 @@ public class RedisConfig {
         return redisTemplate;
     }
 
-    /**
-     * RedisCacheManager for Spring Cache
-     */
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
         RedisCacheConfiguration defaults = RedisCacheConfiguration.defaultCacheConfig()
@@ -111,9 +101,6 @@ public class RedisConfig {
                 .build();
     }
 
-    /**
-     * Customizes specific caches
-     */
     @Bean
     public RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer(JedisConnectionFactory jedisConnectionFactory) {
         return (builder) -> builder
@@ -129,16 +116,12 @@ public class RedisConfig {
                         RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofHours(100)));
     }
 
-    /**
-     * Optional: Example of programmatic Jedis connection to Redis Cloud
-     * Use this anywhere in your app to run simple Redis commands directly
-     */
     @Bean
     public UnifiedJedis unifiedJedis() {
         JedisClientConfig clientConfig = DefaultJedisClientConfig.builder()
-                .user(redisUsername)  // Uses the injected property
+                .user(redisUsername)
                 .password(redisPassword)
-                .timeoutMillis(10000) // 10-second timeout
+                .timeoutMillis(10000)
                 .build();
 
         return new UnifiedJedis(new HostAndPort(redisHost, redisPort), clientConfig);

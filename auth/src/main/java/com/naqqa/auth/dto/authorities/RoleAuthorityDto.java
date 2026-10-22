@@ -10,6 +10,6 @@ import java.util.Set;
 public class RoleAuthorityDto {
     private Long id;
     private String name;
-    private Set<String> authorityNames; // The list of authorities currently assigned
+    private Set<String> authorityNames;
 
 }

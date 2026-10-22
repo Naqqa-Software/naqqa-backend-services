@@ -14,12 +14,6 @@ import com.naqqa.elasticsearch.rest.support.StrictParamsFilter;
 
 import java.util.Set;
 
-/**
- * Wires every REST route to its handler and, at the same time, declares the set of extra
- * query-string parameters that route accepts beyond whatever the handler itself reads off the
- * {@code RestRequest} (which is tracked automatically). Anything outside that combined set,
- * plus the always-allowed global params, is rejected with a 400 the way real Elasticsearch does.
- */
 public final class RestModule {
 
     private RestModule() {
@@ -27,7 +21,6 @@ public final class RestModule {
 
     private static final Set<String> NONE = CommonParams.NONE;
 
-    // ---- shared per-endpoint-family declared param sets -------------------------------------
 
     private static final Set<String> DOC_WRITE_EXTRA = CommonParams.of("wait_for_active_shards", "require_alias");
     private static final Set<String> DOC_DELETE_EXTRA = CommonParams.of("wait_for_active_shards");

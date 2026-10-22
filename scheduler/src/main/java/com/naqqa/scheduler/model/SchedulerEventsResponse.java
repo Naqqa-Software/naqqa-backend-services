@@ -9,12 +9,9 @@ import java.util.List;
 @Builder
 public class SchedulerEventsResponse {
 
-    /** Events matching the requested type/date window. */
     private List<SchedulerEventResponse> events;
 
-    /** Today's events — always returned regardless of the requested window. */
     private List<SchedulerEventResponse> todayEvents;
 
-    /** Tomorrow's events — always returned regardless of the requested window. */
     private List<SchedulerEventResponse> tomorrowEvents;
 }

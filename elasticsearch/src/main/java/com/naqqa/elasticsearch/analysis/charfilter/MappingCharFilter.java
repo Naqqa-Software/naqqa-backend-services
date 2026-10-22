@@ -15,7 +15,6 @@ public final class MappingCharFilter extends CharFilter {
     }
 
     private final Map<String, String> mappings = new TreeMap<>();
-    /** Rules grouped by first character, each group sorted longest key first (longest match wins). */
     private final Map<Character, Rule[]> rulesByFirstChar = new HashMap<>();
 
     public MappingCharFilter(Map<String, String> mappings) {

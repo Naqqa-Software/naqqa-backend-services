@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class EmailMessages {
 
-    // getters (you can keep @Getter if you want)
     private final String appUrl;
     private final String platformName;
     private final String primaryColor;
@@ -70,6 +69,22 @@ public class EmailMessages {
                 <p>If you didn't request this, you can safely ignore this email.</p>
                 <p>Thank you,<br>The %s Team</p>
                 """.formatted(primaryColor, resetButtonUrl, primaryColor, platformName);
+    }
+
+    public String getAlreadyRegisteredMessage() {
+        String loginUrl = appUrl + "/auth/login";
+        return """
+                <h1 style='color: %s;'>You already have a %s account</h1>
+                <p>Hello,</p>
+                <p>Someone (probably you) tried to create a new account with this e-mail address, but it is already registered.</p>
+                <p><a href='%s'>Sign in</a>, or use "Forgot password" on the sign-in page if you no longer remember it.</p>
+                <p>If this wasn't you, you can ignore this e-mail: your account was not changed.</p>
+                <p>Thank you,<br>The %s Team</p>
+                """.formatted(primaryColor, platformName, loginUrl, platformName);
+    }
+
+    public String getAlreadyRegisteredSubject() {
+        return "You already have an account";
     }
 
     public String getSubjectEmailConfirmation() {

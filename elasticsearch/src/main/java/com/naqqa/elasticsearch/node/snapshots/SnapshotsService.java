@@ -512,11 +512,6 @@ public final class SnapshotsService implements ClusterStateListener {
         }
     }
 
-    /**
-     * A {@link ShardSnapshotSource} for a shard whose only available copy lives on a remote node.
-     * Segment file listings and bytes are fetched on demand over the transport layer so the
-     * coordinating node's repository code can snapshot shards it does not hold locally.
-     */
     private final class RemoteShardSnapshotSource implements ShardSnapshotSource {
         private final DiscoveryNode node;
         private final String index;

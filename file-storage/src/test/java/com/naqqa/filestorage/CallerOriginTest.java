@@ -11,12 +11,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * GCS fixes a resumable session's CORS policy when the session is created, not on the uploads that
- * follow. Initiating without an {@code Origin} yields a session whose every later PUT returns 200
- * with no {@code Access-Control-Allow-Origin} — the browser reports a CORS failure on a request that
- * actually succeeded. So getting this header onto the initiate call is the whole fix.
- */
 class CallerOriginTest {
 
     private FileStorageService service(String configuredFallback) {
@@ -44,8 +38,6 @@ class CallerOriginTest {
 
     @Test
     void takesTheOriginFromTheBrowsersOwnRequest() {
-        // Read from the request, not config: a session binds to exactly one origin, so localhost
-        // and production have to work without separate configuration.
         inboundRequestWithOrigin("https://dev.deedakt.com");
         assertEquals("https://dev.deedakt.com", originOf(service("https://fallback.example")));
     }
@@ -64,14 +56,11 @@ class CallerOriginTest {
 
     @Test
     void fallsBackToConfigOutsideAnyWebRequest() {
-        // A scheduled job or a test has no request in scope.
         assertEquals("https://dev.deedakt.com", originOf(service("https://dev.deedakt.com")));
     }
 
     @Test
     void isNullWhenNothingIsAvailable() {
-        // Sending no Origin at all is better than sending a wrong one — a session bound to the
-        // wrong origin fails for every browser rather than just being unbound.
         assertNull(originOf(service(null)));
         assertNull(originOf(service("   ")));
     }

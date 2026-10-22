@@ -62,7 +62,6 @@ public class EntityIndexService {
             }
         }
 
-        // Drop indexes that are no longer present in the definition.
         for (String existingName : existingNames) {
             if ("_id_".equals(existingName)) {
                 continue;

@@ -39,8 +39,6 @@ public final class ValidateQuery {
                 Query rewritten = searcher.rewrite(query);
                 explanation = rewritten.toString();
             } catch (IllegalArgumentException unsupportedConversion) {
-                // The parsed query type isn't covered by the executable-query converter yet; parse-level
-                // validation above already succeeded, so we still report the query as valid.
             } catch (IOException | RuntimeException e) {
                 return Result.invalid(e.getMessage());
             }

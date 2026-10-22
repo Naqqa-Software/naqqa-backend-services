@@ -18,33 +18,6 @@ import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
-/**
- * A {@link FileStorageService} that adds two optional behaviours: a public/private bucket split, and
- * collision-proof object names.
- *
- * <p><b>Bucket split.</b> Keys beginning with {@code gcs.lib.public-prefix} live in
- * {@code gcs.lib.public-bucket-name} and are served as plain unsigned URLs — CDN-friendly, with no
- * per-request signBlob round-trip. Everything else stays in the private bucket and is signed (or
- * proxied by the application). The split is decided purely by the directory the caller uploads to.
- *
- * <p><b>How.</b> This subclasses {@code FileStorageService}, whose {@code super(...)} is the private
- * bucket, and holds a second real instance configured for the public bucket. Public-key operations
- * are delegated to it, reusing the library's own upload / resumable / delete logic against the other
- * bucket rather than reimplementing any of it. Only URL generation is overridden, to skip signing.
- *
- * <p><b>Degrades to nothing.</b> With {@code public-bucket-name} blank and
- * {@code unique-object-names} false, every method here is a pass-through and behaviour is identical
- * to the plain service — so it is safe to register unconditionally.
- *
- * <p><b>Why {@code @Service @Primary} and not just an auto-configured bean.</b> The parent
- * {@link FileStorageService} is itself annotated {@code @Service}, so any application that
- * component-scans {@code com.naqqa.filestorage} registers it by scanning. Auto-configuration then
- * sees a {@code FileStorageService} already present, backs off through
- * {@code @ConditionalOnMissingBean}, and this class is never created — silently reverting the
- * application to single-bucket behaviour, where every {@code public/} key is signed against the
- * private bucket and 404s. Registering by scanning too, and winning on {@code @Primary}, is what
- * keeps both wiring styles working.
- */
 @Service
 @Primary
 public class RoutingFileStorageService extends FileStorageService {
@@ -73,9 +46,6 @@ public class RoutingFileStorageService extends FileStorageService {
                 ? "" : props.getPublicBaseUrl().replaceAll("/+$", "");
 
         if (this.publicEnabled) {
-            // Same client, credentials, project and file table; only the bucket differs. The Storage
-            // client is not bucket-bound — the bucket is a per-operation argument — so a second
-            // service with public props writes and deletes against the other bucket using lib code.
             FileStorageProperties pub = new FileStorageProperties();
             pub.setConfigFile(props.getConfigFile());
             pub.setProjectId(props.getProjectId());
@@ -89,14 +59,6 @@ public class RoutingFileStorageService extends FileStorageService {
         }
     }
 
-    /**
-     * True when the key belongs in the public bucket AND a public bucket is configured.
-     *
-     * <p>Sanitises first, because the stored key is built from the sanitised directory. Routing on
-     * the raw value let the two disagree — {@code " public/x"} routes as private but is stored under
-     * a {@code public/} key, landing world-readable content in the private bucket, where it is then
-     * served as an unsigned URL that 403s.
-     */
     private boolean routePublic(String key) {
         if (!publicEnabled || key == null) {
             return false;
@@ -114,10 +76,6 @@ public class RoutingFileStorageService extends FileStorageService {
         return uniqueNames ? StorageKeys.uniquify(fileName) : fileName;
     }
 
-    /**
-     * Puts the caller's real filename back on the row after the object was stored under a uniquified
-     * one. Only the object key carries the token; what the UI shows is unchanged.
-     */
     private FileEntity restoreDisplayName(FileEntity entity, String realFilename) {
         if (entity == null || realFilename == null || realFilename.equals(entity.getOriginalFileName())) {
             return entity;
@@ -126,7 +84,6 @@ public class RoutingFileStorageService extends FileStorageService {
         return fileRepository.save(entity);
     }
 
-    // ── Writes: route by the target directory ───────────────────────────────────
 
     @Override
     public FileEntity uploadFile(MultipartFile file, String directory, Long ownerId) {
@@ -152,16 +109,6 @@ public class RoutingFileStorageService extends FileStorageService {
         return restoreDisplayName(saved, fileName);
     }
 
-    /**
-     * Large media takes this path: the client PUTs straight to the bucket, so the object key is fixed
-     * here, before a single byte is sent.
-     *
-     * <p><b>Parameter order matters.</b> It is {@code (directory, fileName, contentType, ownerId)}.
-     * All three leading parameters are {@code String}, so an override that names them in a different
-     * order still compiles and still satisfies {@code @Override} — while routing on the wrong value.
-     * That exact mistake sent public resumable uploads to the private bucket, where they were then
-     * served as unsigned public URLs that 403.
-     */
     @Override
     public InitiateUploadResponse startResumableSession(String directory, String fileName,
                                                         String contentType, Long ownerId) {
@@ -177,7 +124,6 @@ public class RoutingFileStorageService extends FileStorageService {
         return response;
     }
 
-    // ── Reads: plain URL for public keys, signed for private ────────────────────
 
     @Override
     public String getFileUrl(FileEntity file, FileAccessEnum access) {
@@ -202,7 +148,6 @@ public class RoutingFileStorageService extends FileStorageService {
             try {
                 file = getFileById(fileId);
             } catch (Exception ignored) {
-                // Not found / already gone — fall through; the private path handles it.
             }
             if (file != null && routePublic(file.getFileName())) {
                 publicDelegate.deleteFile(fileId, requesterId, isAdmin);
@@ -212,15 +157,6 @@ public class RoutingFileStorageService extends FileStorageService {
         super.deleteFile(fileId, requesterId, isAdmin);
     }
 
-    /**
-     * Unsigned URL for a world-readable object, encoding each path segment while preserving the
-     * {@code /} separators of the key.
-     *
-     * <p>With {@code public-base-url} set the object is served through that origin (a CDN or load
-     * balancer) instead of straight from GCS: cached at the edge rather than fetched from a single
-     * region by every viewer. The key is appended unchanged, so a path rule matching the public
-     * prefix maps through with no rewriting.
-     */
     private String plainPublicUrl(String key) {
         StringBuilder path = new StringBuilder();
         for (String segment : key.split("/", -1)) {

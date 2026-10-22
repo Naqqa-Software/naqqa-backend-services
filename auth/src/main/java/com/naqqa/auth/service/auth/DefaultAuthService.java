@@ -53,15 +53,27 @@ public class DefaultAuthService implements AuthService {
     private final CodeGenService codeGenService;
     private final AuthEmailService authEmailService;
     private final EmailMessages emailMessages;
+    private final com.naqqa.auth.service.security.AuthAttemptLimiter attemptLimiter;
 
-    /** Seconds during which a just-rotated refresh token may be presented again (parallel tabs/requests). */
+    static final int RESENDS_PER_EMAIL = 3;
+    static final int RESENDS_PER_SOURCE = 3;
+    static final long RESEND_WINDOW_MS = 60 * 60_000L;
+    private volatile String dummyHash;
+
     @Value("${jwt.refresh-reuse-grace-seconds:20}")
     private long refreshReuseGraceSeconds = 20;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
+        com.naqqa.auth.service.security.PasswordRules.validate(request.getPassword());
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new EmailInUseException();
+            if (attemptLimiter.tryAcquire("register-exists", request.getEmail(), RESENDS_PER_EMAIL, RESEND_WINDOW_MS)) {
+                authEmailService.sendEmail(request.getEmail(), emailMessages.getAlreadyRegisteredSubject(),
+                        emailMessages.getAlreadyRegisteredMessage());
+            }
+            RegisterResponse response = new RegisterResponse();
+            response.setUuid(UUID.randomUUID().toString());
+            return response;
         }
 
         RegisterRecordEntity reg = new RegisterRecordEntity();
@@ -123,22 +135,25 @@ public class DefaultAuthService implements AuthService {
             RegisterRecordEntity reg = registerRecordRepository.findByEmail(request.getEmail())
                     .orElse(null);
 
-            if (reg != null) {
-                String uuid = resendVerificationCode(request.getEmail());
+            String hash = reg != null ? reg.getPassword() : dummyHash();
+            boolean passwordOk = request.getPassword() != null && passwordEncoder.matches(request.getPassword(), hash);
+            if (reg != null && passwordOk) {
+                boolean resend = attemptLimiter.tryAcquire("resend", request.getEmail(), RESENDS_PER_EMAIL, RESEND_WINDOW_MS)
+                        && attemptLimiter.tryAcquire("resend-src", request.getEmail() + "|" + clientIp(),
+                        RESENDS_PER_SOURCE, RESEND_WINDOW_MS);
+                String uuid = resend ? resendVerificationCode(request.getEmail()) : reg.getUuid();
                 throw new EmailNotVerifiedException(uuid);
             }
 
             throw new WrongCredentialsException();
         }
 
-        // A social-only account has no password to check; fail as plain wrong credentials so the
-        // response gives away nothing about which providers the address is registered with.
         if (!user.hasUsablePassword()
                 || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new WrongCredentialsException();
         }
 
-        if (!user.isEnabled()) {
+        if (!user.canSignIn()) {
             throw new AccountBlockedException();
         }
 
@@ -221,22 +236,8 @@ public class DefaultAuthService implements AuthService {
                 .build();
     }
 
-    /**
-     * Refresh-token rotation: every successful refresh consumes the presented token and issues a new
-     * one (new jti, same family, same absolute expiry, same device and active role). The consumed
-     * token stays in the table, marked as rotated, so that presenting it again can be recognised:
-     * <ul>
-     *   <li>within {@code jwt.refresh-reuse-grace-seconds} of its rotation (parallel tabs or requests
-     *       that sent the old cookie before the new one arrived) it answers with the family's current
-     *       token and a fresh access token, instead of logging the user out;</li>
-     *   <li>after that window it is treated as a stolen copy: the whole family is revoked and the
-     *       call fails with {@link Errors#TOKEN_REUSED}.</li>
-     * </ul>
-     */
     @Transactional(noRollbackFor = BadRequestException.class)
     public String refresh(String refreshToken, HttpServletResponse response) {
-        // Row lock: concurrent refreshes with the same token are serialised, so the second one sees
-        // the first one's rotation and takes the grace path instead of minting a second successor.
         RefreshTokenEntity presented = refreshTokenRepository.findByTokenForUpdate(refreshToken)
                 .orElseThrow(() -> new BadRequestException(Errors.TOKEN_INVALID));
         Instant now = Instant.now();
@@ -252,7 +253,6 @@ public class DefaultAuthService implements AuthService {
             CookieUtils.clearCookie(response, CookieUtils.ACCESS_TOKEN_COOKIE);
             CookieUtils.clearCookie(response, CookieUtils.REFRESH_TOKEN_COOKIE);
             if (inGrace) {
-                // The family was already ended (logout / revocation) - nothing was stolen.
                 throw new BadRequestException(Errors.TOKEN_INVALID);
             }
             log.warn("Refresh token reuse detected (family {}, user {}): family revoked",
@@ -275,7 +275,7 @@ public class DefaultAuthService implements AuthService {
                 .user(presented.getUser())
                 .deviceId(presented.getDeviceId())
                 .activeRole(presented.getActiveRole())
-                .expiryDate(presented.getExpiryDate()) // absolute lifetime of the login, not extended
+                .expiryDate(presented.getExpiryDate())
                 .familyId(familyId)
                 .build());
 
@@ -287,7 +287,6 @@ public class DefaultAuthService implements AuthService {
         return issueCookies(successor, response, now);
     }
 
-    /** Follows the rotation chain to the family's live token; null if the family has ended. */
     private RefreshTokenEntity currentOfFamily(RefreshTokenEntity rotated, Instant now) {
         RefreshTokenEntity t = rotated;
         for (int hop = 0; hop < 16 && t != null && t.isRotated(); hop++) {
@@ -312,7 +311,6 @@ public class DefaultAuthService implements AuthService {
     @Transactional
     public void logout(String refreshToken, HttpServletResponse response) {
         if (refreshToken != null) {
-            // The whole rotation family ends with the session, including already-rotated ancestors.
             refreshTokenRepository.findByToken(refreshToken).ifPresent(t -> {
                 if (t.getFamilyId() != null) {
                     refreshTokenRepository.deleteByFamilyId(t.getFamilyId());
@@ -358,6 +356,7 @@ public class DefaultAuthService implements AuthService {
     }
 
 
+    @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         PasswordResetEntity resetEntity = passwordResetRepository.findById(request.email())
                 .orElseThrow(() -> new BadRequestException(Errors.PASSWORD_RESET_EXPIRED_LINK));
@@ -369,15 +368,32 @@ public class DefaultAuthService implements AuthService {
         UserEntity user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new InternalServerErrorException(Errors.INTERNAL_ERROR));
 
-        // Skipped for a social-only account: there is no previous password to be the same as,
-        // and this is the path by which such an account gains its first one.
         if (user.hasUsablePassword() && passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new SamePasswordException();
         }
+        com.naqqa.auth.service.security.PasswordRules.validate(request.password());
 
         user.setPassword(passwordEncoder.encode(request.password()));
         userRepository.save(user);
+        refreshTokenRepository.deleteByUser(user);
 
         passwordResetRepository.deleteByEmail(request.email());
+    }
+
+    private String dummyHash() {
+        String hash = dummyHash;
+        if (hash == null) {
+            hash = passwordEncoder.encode(UUID.randomUUID().toString());
+            dummyHash = hash;
+        }
+        return hash;
+    }
+
+    private static String clientIp() {
+        var attributes = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attributes instanceof org.springframework.web.context.request.ServletRequestAttributes servlet) {
+            return servlet.getRequest().getRemoteAddr();
+        }
+        return "";
     }
 }

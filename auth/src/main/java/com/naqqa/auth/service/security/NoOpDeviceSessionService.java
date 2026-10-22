@@ -10,11 +10,9 @@ import org.springframework.stereotype.Service;
 public class NoOpDeviceSessionService implements DeviceSessionService {
     @Override
     public void handleDeviceLogin(UserEntity user, String deviceId, String clientType, RoleEntity activeRole) {
-        // Do nothing
     }
 
     @Override
     public void revokeDevice(UserEntity user, String deviceId) {
-        // Do nothing
     }
 }

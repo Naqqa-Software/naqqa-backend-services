@@ -12,28 +12,15 @@ import java.util.Optional;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessageEntity, Long> {
 
-    /** Newest-first — page 0 = most recent messages. Standard chat pagination. */
     Page<ChatMessageEntity> findAllByConversationIdOrderByCreatedAtDesc(Long conversationId, Pageable pageable);
 
-    /** Oldest-first — kept for any internal usage that needs ASC order. */
     Page<ChatMessageEntity> findAllByConversationIdOrderByCreatedAtAsc(Long conversationId, Pageable pageable);
 
-    /** Returns the most-recent message in a conversation (used for auto mark-read). */
     Optional<ChatMessageEntity> findTopByConversationIdOrderByIdDesc(Long conversationId);
 
-    /** Finds the first message whose mediaUrl contains the given suffix (e.g. "/api/chat/media/123"). */
     @Query("SELECT m FROM ChatMessageEntity m WHERE m.mediaUrl LIKE %:urlSuffix% AND m.deletedForEveryone = false")
     Optional<ChatMessageEntity> findFirstByMediaUrlContaining(@Param("urlSuffix") String urlSuffix);
 
-    /**
-     * Total unread message count for a user across ALL conversations.
-     * Counts messages where:
-     *  - the user is a member of the conversation
-     *  - the message was NOT sent by the user
-     *  - the message is not deleted
-     *  - the message id is greater than the user's last-read message id for that conversation
-     *    (0 if they have never read the conversation)
-     */
     @Query(value = """
             SELECT COUNT(*) FROM chat_messages msg
             JOIN chat_members cm ON cm.conversation_id = msg.conversation_id
@@ -48,10 +35,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessageEntity, 
             """, nativeQuery = true)
     long countTotalUnread(@Param("userId") Long userId);
 
-    /**
-     * Unread count broken down per conversation.
-     * Returns rows of [conversationId (Long), unreadCount (Long)].
-     */
     @Query(value = """
             SELECT msg.conversation_id, COUNT(*) AS unread_count
             FROM chat_messages msg

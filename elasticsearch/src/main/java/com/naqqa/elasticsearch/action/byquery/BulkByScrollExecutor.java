@@ -26,7 +26,6 @@ final class BulkByScrollExecutor {
 
     enum Kind {
         UPDATED, CREATED, DELETED, NOOP, FAILED,
-        /** The hit's primary shard is not held locally on this node; a peer will handle it. */
         SKIPPED
     }
 

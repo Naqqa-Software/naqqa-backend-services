@@ -28,13 +28,6 @@ public class FilesController {
     private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /**
-     * The caller's user id.
-     *
-     * <p>{@code Long.valueOf(getName())} on its own turns a non-numeric principal — any application
-     * whose subject is a username or UUID — into a NumberFormatException and a 500. Failing as
-     * "unauthenticated" is both the truthful answer and the safe one.
-     */
     private Long requesterId(Authentication authentication) {
         if (authentication == null || authentication.getName() == null) {
             throw new AccessDeniedException("Unauthenticated");
@@ -49,12 +42,10 @@ public class FilesController {
     private boolean isAdmin(Authentication authentication) {
         if (authentication == null) return false;
 
-        // 1. Check standard authorities just in case
         boolean hasAuthority = authentication.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ADMIN".equals(a.getAuthority()));
         if (hasAuthority) return true;
 
-        // 2. Check the principal structure for { "role": { "name": "ADMIN" } }
         try {
             JsonNode principalNode = objectMapper.valueToTree(authentication.getPrincipal());
             if (principalNode != null && principalNode.has("role")) {
@@ -64,7 +55,6 @@ public class FilesController {
                 }
             }
 
-            // Fallback: Check details just in case it's stored there
             JsonNode detailsNode = objectMapper.valueToTree(authentication.getDetails());
             if (detailsNode != null && detailsNode.has("role")) {
                 JsonNode roleNode = detailsNode.get("role");
@@ -73,13 +63,11 @@ public class FilesController {
                 }
             }
         } catch (Exception e) {
-            // Ignore mapping exceptions and default to false
         }
 
         return false;
     }
 
-    // ------------------ STANDARD UPLOADS (Small Assets) ------------------
 
     @PostMapping("/upload")
     public ResponseEntity<FileEntity> uploadFile(
@@ -106,11 +94,7 @@ public class FilesController {
         return new ResponseEntity<>(uploadedFiles, HttpStatus.CREATED);
     }
 
-    // ------------------ RESUMABLE UPLOADS (Course Videos/Large Files) ------------------
 
-    /**
-     * Step 1: Request a signed URL to start a background upload to GCS.
-     */
     @PostMapping("/sessions/initiate")
     public ResponseEntity<InitiateUploadResponse> initiateSession(
             @RequestParam String fileName,
@@ -123,9 +107,6 @@ public class FilesController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Step 2: Record the file in the DB after the frontend finishes the background upload.
-     */
     @PostMapping("/sessions/complete")
     public ResponseEntity<FileEntity> completeSession(
             @RequestBody FinalizeUploadRequest request,
@@ -137,7 +118,6 @@ public class FilesController {
         return ResponseEntity.ok(entity);
     }
 
-    // ------------------ RETRIEVAL & DELETION ------------------
 
     @GetMapping("/{id}/url")
     public ResponseEntity<String> getFileUrl(
@@ -150,7 +130,6 @@ public class FilesController {
         Long requesterId = requesterId(authentication);
         FileEntity fileEntity = fileStorageService.getFileById(id);
 
-        // Security check: Only owner or admin can get the URL
         if (!isAdmin && !Objects.equals(fileEntity.getOwnerId(), requesterId)) {
             return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }

@@ -10,12 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * A generic {@link Custom} cluster-state entry that stores a named collection of JSON-like
- * documents (id -&gt; body map), used for every node-local admin store that needs to become
- * cluster-wide and persisted: ingest pipelines, stored scripts, ILM policies, snapshot
- * repositories, SLM policies and the native security realm's users/roles/role-mappings/API keys.
- */
 public final class MapCustom implements Custom {
 
     private final String name;

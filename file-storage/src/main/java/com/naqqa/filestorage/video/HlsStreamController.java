@@ -24,23 +24,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
-/**
- * Serves an HLS ladder — master playlist, per-rung playlists and fMP4 segments — under the
- * application's own {@link HlsAccessPolicy}.
- *
- * <p>Objects are addressed by their path relative to the ladder prefix, not by file id: a ladder is
- * hundreds of objects that were never registered as {@code FileEntity} rows. Access is therefore
- * checked once per <em>ladder</em> and memoised, rather than resolved per object.
- *
- * <p>ffmpeg emits relative references throughout (master.m3u8 -> {@code 1080p/index.m3u8} ->
- * {@code seg_00001.m4s}), so proxying by relative path needs no manifest rewriting — the player
- * resolves each against this endpoint.
- *
- * <p>No {@code Range} handling: segments are small whole-object fetches. That is also what keeps
- * this affordable without a CDN — each request is short, releasing its server slot in about a second
- * instead of holding one open for the length of the video. It sidesteps request-timeout limits that
- * progressive streaming of a long file can hit, too.
- */
 @RestController
 @ConditionalOnProperty(prefix = "gcs.lib.hls", name = "enabled", havingValue = "true")
 public class HlsStreamController {
@@ -53,11 +36,6 @@ public class HlsStreamController {
     private final HlsAccessCache accessCache;
     private final VideoTranscodeService transcodeService;
 
-    /**
-     * {@code HlsAccessPolicy} is required, not optional: enabling HLS without one would mean serving
-     * private ladders with no authorisation at all. Failing at startup with a clear message beats
-     * discovering it from an open endpoint.
-     */
     public HlsStreamController(Storage storage, FileStorageProperties props,
                                HlsAccessPolicy accessPolicy, VideoTranscodeService transcodeService) {
         this.storage = storage;
@@ -87,9 +65,6 @@ public class HlsStreamController {
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, contentTypeFor(relativePath))
-                // Segments are immutable; playlists are not, because adding a rung rewrites the
-                // master. "private" because these responses are authorised per user, so no shared
-                // cache may retain them.
                 .header(HttpHeaders.CACHE_CONTROL, relativePath.endsWith(".m3u8")
                         ? "private, max-age=60"
                         : "private, max-age=31536000, immutable")
@@ -97,11 +72,6 @@ public class HlsStreamController {
                 .body(out -> copy(blob, out));
     }
 
-    /**
-     * Pulls the ladder-relative path out of the request and rejects anything trying to escape the
-     * prefix. The result is concatenated onto an object name, so a {@code ..} segment would
-     * otherwise read arbitrary objects out of the bucket.
-     */
     private String extractRelativePath(HttpServletRequest request, String groupId) {
         String full = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
         if (full == null) {

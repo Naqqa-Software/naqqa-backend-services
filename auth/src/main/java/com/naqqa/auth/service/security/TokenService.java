@@ -1,5 +1,6 @@
 package com.naqqa.auth.service.security;
 
+import com.naqqa.auth.exceptions.auth.AccountBlockedException;
 import com.naqqa.auth.entity.authorities.AuthorityEntity;
 import com.naqqa.auth.entity.authorities.RoleEntity;
 import com.naqqa.auth.entity.authorities.SubRoleEntity;
@@ -33,10 +34,6 @@ public class TokenService {
     private final JwtEncoder jwtEncoder;
     private final JwtService jwtService;
 
-    /**
-     * Builds claims for the token.
-     * Flattens authorities from the single 'activeRole' and ALL 'SubRoles'.
-     */
     private JwtClaimsSet buildClaims(UserEntity user, RoleEntity activeRole, long expirationMinutes) {
         Instant now = Instant.now();
 
@@ -44,24 +41,19 @@ public class TokenService {
             throw new IllegalStateException("Cannot generate token: User has no active role selected.");
         }
 
-        // 1. Get Authorities from the ACTIVE Role only
         Stream<String> activeRoleAuths = activeRole.getAuthorities()
                 .stream()
                 .map(AuthorityEntity::getName);
 
-        // 2. Get Authorities from ALL SubRoles assigned to the user
-        // Note: These stay with the user regardless of which main Role they switch to
         Stream<String> subRoleAuths = user.getSubRoles()
                 .stream()
                 .map(SubRoleEntity::getAuthorities)
                 .flatMap(Collection::stream)
                 .map(AuthorityEntity::getName);
 
-        // 3. Flatten into a single distinct Set
         Set<String> flattenedAuthorities = Stream.concat(activeRoleAuths, subRoleAuths)
                 .collect(Collectors.toSet());
 
-        // Construct a simple role claim for the UI
         Map<String, Object> roleClaim = Map.of(
                 "id", activeRole.getId(),
                 "name", activeRole.getName()
@@ -80,12 +72,15 @@ public class TokenService {
                 .claim("email", user.getEmail())
                 .claim("fullName", user.getFullName())
                 .claim("roles", allRoleNames)
-                .claim("authorities", flattenedAuthorities) // This is what @PreAuthorize uses
+                .claim("authorities", flattenedAuthorities)
                 .claim("role", roleClaim)
                 .build();
     }
 
     public String generateAccessToken(UserEntity user, RoleEntity activeRole) {
+        if (!user.canSignIn()) {
+            throw new AccountBlockedException();
+        }
         return jwtEncoder.encode(JwtEncoderParameters.from(buildClaims(user, activeRole, jwtExpiration))).getTokenValue();
     }
 

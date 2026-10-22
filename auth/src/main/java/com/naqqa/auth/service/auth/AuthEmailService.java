@@ -77,7 +77,6 @@ public class AuthEmailService {
         Content content = new Content("text/html", finalTemplate);
         Mail mail = new Mail(from, subjectEmail, to, content);
 
-        // Convert PDF to Base64 using java.util.Base64
         Attachments attachments = new Attachments();
         attachments.setContent(Base64.getEncoder().encodeToString(attachment));
         attachments.setType("application/pdf");

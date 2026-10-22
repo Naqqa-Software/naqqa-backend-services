@@ -15,12 +15,6 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/**
- * {@link NaqqaStorage} over two GCS buckets. Public objects are written with a {@code publicRead} ACL
- * and an immutable one-year cache; private objects are written with no public ACL (the private bucket
- * also has public-access-prevention enforced) and read back only via a V4 signed URL — which works
- * offline because the {@link Storage} client is built from a service-account key with a private key.
- */
 public class GcsStorageService implements NaqqaStorage {
 
     private final Storage storage;

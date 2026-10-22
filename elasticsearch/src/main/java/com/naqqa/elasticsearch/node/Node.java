@@ -359,10 +359,6 @@ public final class Node extends AbstractLifecycleComponent {
             aliasService, DEFAULT_SHARDS.get(settings), DEFAULT_REPLICAS.get(settings), 60_000L);
         metadataService.restoreAliasesFromClusterState();
         clusterStateManager.addListener(event -> {
-            // Every node keeps its own local AliasService cache, and only the node that happened to
-            // originally handle a create-index/_aliases request populates it directly - being the
-            // elected master does not imply having already seen that update, so all nodes (including
-            // the master) must re-derive it from the authoritative cluster state metadata.
             if (clusterStateManager.isMultiNode() && event.state().getMetadata() != event.previousState().getMetadata()) {
                 metadataService.restoreAliasesFromClusterState();
             }

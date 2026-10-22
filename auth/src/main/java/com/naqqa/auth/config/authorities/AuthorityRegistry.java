@@ -27,12 +27,10 @@ public class AuthorityRegistry {
             List<String> baseActions = provider.getBaseActions();
 
             for (String resource : resources) {
-                // base actions
                 for (String action : baseActions) {
                     result.add(resource + ":" + action);
                 }
 
-                // extra resource-specific actions
                 List<String> extraActions = provider.getExtraActionsForResource(resource);
                 for (String action : extraActions) {
                     result.add(resource + ":" + action);
@@ -40,7 +38,6 @@ public class AuthorityRegistry {
             }
         }
 
-        // Add DB authorities (created dynamically)
         List<String> dbAuthorities = authorityRepository.findAll()
                 .stream()
                 .map(AuthorityEntity::getName)

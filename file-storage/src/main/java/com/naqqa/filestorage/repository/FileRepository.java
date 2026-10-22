@@ -15,6 +15,5 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
 
     List<FileEntity> findByIsLinkedFalseAndCreatedAtBefore(LocalDateTime threshold);
 
-    /** Bounded variant used by the garbage collector; see {@code gcs.lib.gc-batch-size}. */
     List<FileEntity> findByIsLinkedFalseAndCreatedAtBefore(LocalDateTime threshold, Pageable pageable);
 }

@@ -209,3 +209,25 @@ Publicarea (GitHub Packages, `distributionManagement` id `github`) nu se face au
 - Secure the public path as `permitAll` (CSRF-exempt), the admin path as `authenticated`; permissions (`chat:*`, configurable) are checked inside the controllers. Make your user JWT decoder reject `typ=chat_visitor` tokens.
 - Replies are routed (`GUARD`, `TEMPLATE`, `SEARCH`, `KNOWLEDGE`, `LLM`); the LLM is used only for low-confidence, comparative, follow-up, multi-chunk or no-result cases and always degrades to a non-LLM answer.
 - `./mvnw -q test` is DB-free; `./mvnw -q install` installs locally. Publishing to GitHub Packages is a manual `./mvnw deploy`.
+
+## 13. naqqa-os assistant contract (`devdata-chat.ts`)
+
+The naqqa-os in-app assistant talks to the same visitor API this module already exposes under `naqqa.chatbot.public-path` (default `/api/public/chat`). The OS dev-data mock (`naqqa-os-fe/src/app/core/dev-data/devdata-chat.ts`, DTOs from `@naqqa/bot-widget`) maps one-for-one onto the existing `ChatPublicController` endpoints and `ChatDtos` records; no new controller or engine change is needed, only this DTO/route mapping. The LLM/engine stays local and unchanged.
+
+| OS dev-data route (`@naqqa/bot-widget` type) | This module |
+| --- | --- |
+| `GET /api/public/chat/config` -> `BotChatConfigDto` | `ChatPublicController.config` -> `ChatDtos.ChatConfigDto` |
+| `POST /api/public/chat/conversations` -> `BotStartResultDto` | `ChatPublicController.create` -> `CreateConversationResponse` |
+| `GET /api/public/chat/conversations/{id}` -> `BotHistoryDto` | `ChatPublicController.view` -> `ConversationViewDto` |
+| `GET /api/public/chat/conversations/{id}/messages` -> `BotMessageDto[]` | `ChatPublicController.messages` -> `List<MessageDto>` |
+| `POST /api/public/chat/conversations/{id}/messages` -> `BotSendResultDto` | `ChatPublicController.send` -> `SendResultDto` |
+| `POST /api/public/chat/conversations/{id}/read` -> `{}` | `ChatPublicController.read` -> `204` |
+| `POST /api/public/chat/conversations/{id}/typing` -> `{}` | `ChatPublicController.typing` -> `204` |
+
+DTO alignment:
+
+- `BotChatConfigDto { enabled, botName, avatarUrl, welcome, quickReplies, voiceEnabled, autoReadReplies }` is a strict subset of `ChatConfigDto`; the extra `ChatConfigDto` fields (`sttMode`, `ttsMode`, `operatorsOnline`, `privacyPath`, `recaptchaAction`) are additive and ignored by the OS client.
+- Suggestions / quick replies are `QuickReplyDto { key, label }` (== `BotQuickReply`), returned on both `config` and bot `MessageDto`s.
+- The start/history/send envelopes (`conversation`, `token`, `messages`, `visitorMessage`, `reply`) already match the `Bot*ResultDto` shapes; `ConversationDto` and `MessageDto` carry the fields the widget reads (ids, `senderType`, `text`, `cards`, `quickReplies`, timestamps).
+
+To point the OS at this backend instead of dev-data, set the OS `apiUrl` to the host that embeds `naqqa-chatbot` and secure `/api/public/chat` as `permitAll` (see section 5).

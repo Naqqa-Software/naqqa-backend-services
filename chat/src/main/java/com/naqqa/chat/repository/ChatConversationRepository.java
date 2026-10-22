@@ -17,14 +17,6 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
            "ORDER BY COALESCE(c.lastMessageAt, c.createdAt) DESC")
     List<ChatConversationEntity> findAllByMemberId(@Param("userId") Long userId);
 
-    /**
-     * Paginated conversations for a user with optional search:
-     * - GROUP: matches any value in the JSONB title column (case-insensitive)
-     * - DIRECT: matches the other member's full name (case-insensitive)
-     *
-     * NOTE: The DIRECT branch joins the host application's {@code users} table
-     * ({@code users.full_name}); the consuming app must provide it.
-     */
     @Query(value = """
             SELECT c.* FROM chat_conversations c
             JOIN chat_members m ON m.conversation_id = c.id
@@ -64,7 +56,6 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
             @Param("query") String query,
             Pageable pageable);
 
-    /** Find an existing DIRECT conversation between two users. */
     @Query("SELECT c FROM ChatConversationEntity c " +
            "WHERE c.type = 'DIRECT' " +
            "AND EXISTS (SELECT m FROM ChatMemberEntity m WHERE m.id.conversationId = c.id AND m.id.userId = :userId1) " +
@@ -75,7 +66,6 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
 
     Optional<ChatConversationEntity> findByCourseId(Long courseId);
 
-    /** Returns userId of everyone the caller already has a DIRECT conversation with. */
     @Query("SELECT m.id.userId FROM ChatMemberEntity m " +
            "WHERE m.id.userId != :callerId " +
            "AND m.id.conversationId IN (" +

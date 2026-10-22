@@ -52,7 +52,6 @@ public class ChatController {
 
     private static final int BUFFER_SIZE = 64 * 1024;
 
-    /** Resolve caller's userId — JWT takes priority, falls back to ?userId= query param. */
     private Long resolveUserId(Authentication auth, Long userIdParam) {
         if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
             try { return Long.valueOf(auth.getName()); } catch (NumberFormatException ignored) {}
@@ -61,12 +60,10 @@ public class ChatController {
         throw new com.naqqa.chat.exception.BadRequestException("userId is required");
     }
 
-    /** Authenticated proxy URL for a chat media file. */
     private String chatMediaProxyUrl(Long fileId) {
         return apiBaseUrl + "/api/chat/media/" + fileId;
     }
 
-    // ─── Conversations ────────────────────────────────────────────────────────
 
     @GetMapping("/conversations")
     public ResponseEntity<org.springframework.data.domain.Page<ConversationResponse>> listConversations(
@@ -85,7 +82,6 @@ public class ChatController {
             Authentication auth) {
         Long callerId = resolveUserId(auth, userId);
         ConversationResponse conv = chatService.createConversation(callerId, req);
-        // Notify every member (including caller) so they refresh their conversation list
         broadcastToMembers(conv.getMemberIds(), "NEW_CONVERSATION", conv);
         return ResponseEntity.ok(conv);
     }
@@ -98,7 +94,6 @@ public class ChatController {
         return ResponseEntity.ok(chatService.getConversation(id, resolveUserId(auth, userId)));
     }
 
-    // ─── Messages ─────────────────────────────────────────────────────────────
 
     @GetMapping("/conversations/{conversationId}/messages")
     public ResponseEntity<Page<MessageResponse>> getMessages(
@@ -119,7 +114,6 @@ public class ChatController {
         Long callerId = resolveUserId(auth, userId);
         MessageResponse saved = chatService.sendMessage(conversationId, callerId, req);
         broadcastMessage(conversationId, saved);
-        // Push updated unread counts to all members except the sender
         wsHandler.broadcastUnreadToMembers(conversationId, callerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
@@ -145,7 +139,6 @@ public class ChatController {
         return ResponseEntity.noContent().build();
     }
 
-    // ─── Reactions ────────────────────────────────────────────────────────────
 
     @PostMapping("/messages/{messageId}/reactions")
     public ResponseEntity<Void> addReaction(
@@ -156,7 +149,6 @@ public class ChatController {
         Long callerId = resolveUserId(auth, userId);
         Long conversationId = chatService.toggleReaction(messageId, callerId, req.getEmoji());
 
-        // Broadcast personalised REACTION frame to every member
         List<Long> memberIds = chatService.getMemberIds(conversationId);
         log.info("Broadcasting REACTION for messageId={} conversationId={} to {} members",
                 messageId, conversationId, memberIds.size());
@@ -166,7 +158,6 @@ public class ChatController {
         return ResponseEntity.ok().build();
     }
 
-    // ─── Unread counts ────────────────────────────────────────────────────────
 
     @GetMapping("/unread")
     public ResponseEntity<UnreadCountResponse> getUnreadCounts(
@@ -175,7 +166,6 @@ public class ChatController {
         return ResponseEntity.ok(chatService.getUnreadCounts(resolveUserId(auth, userId)));
     }
 
-    // ─── Read receipts ────────────────────────────────────────────────────────
 
     @PostMapping("/conversations/{conversationId}/read")
     public ResponseEntity<Void> markRead(
@@ -184,20 +174,13 @@ public class ChatController {
             @RequestParam(required = false) Long userId,
             Authentication auth) {
         Long callerId = resolveUserId(auth, userId);
-        // lastMessageId is optional — if absent the server auto-detects the latest message
         Long lastMessageId = req != null ? req.getLastMessageId() : null;
         chatService.markRead(conversationId, callerId, lastMessageId);
-        // Push updated unread counts back to the caller immediately
         wsHandler.sendUnreadCountUpdate(callerId);
         return ResponseEntity.noContent().build();
     }
 
-    // ─── Media upload ─────────────────────────────────────────────────────────
 
-    /**
-     * Uploads a chat media file to private storage and returns a backend proxy URL.
-     * The returned URL requires the caller to be a conversation member to download.
-     */
     @PostMapping(value = "/media/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<MediaUploadResponse> uploadMedia(
             @RequestPart("file") MultipartFile file,
@@ -212,12 +195,6 @@ public class ChatController {
                 .build());
     }
 
-    /**
-     * Streams a chat media file.
-     * Access is granted if:
-     *  - The caller is the file uploader (owner), OR
-     *  - The caller is a member of the conversation where a message contains this file URL.
-     */
     @GetMapping("/media/{fileId}")
     public ResponseEntity<StreamingResponseBody> getChatMedia(
             @PathVariable Long fileId,
@@ -232,10 +209,8 @@ public class ChatController {
             return ResponseEntity.notFound().build();
         }
 
-        // Grant access to the uploader (pre-send access)
         boolean isOwner = file.getOwnerId() != null && file.getOwnerId().equals(callerId);
         if (!isOwner) {
-            // Find the conversation via the message that holds this file URL
             String urlSuffix = "/api/chat/media/" + fileId;
             Long conversationId = messageRepository
                     .findFirstByMediaUrlContaining(urlSuffix)
@@ -294,7 +269,6 @@ public class ChatController {
                 .body(body);
     }
 
-    // ─── Searchable users ─────────────────────────────────────────────────────
 
     @GetMapping("/users/searchable")
     public ResponseEntity<List<SearchableUserResponse>> searchableUsers(
@@ -304,9 +278,7 @@ public class ChatController {
         return ResponseEntity.ok(chatService.searchableUsers(resolveUserId(auth, userId), query));
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    /** Wraps a payload in { type, payload } and broadcasts to a conversation. */
     private void broadcastMessage(Long conversationId, MessageResponse msg) {
         try {
             var frame = new java.util.HashMap<String, Object>();
@@ -318,7 +290,6 @@ public class ChatController {
         }
     }
 
-    /** Sends { type, payload } to each userId in the list. */
     private void broadcastToMembers(java.util.List<Long> memberIds, String type, Object payload) {
         try {
             var frame = new java.util.HashMap<String, Object>();
@@ -331,7 +302,6 @@ public class ChatController {
         }
     }
 
-    /** Sends a personalized REACTION frame to a single user. */
     private void broadcastReaction(Long conversationId, Long messageId, Long targetUserId) {
         try {
             List<ReactionSummary> reactions = chatService.getReactionSummaries(messageId, targetUserId);

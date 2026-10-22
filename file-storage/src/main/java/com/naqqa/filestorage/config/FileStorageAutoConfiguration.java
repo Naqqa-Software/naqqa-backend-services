@@ -17,25 +17,10 @@ import org.springframework.core.io.ClassPathResource;
 
 import java.io.InputStream;
 
-/**
- * Wires the library from {@link FileStorageProperties}.
- *
- * <p>Every bean is {@link ConditionalOnMissingBean}, so an application can replace any piece by
- * declaring its own. The optional features are additionally gated on configuration and, where they
- * need application input, on the presence of the interface bean that supplies it — so nothing is
- * registered that could not work.
- */
 @Configuration
 @EnableConfigurationProperties(FileStorageProperties.class)
 public class FileStorageAutoConfiguration {
 
-    /**
-     * GCS client.
-     *
-     * <p>With {@code config-file} blank this uses Application Default Credentials, which is what a
-     * workload running on GCP should do — no key material to ship or rotate. A classpath key is
-     * supported for local development and emulators.
-     */
     @Bean
     @ConditionalOnMissingBean
     public Storage storage(FileStorageProperties props) {
@@ -53,13 +38,6 @@ public class FileStorageAutoConfiguration {
         }
     }
 
-    /**
-     * The storage service.
-     *
-     * <p>Always the routing implementation: with no public bucket and unique names disabled it is a
-     * pass-through, so there is no behavioural reason to register the plain one instead — and this
-     * way turning either feature on is a property change rather than a code change.
-     */
     @Bean
     @ConditionalOnMissingBean
     public FileStorageService fileStorageService(FileRepository fileRepository, Storage storage,
@@ -74,11 +52,6 @@ public class FileStorageAutoConfiguration {
         return new VideoTranscodeService(props);
     }
 
-    /**
-     * Always registered, even with the CDN switched off — the application asks whether it is
-     * configured and serves through itself when it is not, so the switch is a property change
-     * rather than a deploy.
-     */
     @Bean
     @ConditionalOnMissingBean
     public CdnSignedCookieService cdnSignedCookieService(FileStorageProperties props) {

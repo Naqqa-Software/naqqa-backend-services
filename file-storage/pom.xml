@@ -14,7 +14,7 @@
 
     <groupId>com.naqqa</groupId>
     <artifactId>naqqa-file-storage</artifactId>
-    <version>0.0.23</version>
+    <version>0.0.25</version>
     <packaging>jar</packaging>
 
     <name>Naqqa File Storage</name>

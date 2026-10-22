@@ -19,12 +19,6 @@ import java.time.temporal.WeekFields;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Generic per-user scheduler: manual event CRUD, day/week/month/year queries and
- * iCalendar export. Domain-specific event generation (e.g. course lessons) lives in
- * the consuming application, which builds {@link SchedulerEventEntity} instances and
- * persists them through {@link #replaceCourseEvents}.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -36,7 +30,6 @@ public class SchedulerEventService {
     private static final DateTimeFormatter HH_MM    = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter ICS_DT   = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
 
-    /** Branding for the exported .ics calendar — override per app. */
     @Value("${naqqa.scheduler.calendar-name:Events}")
     private String calendarName;
     @Value("${naqqa.scheduler.product-id:-//Naqqa//Scheduler//EN}")
@@ -46,7 +39,6 @@ public class SchedulerEventService {
 
     private final SchedulerEventRepository repository;
 
-    // ─── CRUD ────────────────────────────────────────────────────────────────
 
     @Transactional
     public SchedulerEventResponse create(Long userId, SchedulerEventRequest req) {
@@ -68,7 +60,6 @@ public class SchedulerEventService {
         repository.delete(findOwned(id, userId));
     }
 
-    // ─── Queries ─────────────────────────────────────────────────────────────
 
     public SchedulerEventsResponse getEvents(Long userId, String type, LocalDate date) {
         if (date == null) date = LocalDate.now();
@@ -105,7 +96,6 @@ public class SchedulerEventService {
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    // ─── iCalendar export ────────────────────────────────────────────────────
 
     public String exportIcs(Long userId) {
         List<SchedulerEventEntity> events = repository
@@ -144,13 +134,7 @@ public class SchedulerEventService {
         return sb.toString();
     }
 
-    // ─── Domain-linked events (generation lives in the consuming app) ──────────
 
-    /**
-     * Replaces all events previously generated for {@code userId} from {@code courseId}
-     * with the supplied set. The consuming application builds the entities (with
-     * {@code userId}/{@code courseId} already set) from its own domain model.
-     */
     @Transactional
     public void replaceCourseEvents(Long userId, Long courseId, List<SchedulerEventEntity> events) {
         repository.deleteAllByUserIdAndCourseId(userId, courseId);
@@ -159,7 +143,6 @@ public class SchedulerEventService {
         }
     }
 
-    // ─── Private helpers ─────────────────────────────────────────────────────
 
     private SchedulerEventEntity findOwned(Long id, Long userId) {
         SchedulerEventEntity entity = repository.findById(id)
@@ -178,7 +161,6 @@ public class SchedulerEventService {
         entity.setColor(nonBlank(req.getColor(), DEFAULT_COLOR));
         entity.setTextColor(req.getTextColor());
         entity.setDescription(req.getDescription() != null ? req.getDescription() : "");
-        // Manual events have no message key / params
         entity.setMessageKey(null);
         entity.setMessageParams(null);
         entity.setCourseId(null);
